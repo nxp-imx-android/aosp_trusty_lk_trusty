@@ -42,6 +42,7 @@
 
 #if WITH_TRUSTY_IPC
 
+#include <lib/trusty/event.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/trusty_app.h>
 #include <lib/trusty/uctx.h>
@@ -830,6 +831,19 @@ long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
     if ((uint)ret >= sizeof(tmp_path))
         return (long)ERR_INVALID_ARGS;
 
+    /* try to connect to event first */
+    ret = event_source_open(&tapp->props.uuid, tmp_path, sizeof(tmp_path), 0,
+                            &chandle);
+    if (ret == NO_ERROR) {
+        goto install;
+    }
+
+    /* if an error is other then ERR_NOT_FOUND return immediately */
+    if (ret != ERR_NOT_FOUND) {
+        return ret;
+    }
+
+    /* then regular port */
     ret = ipc_port_connect_async(&tapp->props.uuid, tmp_path, sizeof(tmp_path),
                                  flags, &chandle);
     if (ret != NO_ERROR)
@@ -865,6 +879,7 @@ long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
         }
     }
 
+install:
     ret = uctx_handle_install(ctx, chandle, &handle_id);
     if (ret != NO_ERROR) {
         /* Failed to install handle into user context */
