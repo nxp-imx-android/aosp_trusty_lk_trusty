@@ -25,7 +25,7 @@
 #include <err.h>
 #include <trace.h>
 
-#include <lib/trusty/tipc_dev.h>
+#include <lib/trusty/tipc_virtio_dev.h>
 #include <lk/init.h>
 
 /* Default TIPC device (/dev/trusty-ipc-dev0) */

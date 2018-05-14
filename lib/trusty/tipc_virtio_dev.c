@@ -44,7 +44,7 @@
 #include <lib/trusty/handle.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/ipc_msg.h>
-#include <lib/trusty/tipc_dev.h>
+#include <lib/trusty/tipc_virtio_dev.h>
 
 #define LOCAL_TRACE 0
 

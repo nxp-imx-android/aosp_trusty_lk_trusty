@@ -50,12 +50,17 @@ ifeq (false, $(call TOBOOL,$(WITH_NO_WAIT_ANY_SUPPORT)))
 GLOBAL_DEFINES += WITH_WAIT_ANY_SUPPORT=1
 endif
 
+# by default we want to enable virtio TIPC device
+WITH_TRUSTY_VIRTIO_IPC_DEV ?= true
+
+ifeq (true, $(call TOBOOL,$(WITH_TRUSTY_VIRTIO_IPC_DEV)))
 MODULE_SRCS += \
 	$(LOCAL_DIR)/vqueue.c \
 	$(LOCAL_DIR)/smcall.c \
 	$(LOCAL_DIR)/trusty_virtio.c \
-	$(LOCAL_DIR)/tipc_dev.c \
+	$(LOCAL_DIR)/tipc_virtio_dev.c \
 	$(LOCAL_DIR)/tipc_dev_ql.c
+endif
 
 ifneq (true,$(call TOBOOL,$(WITH_CUSTOM_TRUSTY_IPC_CONFIG)))
 MODULE_SRCS += \
