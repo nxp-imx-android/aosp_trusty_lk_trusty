@@ -187,4 +187,17 @@ int ipc_port_connect_async(const uuid_t* cid,
 bool ipc_is_channel(handle_t* handle);
 bool ipc_is_port(handle_t* handle);
 
+/**
+ *  is_ns_client() - checks if specified uuid represents a non-secure client
+ *  @uuid: pointer to struct uuid representin IPC client
+ *
+ *  Each IPC client is identified by uuid that originated connection which
+ *  could be an app, external TIPC device, or kernel entity. This call
+ *  is typically implemented by a module that configures external TIPC
+ *  devices and check if specified UUID represents non-secure TIPC device.
+ *
+ *  Return: true if uuds represents non-secure client, false otherwise
+ */
+bool is_ns_client(const uuid_t* uuid);
+
 #endif

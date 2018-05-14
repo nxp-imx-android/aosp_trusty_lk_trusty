@@ -43,7 +43,6 @@
 #if WITH_TRUSTY_IPC
 
 #include <lib/trusty/ipc.h>
-#include <lib/trusty/tipc_dev.h>
 #include <lib/trusty/trusty_app.h>
 #include <lib/trusty/uctx.h>
 

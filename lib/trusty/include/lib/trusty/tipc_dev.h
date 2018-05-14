@@ -88,8 +88,3 @@ status_t create_tipc_device(const struct tipc_vdev_descr* descr,
                             size_t descr_sz,
                             const uuid_t* uuid,
                             struct tipc_dev** dev_ptr);
-
-/*
- *  Check if uuid belongs to NS client
- */
-bool is_ns_client(const uuid_t* uuid);
