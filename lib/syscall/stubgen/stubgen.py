@@ -155,8 +155,13 @@ def fatal_parse_error(line, err_str):
     sys.exit(2)
 
 
+BUILTIN_TYPES = set(['char', 'int', 'long', 'void'])
+for i in [8, 16, 32, 64]:
+    BUILTIN_TYPES.add('int%d_t' % i)
+    BUILTIN_TYPES.add('uint%d_t' % i)
 
-def parse_check_def(line):
+
+def parse_check_def(line, struct_types):
     """
     Parse a DEF_SYSCALL line and check for errors
     Returns various components from the line.
@@ -179,6 +184,24 @@ def parse_check_def(line):
         fatal_parse_error(line, "Expected %d syscall arguments, got %d." %
                           (sys_nr_args, len(sys_args_list)))
 
+    # Find struct types in the arguments.
+    for arg in sys_args_list:
+        # Remove arg name.
+        arg = re.sub(r"\s*\w+$", "", arg)
+        # Remove trailing pointer.
+        arg = re.sub(r"\s*\*$", "", arg)
+        # Remove initial const.
+        arg = re.sub(r"^const\s+", "", arg)
+        # Ignore the type if it's obviously not a struct.
+        if arg in BUILTIN_TYPES:
+            continue
+        # Require explicit struct declarations, because forward declaring
+        # typedefs is tricky.
+        if not arg.startswith("struct "):
+            fatal_parse_error(line, "Not an integer type or explicit struct "
+                              "type: %r. Don't use typedefs." % arg)
+        struct_types.add(arg)
+
     # In C, a forward declaration with an empty list of arguments has an
     # unknown number of arguments. Set it to 'void' to declare there are
     # zero arguments.
@@ -199,6 +222,8 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
     proto_lines = "\n"
     stub_lines = ""
 
+    struct_types = set()
+
     tbl = open(table_file, "r")
     for line in tbl:
         line = line.strip()
@@ -208,7 +233,7 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
         if not line.startswith(syscall_def):
             continue
 
-        params = parse_check_def(line)
+        params = parse_check_def(line, struct_types)
 
         if not verify:
             define_lines += syscall_define % params
@@ -224,15 +249,20 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
     if std_file is not None:
         with open(std_file, "w") as std:
             std.writelines(copyright_header + autogen_header)
-            std.writelines(define_lines + asm_ifdef + beg_cdecls)
+            std.writelines(define_lines + asm_ifdef)
+            std.writelines("\n")
+            std.writelines(includes_header % "stdint.h")
+            std.writelines(beg_cdecls)
+            # Forward declare the struct types.
+            std.writelines("\n")
+            std.writelines([t + ";\n" for t in sorted(struct_types)])
             std.writelines(proto_lines + end_cdecls + asm_endif)
 
     if stubs_file is not None:
         with open(stubs_file, "w") as stubs:
             stubs.writelines(copyright_header + autogen_header)
             stubs.writelines(includes_header % asm_header)
-            if std_file is not None:
-                stubs.writelines(includes_header % std_file)
+            stubs.writelines(includes_header % "trusty_syscalls.h")
             stubs.writelines(stub_lines)
 
 
