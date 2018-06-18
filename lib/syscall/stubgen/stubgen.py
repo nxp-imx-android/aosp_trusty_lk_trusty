@@ -97,15 +97,15 @@ class Architecture:
 arch_dict = {
     "arm" : Architecture (
         syscall_stub = """
-.section .text.%(sys_fn)s
-FUNCTION(%(sys_fn)s)
+.section .text._trusty_%(sys_fn)s
+FUNCTION(_trusty_%(sys_fn)s)
     ldr     r12, =__NR_%(sys_fn)s
     swi     #0
     bx      lr
 """),
     "x86_64" : Architecture (
         syscall_stub = """
-FUNCTION(%(sys_fn)s)
+FUNCTION(_trusty_%(sys_fn)s)
     pushfq
     pushq %%rbp
     pushq %%rbx
@@ -125,7 +125,7 @@ FUNCTION(%(sys_fn)s)
 
 syscall_define = "#define __NR_%(sys_fn)s\t\t%(sys_nr)s\n"
 
-syscall_proto = "%(sys_rt)s %(sys_fn)s (%(sys_args)s);\n"
+syscall_proto = "%(sys_rt)s _trusty_%(sys_fn)s(%(sys_args)s);\n"
 
 asm_ifdef = "\n#ifndef ASSEMBLY\n"
 asm_endif = "\n#endif\n"
