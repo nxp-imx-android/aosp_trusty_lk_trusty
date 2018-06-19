@@ -150,8 +150,9 @@ syscall_pat = (
 syscall_re = re.compile(syscall_pat)
 
 
-def perror(line, err_str):
-    sys.stderr.write("Error processing line %s:\n%s" % (line, err_str))
+def fatal_parse_error(line, err_str):
+    sys.stderr.write("Error processing line %r:\n%s\n" % (line, err_str))
+    sys.exit(2)
 
 
 
@@ -161,42 +162,30 @@ def parse_check_def(line):
     Returns various components from the line.
     """
 
-    try:
-        gd = syscall_re.match(line).groupdict()
+    m = syscall_re.match(line)
+    if m is None:
+        fatal_parse_error(line, "Line did not match expected pattern.")
+    gd = m.groupdict()
 
-        sys_nr_args = int(gd['sys_nr_args'])
-        sys_args = gd['sys_args']
+    sys_nr_args = int(gd['sys_nr_args'])
+    sys_args = gd['sys_args']
+    sys_args_list = re.split(r'\s*,\s*', sys_args) if sys_args else []
 
-        # check nr args
-        if sys_nr_args > 4:
-            perror(line, "Only syscalls with up to 4 arguments"
-                         "are supported.\n")
-            return None
+    if sys_nr_args > 4:
+        fatal_parse_error(line, "Only syscalls with up to 4 arguments are "
+                          "supported.")
 
-        if sys_nr_args > 0:
-            sys_args_list = re.split(r'\s*,\s*', sys_args)
+    if sys_nr_args != len(sys_args_list):
+        fatal_parse_error(line, "Expected %d syscall arguments, got %d." %
+                          (sys_nr_args, len(sys_args_list)))
 
-            if len(sys_args_list) > sys_nr_args:
-                perror(line, "Too many arguments supplied\n")
-                return None
-            elif len(sys_args_list) < sys_nr_args:
-                perror(line, "Too few arguments supplied\n")
-                return None
-        else:
-            if sys_args != None:
-                perror(line, "Too many arguments supplied\n")
-                return None
+    # In C, a forward declaration with an empty list of arguments has an
+    # unknown number of arguments. Set it to 'void' to declare there are
+    # zero arguments.
+    if sys_nr_args == 0:
+        gd['sys_args'] = 'void'
 
-            gd['sys_args'] = 'void'
-
-        return gd
-
-    except:
-        sys.stderr.write("Exception encounterd while processing"
-                         " line: %s\n" % line)
-        import traceback
-        traceback.print_exc()
-        return None
+    return gd
 
 
 def process_table(table_file, std_file, stubs_file, verify, arch):
@@ -220,9 +209,6 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
             continue
 
         params = parse_check_def(line)
-
-        if params is None:
-            sys.exit(2)
 
         if not verify:
             define_lines += syscall_define % params
