@@ -23,8 +23,12 @@
 
 /* DEF_SYSCALL(syscall_nr, syscall_name, return type, nr_args, [argument list])
  *
- * Please keep this table sorted by syscall number
+ * Please keep this table sorted by syscall number.
+ * Please keep each syscall def on a single line, this file is parsed by
+ * scripts.
  */
+
+/* clang-format off */
 
 DEF_SYSCALL(0x1, write, long, 3, uint32_t fd, void *msg, uint32_t size)
 DEF_SYSCALL(0x2, brk, long, 1, uint32_t brk)

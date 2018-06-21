@@ -37,6 +37,8 @@
 #define SM_SCR_NONSECURE	0x5
 #define SM_SCR_SECURE		0x0
 
+/* clang-format off */
+
 /* sets SCR.NS bit to 1 (assumes monitor mode) */
 .macro SWITCH_SCR_TO_NONSECURE, tmp
 	mov	\tmp, #SM_SCR_NONSECURE
@@ -50,5 +52,7 @@
 	mcr	p15, 0, \tmp, c1, c1, 0
 	isb
 .endm
+
+/* clang-format on */
 
 #endif /* __LIB_SM_MONITOR_H */

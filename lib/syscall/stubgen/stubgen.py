@@ -83,6 +83,8 @@ autogen_header = """
 /* This file is auto-generated. !!! DO NOT EDIT !!! */
 
 """
+clang_format_off = "/* clang-format off */\n\n"
+
 
 includes_header = "#include <%s>\n"
 
@@ -249,6 +251,7 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
     if std_file is not None:
         with open(std_file, "w") as std:
             std.writelines(copyright_header + autogen_header)
+            std.writelines(clang_format_off)
             std.writelines(define_lines + asm_ifdef)
             std.writelines("\n")
             std.writelines(includes_header % "stdint.h")
