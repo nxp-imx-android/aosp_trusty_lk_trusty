@@ -76,7 +76,10 @@ typedef struct trusty_app_manifest {
 } trusty_app_manifest_t;
 
 #define TRUSTY_APP_START_ADDR   0x8000
+
+#ifndef TRUSTY_APP_STACK_TOP
 #define TRUSTY_APP_STACK_TOP    0x1000000 /* 16MB */
+#endif
 
 #ifndef DEFAULT_HEAP_SIZE
 #define DEFAULT_HEAP_SIZE       (4 * PAGE_SIZE)
