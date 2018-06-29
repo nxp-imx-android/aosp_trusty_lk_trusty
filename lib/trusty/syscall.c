@@ -28,10 +28,11 @@
 #include <kernel/thread.h>
 #include <kernel/usercopy.h>
 #include <kernel/mutex.h>
-#include <uapi/mm.h>
+#include <lk/macros.h>
 #include <stdlib.h>
 #include <string.h>
 #include <trace.h>
+#include <uapi/mm.h>
 
 #include <platform.h>
 #include <lib/trusty/sys_fd.h>
@@ -161,8 +162,6 @@ long sys_ioctl(uint32_t fd, uint32_t req, user_addr_t user_ptr)
 
 	return ERR_NOT_SUPPORTED;
 }
-
-#define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
 
 long sys_nanosleep(uint32_t clock_id, uint32_t flags,
 		   uint32_t sleep_time_l, uint32_t sleep_time_h)
