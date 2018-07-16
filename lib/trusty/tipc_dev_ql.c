@@ -21,6 +21,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "tipc_dev_ql.h"
+
 #include <assert.h>
 #include <compiler.h>
 #include <err.h>
@@ -35,8 +37,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <trace.h>
-
-#include "tipc_dev_ql.h"
 
 #define LOCAL_TRACE 0
 
@@ -354,11 +354,11 @@ static long dev_send(struct ql_tipc_dev *dev, void *ns_data, size_t ns_sz,
 		.iov = (iovec_kern_t[]) {
 			[0] = {
 				.base = ns_data,
-				.len  = ns_sz,
+				.len  = ns_sz
 			},
 		},
 		.num_iov     = 1,
-		.num_handles = 0,
+		.num_handles = 0
 	};
 
 	return set_status(dev, opcode, ipc_send_msg(ept->chan, &msg), 0);
@@ -381,11 +381,11 @@ static long dev_recv(struct ql_tipc_dev *dev, uint32_t target)
 		.iov = (iovec_kern_t[]) {
 			[0] = {
 				.base = dev->ns_va + sizeof(struct tipc_cmd_hdr),
-				.len  = dev->ns_sz - sizeof(struct tipc_cmd_hdr),
+				.len  = dev->ns_sz - sizeof(struct tipc_cmd_hdr)
 			},
 		},
 		.num_iov     = 1,
-		.num_handles = 0,
+		.num_handles = 0
 	};
 
 	rc = ipc_read_msg(ept->chan, mi.id, 0, &msg);

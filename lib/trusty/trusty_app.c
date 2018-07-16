@@ -22,6 +22,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <lib/trusty/trusty_app.h>
+
 #include <arch.h>
 #include <assert.h>
 #include <compiler.h>
@@ -40,8 +42,6 @@
 #include <sys/types.h>
 #include <lk/init.h>
 #include <trace.h>
-
-#include <lib/trusty/trusty_app.h>
 
 #define LOCAL_TRACE 0
 /*

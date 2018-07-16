@@ -89,7 +89,7 @@ static void handle_event_waiter_notify(struct handle_waiter *hw)
 {                                                          \
 	.waiter = {                                        \
 		.node = LIST_INITIAL_CLEARED_VALUE,        \
-		.notify_proc = handle_event_waiter_notify, \
+		.notify_proc = handle_event_waiter_notify  \
 	},                                                 \
 	.event = EVENT_INITIAL_VALUE((ew).event, false,    \
 	                              EVENT_FLAG_AUTOUNSIGNAL), \

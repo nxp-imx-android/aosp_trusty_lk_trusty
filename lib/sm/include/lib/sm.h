@@ -67,7 +67,8 @@ long smc_sm_api_version(smc32_args_t *args);
 long smc_intc_get_next_irq(smc32_args_t *args);
 long smc_intc_request_fiq(smc32_args_t *args);
 long smc_intc_fiq_resume(smc32_args_t *args);
-status_t sm_intc_fiq_enter(void); /* return 0 to enter ns-fiq handler, return non-0 to return */
+/* return 0 to enter ns-fiq handler, return non-0 to return */
+status_t sm_intc_fiq_enter(void);
 void sm_intc_fiq_exit(void);
 
 /* Get the argument block passed in by the bootloader */

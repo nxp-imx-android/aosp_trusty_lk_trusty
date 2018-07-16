@@ -43,16 +43,26 @@
 #define SMC_FASTCALL64_NR(entity, fn)	SMC_NR((entity), (fn), 1, 1)
 #define SMC_STDCALL64_NR(entity, fn)	SMC_NR((entity), (fn), 0, 1)
 
-#define	SMC_ENTITY_ARCH			0	/* ARM Architecture calls */
-#define	SMC_ENTITY_CPU			1	/* CPU Service calls */
-#define	SMC_ENTITY_SIP			2	/* SIP Service calls */
-#define	SMC_ENTITY_OEM			3	/* OEM Service calls */
-#define	SMC_ENTITY_STD			4	/* Standard Service calls */
-#define	SMC_ENTITY_RESERVED		5	/* Reserved for future use */
-#define	SMC_ENTITY_TRUSTED_APP		48	/* Trusted Application calls */
-#define	SMC_ENTITY_TRUSTED_OS		50	/* Trusted OS calls */
-#define	SMC_ENTITY_LOGGING		51	/* Used for secure -> nonsecure logging */
-#define	SMC_ENTITY_SECURE_MONITOR	60	/* Trusted OS calls internal to secure monitor */
+/* ARM Architecture calls */
+#define	SMC_ENTITY_ARCH			0
+/* CPU Service calls */
+#define	SMC_ENTITY_CPU			1
+/* SIP Service calls */
+#define	SMC_ENTITY_SIP			2
+/* OEM Service calls */
+#define	SMC_ENTITY_OEM			3
+/* Standard Service calls */
+#define	SMC_ENTITY_STD			4
+/* Reserved for future use */
+#define	SMC_ENTITY_RESERVED		5
+/* Trusted Application calls */
+#define	SMC_ENTITY_TRUSTED_APP		48
+/* Trusted OS calls */
+#define	SMC_ENTITY_TRUSTED_OS		50
+/* Used for secure -> nonsecure logging */
+#define	SMC_ENTITY_LOGGING		51
+/* Trusted OS calls internal to secure monitor */
+#define	SMC_ENTITY_SECURE_MONITOR	60
 
 /* FC = Fast call, SC = Standard call */
 #define SMC_SC_RESTART_LAST	SMC_STDCALL_NR  (SMC_ENTITY_SECURE_MONITOR, 0)

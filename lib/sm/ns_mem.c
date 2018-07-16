@@ -58,15 +58,22 @@
 #define NS_PTE_ATTR_OUTER(pte)		(((NS_PTE_ATTR_MAIR(pte)) & 0xF0) >> 4)
 
 /* Normal memory */
-#define NS_MAIR_NORMAL_CACHED_WB_RWA       0xFF /* inner and outer write back read/write allocate */
-#define NS_MAIR_NORMAL_CACHED_WT_RA        0xAA /* inner and outer write through read allocate */
-#define NS_MAIR_NORMAL_CACHED_WB_RA        0xEE /* inner and outer wriet back, read allocate */
-#define NS_MAIR_NORMAL_UNCACHED            0x44 /* uncached */
+/* inner and outer write back read/write allocate */
+#define NS_MAIR_NORMAL_CACHED_WB_RWA       0xFF
+/* inner and outer write through read allocate */
+#define NS_MAIR_NORMAL_CACHED_WT_RA        0xAA
+/* inner and outer wriet back, read allocate */
+#define NS_MAIR_NORMAL_CACHED_WB_RA        0xEE
+/* uncached */
+#define NS_MAIR_NORMAL_UNCACHED            0x44
 
 /* Device memory */
-#define NS_MAIR_DEVICE_STRONGLY_ORDERED    0x00 /* nGnRnE (strongly ordered) */
-#define NS_MAIR_DEVICE                     0x04 /* nGnRE  (device) */
-#define NS_MAIR_DEVICE_GRE                 0x0C /* GRE */
+/* nGnRnE (strongly ordered) */
+#define NS_MAIR_DEVICE_STRONGLY_ORDERED    0x00
+/* nGnRE  (device) */
+#define NS_MAIR_DEVICE                     0x04
+/* GRE */
+#define NS_MAIR_DEVICE_GRE                 0x0C
 
 /* sharaeble attributes */
 #define NS_NON_SHAREABLE                   0x0

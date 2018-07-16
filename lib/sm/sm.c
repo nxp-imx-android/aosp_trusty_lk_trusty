@@ -226,7 +226,8 @@ static void sm_irq_return_ns(void)
 static int __NO_RETURN sm_irq_loop(void *arg)
 {
 	int cpu;
-	int eventcpu = (uintptr_t)arg; /* cpu that requested this thread, the current cpu could be different */
+	/* cpu that requested this thread, the current cpu could be different */
+	int eventcpu = (uintptr_t)arg;
 
 	/*
 	 * Run this thread with interrupts masked, so we don't reenter the
@@ -324,7 +325,7 @@ static void sm_mon_percpu_init(uint level)
 		"orr	r1, r1, #0xC00		\n"
 		"orr	r1, r1, #0x60000	\n"
 		"mcr	p15, 0, r1, c1, c1, 2	@ NSACR	\n"
-		::: "r1"
+		: : : "r1"
 	);
 
 	__asm__ volatile (

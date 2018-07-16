@@ -72,19 +72,19 @@ static const struct tipc_vdev_descr _nm = {                          \
 		.notifyid	= _nid,                              \
 		.dfeatures	= 0,                                 \
 		.config_len	= sizeof(struct tipc_dev_config),    \
-		.num_of_vrings	= TIPC_VQ_NUM,                       \
+		.num_of_vrings	= TIPC_VQ_NUM                        \
 	},                                                           \
 	.vrings	= {                                                  \
 		[TIPC_VQ_TX]	= {                                  \
 			.align		= PAGE_SIZE,                 \
 			.num		= (_txvq_sz),                \
-			.notifyid	= 1,                         \
+			.notifyid	= 1                          \
 		},                                                   \
 		[TIPC_VQ_RX]	= {                                  \
 			.align		= PAGE_SIZE,                 \
 			.num		= (_rxvq_sz),                \
-			.notifyid	= 2,                         \
-		},                                                   \
+			.notifyid	= 2                          \
+		}                                                    \
 	},                                                           \
 	.config = {                                                  \
 		.msg_buf_max_size  = PAGE_SIZE,                      \

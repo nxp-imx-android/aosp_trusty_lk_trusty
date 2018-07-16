@@ -21,6 +21,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "vqueue.h"
+
 #include <assert.h>
 #include <err.h>
 #include <lib/sm.h>
@@ -35,7 +37,6 @@
 #include <lib/trusty/uio.h>
 
 #include <virtio/virtio_ring.h>
-#include "vqueue.h"
 
 #define LOCAL_TRACE 0
 

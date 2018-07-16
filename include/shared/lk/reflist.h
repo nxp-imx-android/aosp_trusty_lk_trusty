@@ -40,7 +40,7 @@ typedef void (*obj_destroy_func)(obj_t *obj);
 
 #define OBJ_REF_INITIAL_VALUE(r) \
 { \
-	.ref_node = LIST_INITIAL_CLEARED_VALUE, \
+	.ref_node = LIST_INITIAL_CLEARED_VALUE \
 }
 
 static inline __ALWAYS_INLINE
