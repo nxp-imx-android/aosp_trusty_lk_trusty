@@ -254,6 +254,7 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
             std.writelines(clang_format_off)
             std.writelines(define_lines + asm_ifdef)
             std.writelines("\n")
+            std.writelines(includes_header % "lk/compiler.h")
             std.writelines(includes_header % "stdint.h")
             std.writelines(beg_cdecls)
             # Forward declare the struct types.
