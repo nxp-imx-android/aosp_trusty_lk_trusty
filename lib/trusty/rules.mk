@@ -39,6 +39,9 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/iovec.c \
 	$(LOCAL_DIR)/uuid.c
 
+GLOBAL_DEFINES += \
+	WITH_LIB_TRUSTY=1 \
+
 ifeq (true,$(call TOBOOL,$(WITH_TRUSTY_IPC)))
 GLOBAL_DEFINES += WITH_TRUSTY_IPC=1
 
