@@ -27,37 +27,39 @@
 #include <stdio.h>
 #include <string.h>
 
-static void usercopy_test(uint level)
-{
-	int ret;
-	char testbuf1[16];
-	char testbuf2[16];
+static void usercopy_test(uint level) {
+    int ret;
+    char testbuf1[16];
+    char testbuf2[16];
 
-	memset(testbuf1, 0x11, sizeof(testbuf1));
-	memset(testbuf2, 0x22, sizeof(testbuf2));
-	ret = copy_to_user((user_addr_t)(uintptr_t)testbuf2, testbuf1, sizeof(testbuf1));
-	ASSERT(ret == ERR_FAULT);
-	ASSERT(testbuf1[0] == 0x11);
-	ASSERT(testbuf2[0] == 0x22);
+    memset(testbuf1, 0x11, sizeof(testbuf1));
+    memset(testbuf2, 0x22, sizeof(testbuf2));
+    ret = copy_to_user((user_addr_t)(uintptr_t)testbuf2, testbuf1,
+                       sizeof(testbuf1));
+    ASSERT(ret == ERR_FAULT);
+    ASSERT(testbuf1[0] == 0x11);
+    ASSERT(testbuf2[0] == 0x22);
 
-	memset(testbuf1, 0x11, sizeof(testbuf1));
-	memset(testbuf2, 0x22, sizeof(testbuf2));
-	ret = copy_from_user(testbuf1, (user_addr_t)(uintptr_t)testbuf2, sizeof(testbuf1) - 1);
-	ASSERT(ret == ERR_FAULT);
-	ASSERT(testbuf1[0] == 0x00);
-	ASSERT(testbuf1[sizeof(testbuf1) - 2] == 0x00);
-	ASSERT(testbuf1[sizeof(testbuf1) - 1] == 0x11);
-	ASSERT(testbuf2[0] == 0x22);
+    memset(testbuf1, 0x11, sizeof(testbuf1));
+    memset(testbuf2, 0x22, sizeof(testbuf2));
+    ret = copy_from_user(testbuf1, (user_addr_t)(uintptr_t)testbuf2,
+                         sizeof(testbuf1) - 1);
+    ASSERT(ret == ERR_FAULT);
+    ASSERT(testbuf1[0] == 0x00);
+    ASSERT(testbuf1[sizeof(testbuf1) - 2] == 0x00);
+    ASSERT(testbuf1[sizeof(testbuf1) - 1] == 0x11);
+    ASSERT(testbuf2[0] == 0x22);
 
-	memset(testbuf1, 0x11, sizeof(testbuf1));
-	memset(testbuf2, 0x22, sizeof(testbuf2));
-	ret = strlcpy_from_user(testbuf1, (user_addr_t)(uintptr_t)testbuf2, sizeof(testbuf1) - 1);
-	ASSERT(ret == ERR_FAULT);
-	ASSERT(testbuf1[0] == 0x00);
-	ASSERT(testbuf1[sizeof(testbuf1) - 2] == 0x00);
-	ASSERT(testbuf1[sizeof(testbuf1) - 1] == 0x11);
-	ASSERT(testbuf2[0] == 0x22);
-	printf("PASSED - %s\n", __func__);
+    memset(testbuf1, 0x11, sizeof(testbuf1));
+    memset(testbuf2, 0x22, sizeof(testbuf2));
+    ret = strlcpy_from_user(testbuf1, (user_addr_t)(uintptr_t)testbuf2,
+                            sizeof(testbuf1) - 1);
+    ASSERT(ret == ERR_FAULT);
+    ASSERT(testbuf1[0] == 0x00);
+    ASSERT(testbuf1[sizeof(testbuf1) - 2] == 0x00);
+    ASSERT(testbuf1[sizeof(testbuf1) - 1] == 0x11);
+    ASSERT(testbuf2[0] == 0x22);
+    printf("PASSED - %s\n", __func__);
 }
 
 LK_INIT_HOOK(usercopy_test, usercopy_test, LK_INIT_LEVEL_APPS);

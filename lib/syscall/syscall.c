@@ -36,23 +36,24 @@
 #include <err.h>
 #include <kernel/thread.h>
 
-long sys_undefined(int num)
-{
-	dprintf(SPEW, "%p invalid syscall %d requested\n", get_current_thread(), num);
-	return ERR_NOT_SUPPORTED;
+long sys_undefined(int num) {
+    dprintf(SPEW, "%p invalid syscall %d requested\n", get_current_thread(),
+            num);
+    return ERR_NOT_SUPPORTED;
 }
 
 #ifdef WITH_SYSCALL_TABLE
 
 /* Generate fake function prototypes */
-#define DEF_SYSCALL(nr, fn, rtype, nr_args, ...) rtype sys_##fn (void);
+#define DEF_SYSCALL(nr, fn, rtype, nr_args, ...) rtype sys_##fn(void);
 #include <syscall_table.h>
 #undef DEF_SYSCALL
 
 #endif
 
-#define DEF_SYSCALL(nr, fn, rtype, nr_args, ...) [(nr)] = (unsigned long) (sys_##fn),
-const unsigned long syscall_table [] = {
+#define DEF_SYSCALL(nr, fn, rtype, nr_args, ...) \
+    [(nr)] = (unsigned long)(sys_##fn),
+const unsigned long syscall_table[] = {
 
 #ifdef WITH_SYSCALL_TABLE
 #include <syscall_table.h>

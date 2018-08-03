@@ -24,17 +24,16 @@
 
 #include <sys/types.h>
 
-typedef struct uuid
-{
-	uint32_t time_low;
-	uint16_t time_mid;
-	uint16_t time_hi_and_version;
-	uint8_t clock_seq_and_node[8];
+typedef struct uuid {
+    uint32_t time_low;
+    uint16_t time_mid;
+    uint16_t time_hi_and_version;
+    uint8_t clock_seq_and_node[8];
 } uuid_t;
 
-#define ZERO_UUID \
-	{ 0x0, 0x0, 0x0, \
-		{ 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0} }
+#define ZERO_UUID                                                 \
+    {                                                             \
+        0x0, 0x0, 0x0, { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } \
+    }
 
 extern const struct uuid zero_uuid;
-

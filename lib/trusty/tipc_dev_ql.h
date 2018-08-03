@@ -23,15 +23,15 @@
 
 #pragma once
 
-#include <sys/types.h>
 #include <lib/sm.h>
+#include <sys/types.h>
 
-#define QL_TIPC_DEV_RESP        0x8000
-#define QL_TIPC_DEV_CONNECT     0x1
-#define QL_TIPC_DEV_GET_EVENT   0x2
-#define QL_TIPC_DEV_SEND        0x3
-#define QL_TIPC_DEV_RECV        0x4
-#define QL_TIPC_DEV_DISCONNECT  0x5
+#define QL_TIPC_DEV_RESP 0x8000
+#define QL_TIPC_DEV_CONNECT 0x1
+#define QL_TIPC_DEV_GET_EVENT 0x2
+#define QL_TIPC_DEV_SEND 0x3
+#define QL_TIPC_DEV_RECV 0x4
+#define QL_TIPC_DEV_DISCONNECT 0x5
 
 long ql_tipc_create_device(ns_addr_t buf_pa, ns_size_t buf_sz, uint mmu_flags);
 long ql_tipc_shutdown_device(ns_addr_t buf_pa);

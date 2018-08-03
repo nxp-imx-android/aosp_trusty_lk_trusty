@@ -23,86 +23,73 @@
 
 #pragma once
 
-#include <sys/types.h>
 #include <arch/defines.h>
-#include <remoteproc/remoteproc.h>
 #include <lib/trusty/uuid.h>
+#include <remoteproc/remoteproc.h>
+#include <sys/types.h>
 
 struct tipc_dev;
 
 /*
  * This ID has to match to the value defined in virtio_ids.h on Linux side
  */
-#define VIRTIO_ID_TIPC			(13)
+#define VIRTIO_ID_TIPC (13)
 
 /*
  * TIPC device supports 2 vqueues: TX and RX
  */
-#define TIPC_VQ_TX			(0)
-#define TIPC_VQ_RX			(1)
-#define TIPC_VQ_NUM			(2)
+#define TIPC_VQ_TX (0)
+#define TIPC_VQ_RX (1)
+#define TIPC_VQ_NUM (2)
 
 /*
  *  Maximum device name size
  */
-#define TIPC_MAX_DEV_NAME_LEN		(32)
+#define TIPC_MAX_DEV_NAME_LEN (32)
 
 /*
  *  Trusty IPC device configuration shared with linux side
  */
 struct tipc_dev_config {
-	uint32_t msg_buf_max_size;  /* max msg size that this device can handle */
-	uint32_t msg_buf_alignment; /* required msg alignment (PAGE_SIZE) */
-	char     dev_name[TIPC_MAX_DEV_NAME_LEN]; /* NS device node name  */
+    uint32_t msg_buf_max_size;  /* max msg size that this device can handle */
+    uint32_t msg_buf_alignment; /* required msg alignment (PAGE_SIZE) */
+    char dev_name[TIPC_MAX_DEV_NAME_LEN]; /* NS device node name  */
 } __PACKED;
 
 struct tipc_vdev_descr {
-	struct fw_rsc_hdr		hdr;
-	struct fw_rsc_vdev		vdev;
-	struct fw_rsc_vdev_vring	vrings[TIPC_VQ_NUM];
-	struct tipc_dev_config		config;
+    struct fw_rsc_hdr hdr;
+    struct fw_rsc_vdev vdev;
+    struct fw_rsc_vdev_vring vrings[TIPC_VQ_NUM];
+    struct tipc_dev_config config;
 } __PACKED;
 
-
 #define DECLARE_TIPC_DEVICE_DESCR(_nm, _nid, _txvq_sz, _rxvq_sz, _nd_name) \
-static const struct tipc_vdev_descr _nm = {                          \
-	.hdr.type	= RSC_VDEV,                                  \
-	.vdev		= {                                          \
-		.id		= VIRTIO_ID_TIPC,                    \
-		.notifyid	= _nid,                              \
-		.dfeatures	= 0,                                 \
-		.config_len	= sizeof(struct tipc_dev_config),    \
-		.num_of_vrings	= TIPC_VQ_NUM                        \
-	},                                                           \
-	.vrings	= {                                                  \
-		[TIPC_VQ_TX]	= {                                  \
-			.align		= PAGE_SIZE,                 \
-			.num		= (_txvq_sz),                \
-			.notifyid	= 1                          \
-		},                                                   \
-		[TIPC_VQ_RX]	= {                                  \
-			.align		= PAGE_SIZE,                 \
-			.num		= (_rxvq_sz),                \
-			.notifyid	= 2                          \
-		}                                                    \
-	},                                                           \
-	.config = {                                                  \
-		.msg_buf_max_size  = PAGE_SIZE,                      \
-		.msg_buf_alignment = PAGE_SIZE,                      \
-		.dev_name = _nd_name                                 \
-	}                                                            \
-};                                                                   \
-
+    static const struct tipc_vdev_descr _nm = {                            \
+            .hdr.type = RSC_VDEV,                                          \
+            .vdev = {.id = VIRTIO_ID_TIPC,                                 \
+                     .notifyid = _nid,                                     \
+                     .dfeatures = 0,                                       \
+                     .config_len = sizeof(struct tipc_dev_config),         \
+                     .num_of_vrings = TIPC_VQ_NUM},                        \
+            .vrings = {[TIPC_VQ_TX] = {.align = PAGE_SIZE,                 \
+                                       .num = (_txvq_sz),                  \
+                                       .notifyid = 1},                     \
+                       [TIPC_VQ_RX] = {.align = PAGE_SIZE,                 \
+                                       .num = (_rxvq_sz),                  \
+                                       .notifyid = 2}},                    \
+            .config = {.msg_buf_max_size = PAGE_SIZE,                      \
+                       .msg_buf_alignment = PAGE_SIZE,                     \
+                       .dev_name = _nd_name}};
 
 /*
  *  Create TIPC device and register it witth virtio subsystem
  */
-status_t create_tipc_device(const struct tipc_vdev_descr *descr, size_t descr_sz,
-                            const uuid_t *uuid, struct tipc_dev **dev_ptr);
-
+status_t create_tipc_device(const struct tipc_vdev_descr* descr,
+                            size_t descr_sz,
+                            const uuid_t* uuid,
+                            struct tipc_dev** dev_ptr);
 
 /*
  *  Check if uuid belongs to NS client
  */
-bool is_ns_client(const uuid_t *uuid);
-
+bool is_ns_client(const uuid_t* uuid);

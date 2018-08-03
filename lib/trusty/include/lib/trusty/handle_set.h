@@ -26,18 +26,20 @@
 #include <lib/trusty/handle.h>
 #include <sys/types.h>
 
-#define  HSET_ADD   0
-#define  HSET_DEL   1
-#define  HSET_MOD   2
+#define HSET_ADD 0
+#define HSET_DEL 1
+#define HSET_MOD 2
 
-struct handle *handle_set_create(void);
+struct handle* handle_set_create(void);
 
-int handle_set_attach(struct handle *h, struct handle_ref *ref);
+int handle_set_attach(struct handle* h, struct handle_ref* ref);
 
-void handle_set_detach_ref(struct handle_ref *ref);
+void handle_set_detach_ref(struct handle_ref* ref);
 
-void handle_set_update_ref(struct handle_ref *ref, uint32_t event,
-                           void *cookie);
+void handle_set_update_ref(struct handle_ref* ref,
+                           uint32_t event,
+                           void* cookie);
 
-int handle_set_wait(struct handle *h, struct handle_ref *out,
+int handle_set_wait(struct handle* h,
+                    struct handle_ref* out,
                     lk_time_t timeout);

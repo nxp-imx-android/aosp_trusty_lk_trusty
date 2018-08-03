@@ -24,18 +24,16 @@
 #define __ERR_PTR_H
 
 #include <lk/compiler.h>
-#include <uapi/err.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <uapi/err.h>
 
-static inline int PTR_ERR(const void *ptr)
-{
-	return (int)(intptr_t)ptr;
+static inline int PTR_ERR(const void* ptr) {
+    return (int)(intptr_t)ptr;
 }
 
-static inline __ALWAYS_INLINE bool IS_ERR(const void *ptr)
-{
-	return ptr >= (void *)(uintptr_t)ERR_USER_BASE;
+static inline __ALWAYS_INLINE bool IS_ERR(const void* ptr) {
+    return ptr >= (void*)(uintptr_t)ERR_USER_BASE;
 }
 
 #endif

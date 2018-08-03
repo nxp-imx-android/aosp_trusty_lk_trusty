@@ -31,8 +31,7 @@
 void fptest_arch_init(uint64_t base_value);
 int fptest_arch_check_state(uint64_t base_value);
 
-static int fptest(void *arg)
-{
+static int fptest(void* arg) {
     int i = (uintptr_t)arg;
     int corrupted_regs;
 
@@ -50,16 +49,15 @@ static int fptest(void *arg)
     return 0;
 }
 
-static void fptest_init(uint level)
-{
+static void fptest_init(uint level) {
     int i;
     int cpu = 0; /* test only on cpu for now */
     char thread_name[32];
-    thread_t *thread;
+    thread_t* thread;
 
     for (i = 0; i < FPTEST_THREAD_COUNT; i++) {
         snprintf(thread_name, sizeof(thread_name), "fptest-%d-%d", cpu, i);
-        thread = thread_create(thread_name, fptest, (void *)(uintptr_t)i,
+        thread = thread_create(thread_name, fptest, (void*)(uintptr_t)i,
                                DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
         thread->pinned_cpu = cpu;
         thread_resume(thread);

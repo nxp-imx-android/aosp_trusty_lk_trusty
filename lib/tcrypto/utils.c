@@ -26,16 +26,15 @@
 /*
  * Timing attack resistent memcmp
  */
-int tc_memcmp(const void *p1, const void *p2, size_t len)
-{
-	uint8_t res = 0;
-	const uint8_t *s1 = p1;
-	const uint8_t *s2 = p2;
+int tc_memcmp(const void* p1, const void* p2, size_t len) {
+    uint8_t res = 0;
+    const uint8_t* s1 = p1;
+    const uint8_t* s2 = p2;
 
-	while (len > 0) {
-		res |= *s1++ ^ *s2++;
-		--len;
-	}
+    while (len > 0) {
+        res |= *s1++ ^ *s2++;
+        --len;
+    }
 
-	return res;
+    return res;
 }

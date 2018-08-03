@@ -28,13 +28,12 @@
 #include <platform.h>
 
 void platform_halt(platform_halt_action suggested_action,
-                   platform_halt_reason reason)
-{
+                   platform_halt_reason reason) {
     smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
 
     dprintf(ALWAYS, "HALT: (reason = %d)\n", reason);
     arch_disable_ints();
     arch_disable_fiqs();
-    while(true)
+    while (true)
         sm_sched_nonsecure(SM_ERR_PANIC, &args);
 }

@@ -20,48 +20,45 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <stdarg.h>
-#include <reg.h>
-#include <stdio.h>
 #include <kernel/thread.h>
 #include <platform/debug.h>
 #include <platform/vexpress-a15.h>
 #include <reg.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #define DR (0x00)
 #define FR (0x18)
 
-#define UARTREG(reg)  (*REG32(UART0 + (reg)))
+#define UARTREG(reg) (*REG32(UART0 + (reg)))
 
-void platform_dputc(char c)
-{
-	UARTREG(DR) = c;
+void platform_dputc(char c) {
+    UARTREG(DR) = c;
 }
 
-int platform_dgetc(char *c, bool wait)
-{
-	if (!wait) {
-		if (UARTREG(FR) & (1<<4)) {
-			/* fifo empty */
-			return -1;
-		}
-		*c = UARTREG(DR) & 0xff;
-		return 0;
-	} else {
-		while ((UARTREG(FR) & (1<<4))) {
-			// XXX actually block on interrupt
-			thread_yield();
-		}
+int platform_dgetc(char* c, bool wait) {
+    if (!wait) {
+        if (UARTREG(FR) & (1 << 4)) {
+            /* fifo empty */
+            return -1;
+        }
+        *c = UARTREG(DR) & 0xff;
+        return 0;
+    } else {
+        while ((UARTREG(FR) & (1 << 4))) {
+            // XXX actually block on interrupt
+            thread_yield();
+        }
 
-		*c = UARTREG(DR) & 0xff;
-		return 0;
-	}
+        *c = UARTREG(DR) & 0xff;
+        return 0;
+    }
 }
 
 #ifndef WITH_LIB_SM
-void platform_halt(void)
-{
-	arch_disable_ints();
-	for (;;);
+void platform_halt(void) {
+    arch_disable_ints();
+    for (;;)
+        ;
 }
 #endif

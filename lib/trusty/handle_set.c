@@ -21,15 +21,14 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 #include <assert.h>
 #include <bits.h>
 #include <debug.h>
 #include <err.h>
 #include <list.h>
-#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
@@ -43,9 +42,9 @@
 #include <lib/trusty/handle_set.h>
 #include <lib/trusty/uctx.h>
 
-#define LOCAL_TRACE   0
+#define LOCAL_TRACE 0
 
-#define SLOCK_FLAGS   SPIN_LOCK_FLAG_INTERRUPTS
+#define SLOCK_FLAGS SPIN_LOCK_FLAG_INTERRUPTS
 
 struct handle_set {
     struct mutex mlock;
@@ -54,25 +53,23 @@ struct handle_set {
     struct list_node ready_list;
 };
 
-static uint32_t hset_poll(struct handle *handle, uint32_t emask, bool finalize);
-static void hset_destroy(struct handle *handle);
+static uint32_t hset_poll(struct handle* handle, uint32_t emask, bool finalize);
+static void hset_destroy(struct handle* handle);
 
 static struct handle_ops hset_ops = {
-    .poll     = hset_poll,
-    .destroy  = hset_destroy,
+        .poll = hset_poll,
+        .destroy = hset_destroy,
 };
 
 static struct mutex g_hset_lock = MUTEX_INITIAL_VALUE(g_hset_lock);
 
-static inline bool is_handle_set(struct handle *h)
-{
+static inline bool is_handle_set(struct handle* h) {
     return h->ops == &hset_ops;
 }
 
-static uint32_t hset_poll(struct handle *h, uint32_t emask, bool finalize)
-{
+static uint32_t hset_poll(struct handle* h, uint32_t emask, bool finalize) {
     uint32_t event = 0;
-    struct handle_set *hset = containerof(h, struct handle_set, handle);
+    struct handle_set* hset = containerof(h, struct handle_set, handle);
 
     if (!list_is_empty(&hset->ready_list))
         event = IPC_HANDLE_POLL_READY;
@@ -80,9 +77,8 @@ static uint32_t hset_poll(struct handle *h, uint32_t emask, bool finalize)
     return event & emask;
 }
 
-static void hset_detach_ref_locked(struct handle_set *hset,
-                                   struct handle_ref *ref)
-{
+static void hset_detach_ref_locked(struct handle_set* hset,
+                                   struct handle_ref* ref) {
     spin_lock_saved_state_t state;
 
     DEBUG_ASSERT(ref->parent == &hset->handle);
@@ -102,26 +98,23 @@ static void hset_detach_ref_locked(struct handle_set *hset,
     handle_decref(&hset->handle);
 }
 
-static void hset_destroy(struct handle *h)
-{
-    struct handle_set *hset = containerof(h, struct handle_set, handle);
+static void hset_destroy(struct handle* h) {
+    struct handle_set* hset = containerof(h, struct handle_set, handle);
 
     LTRACEF("%p\n", h);
 
     free(hset);
 }
 
-static void hset_init(struct handle_set *hset)
-{
+static void hset_init(struct handle_set* hset) {
     mutex_init(&hset->mlock);
     list_initialize(&hset->ref_list);
     list_initialize(&hset->ready_list);
     handle_init_etc(&hset->handle, &hset_ops, HANDLE_FLAG_NO_SEND);
 }
 
-struct handle *handle_set_create(void)
-{
-    struct handle_set *hset;
+struct handle* handle_set_create(void) {
+    struct handle_set* hset;
 
     hset = malloc(sizeof(*hset));
     if (!hset)
@@ -134,22 +127,20 @@ struct handle *handle_set_create(void)
     return &hset->handle;
 }
 
-static void hset_waiter_notify(struct handle_waiter *w)
-{
-    struct handle_ref *ref = containerof(w, struct handle_ref, waiter);
+static void hset_waiter_notify(struct handle_waiter* w) {
+    struct handle_ref* ref = containerof(w, struct handle_ref, waiter);
 
     spin_lock(&ref->parent->slock);
     if (!list_in_list(&ref->ready_node)) {
-        struct handle_set *hset = containerof(ref->parent,
-                                              struct handle_set, handle);
+        struct handle_set* hset =
+                containerof(ref->parent, struct handle_set, handle);
         list_add_tail(&hset->ready_list, &ref->ready_node);
     }
     handle_notify_waiters_locked(ref->parent);
     spin_unlock(&ref->parent->slock);
 }
 
-static int hset_attach_ref(struct handle_set *hset, struct handle_ref *ref)
-{
+static int hset_attach_ref(struct handle_set* hset, struct handle_ref* ref) {
     DEBUG_ASSERT(ref->parent == NULL);
     DEBUG_ASSERT(!list_in_list(&ref->set_node));
     DEBUG_ASSERT(!list_in_list(&ref->ready_node));
@@ -177,18 +168,16 @@ static int hset_attach_ref(struct handle_set *hset, struct handle_ref *ref)
     return NO_ERROR;
 }
 
-static bool hset_find_target(struct handle_set *hset,
-                             struct handle_set *target)
-{
-    struct handle_set *child_hset;
-    struct handle_ref *ref;
+static bool hset_find_target(struct handle_set* hset,
+                             struct handle_set* target) {
+    struct handle_set* child_hset;
+    struct handle_ref* ref;
 
     if (hset == target)
         return true;
 
     mutex_acquire(&hset->mlock);
     list_for_every_entry(&hset->ref_list, ref, struct handle_ref, set_node) {
-
         if (!ref->handle)
             continue;
 
@@ -207,10 +196,9 @@ found:
     return true;
 }
 
-static int hset_attach_hset(struct handle_set *hset, struct handle_ref *ref)
-{
-    struct handle_set *new_hset = containerof(ref->handle,
-                                              struct handle_set, handle);
+static int hset_attach_hset(struct handle_set* hset, struct handle_ref* ref) {
+    struct handle_set* new_hset =
+            containerof(ref->handle, struct handle_set, handle);
 
     /* check if it would create a circular references */
     if (hset_find_target(new_hset, hset)) {
@@ -221,10 +209,9 @@ static int hset_attach_hset(struct handle_set *hset, struct handle_ref *ref)
     return hset_attach_ref(hset, ref);
 }
 
-int handle_set_attach(struct handle *h, struct handle_ref *ref)
-{
+int handle_set_attach(struct handle* h, struct handle_ref* ref) {
     int ret;
-    struct handle_set *hset;
+    struct handle_set* hset;
 
     ASSERT(h);
     ASSERT(ref && ref->handle);
@@ -239,16 +226,14 @@ int handle_set_attach(struct handle *h, struct handle_ref *ref)
     }
 
     return ret;
-
 }
 
-void handle_set_detach_ref(struct handle_ref *ref)
-{
+void handle_set_detach_ref(struct handle_ref* ref) {
     ASSERT(ref);
 
     if (ref->parent) {
-        struct handle_set *hset = containerof(ref->parent,
-                                              struct handle_set, handle);
+        struct handle_set* hset =
+                containerof(ref->parent, struct handle_set, handle);
         handle_incref(&hset->handle);
         mutex_acquire(&hset->mlock);
         hset_detach_ref_locked(hset, ref);
@@ -257,27 +242,26 @@ void handle_set_detach_ref(struct handle_ref *ref)
     }
 }
 
-void handle_set_update_ref(struct handle_ref *ref,
-                           uint32_t emask, void *cookie)
-{
+void handle_set_update_ref(struct handle_ref* ref,
+                           uint32_t emask,
+                           void* cookie) {
     ASSERT(ref);
 
     if (ref->parent) {
-        struct handle_set *hset = containerof(ref->parent,
-                                              struct handle_set, handle);
+        struct handle_set* hset =
+                containerof(ref->parent, struct handle_set, handle);
         mutex_acquire(&hset->mlock);
-        ref->emask  = emask;
+        ref->emask = emask;
         ref->cookie = cookie;
         mutex_release(&hset->mlock);
         handle_notify(ref->handle);
     }
 }
 
-static int _hset_do_poll(struct handle_set *hset, struct handle_ref *out)
-{
+static int _hset_do_poll(struct handle_set* hset, struct handle_ref* out) {
     int ret = 0;
     uint32_t event;
-    struct handle_ref *ref;
+    struct handle_ref* ref;
     spin_lock_saved_state_t state;
 
     mutex_acquire(&hset->mlock);
@@ -287,31 +271,31 @@ static int _hset_do_poll(struct handle_set *hset, struct handle_ref *out)
         goto err_empty;
     }
 
-    for(;;) {
+    for (;;) {
+        spin_lock_save(&hset->handle.slock, &state, SLOCK_FLAGS);
+        ref = list_remove_head_type(&hset->ready_list, struct handle_ref,
+                                    ready_node);
+        spin_unlock_restore(&hset->handle.slock, state, SLOCK_FLAGS);
+
+        if (!ref)
+            break;
+
+        event = ref->handle->ops->poll(ref->handle, ref->emask, true);
+        if (event) {
+            handle_incref(ref->handle);
+            out->handle = ref->handle;
+            out->id = ref->id;
+            out->cookie = ref->cookie;
+            out->emask = event;
+
+            /* move it to the end of the queue */
             spin_lock_save(&hset->handle.slock, &state, SLOCK_FLAGS);
-            ref = list_remove_head_type(&hset->ready_list,
-                                        struct handle_ref, ready_node);
+            if (!list_in_list(&ref->ready_node))
+                list_add_tail(&hset->ready_list, &ref->ready_node);
             spin_unlock_restore(&hset->handle.slock, state, SLOCK_FLAGS);
-
-            if (!ref)
-                break;
-
-            event = ref->handle->ops->poll(ref->handle, ref->emask, true);
-            if (event) {
-                handle_incref(ref->handle);
-                out->handle = ref->handle;
-                out->id     = ref->id;
-                out->cookie = ref->cookie;
-                out->emask  = event;
-
-                /* move it to the end of the queue */
-                spin_lock_save(&hset->handle.slock, &state, SLOCK_FLAGS);
-                if (!list_in_list(&ref->ready_node))
-                    list_add_tail(&hset->ready_list, &ref->ready_node);
-                spin_unlock_restore(&hset->handle.slock, state, SLOCK_FLAGS);
-                ret = 1;
-                break;
-            }
+            ret = 1;
+            break;
+        }
     }
 
 err_empty:
@@ -320,9 +304,9 @@ err_empty:
     return ret;
 }
 
-static int hset_wait(struct handle_set *hset, struct handle_ref *out,
-                     lk_time_t timeout)
-{
+static int hset_wait(struct handle_set* hset,
+                     struct handle_ref* out,
+                     lk_time_t timeout) {
     int ret;
     struct handle_event_waiter ew = HANDLE_EVENT_WAITER_INITIAL_VALUE(ew);
 
@@ -351,17 +335,17 @@ static int hset_wait(struct handle_set *hset, struct handle_ref *out,
     return ret;
 }
 
-int handle_set_wait(struct handle *h, struct handle_ref *out,
-                    lk_time_t timeout)
-{
+int handle_set_wait(struct handle* h,
+                    struct handle_ref* out,
+                    lk_time_t timeout) {
     DEBUG_ASSERT(h && is_handle_set(h));
-    struct handle_set *hset = containerof(h, struct handle_set, handle);
+    struct handle_set* hset = containerof(h, struct handle_set, handle);
     return hset_wait(hset, out, timeout);
 }
 
-int handle_ref_wait(const struct handle_ref *in, struct handle_ref *out,
-                    lk_time_t timeout)
-{
+int handle_ref_wait(const struct handle_ref* in,
+                    struct handle_ref* out,
+                    lk_time_t timeout) {
     int ret = 0;
 
     if (!in || !in->handle || !out)
@@ -376,10 +360,9 @@ int handle_ref_wait(const struct handle_ref *in, struct handle_ref *out,
             handle_incref(in->handle);
             out->handle = in->handle;
             out->cookie = in->cookie;
-            out->id     = in->id;
-            out->emask  = event;
+            out->id = in->id;
+            out->emask = event;
         }
     }
     return ret;
 }
-

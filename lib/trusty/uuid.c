@@ -24,6 +24,3 @@
 #include <lib/trusty/uuid.h>
 
 const struct uuid zero_uuid = ZERO_UUID;
-
-
-

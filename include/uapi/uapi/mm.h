@@ -33,7 +33,7 @@
  * IO Mapping has fixed attributes (non-secure, strongly ordered,
  * physically contiguous, read-writable and 4k aligned) for now.
  */
-#define MMAP_FLAG_IO_HANDLE		(0x1 << 0)
+#define MMAP_FLAG_IO_HANDLE (0x1 << 0)
 
 /**
  * struct dma_pmem - a contiguous physical memory block
@@ -45,9 +45,9 @@
  * syscall whether it passes in a single struct or an array.
  */
 struct dma_pmem {
-	uint64_t paddr;
-	uint32_t size;
-	uint32_t pad;
+    uint64_t paddr;
+    uint32_t size;
+    uint32_t pad;
 };
 
 /*
@@ -57,9 +57,9 @@ struct dma_pmem {
 /*
  * DMA directions
  */
-#define DMA_FLAG_TO_DEVICE		(0x1 << 0)	/* memory to device */
-#define DMA_FLAG_FROM_DEVICE		(0x1 << 1)	/* device to memory */
-#define DMA_FLAG_BIDIRECTION		(DMA_FLAG_TO_DEVICE | DMA_FLAG_FROM_DEVICE)
+#define DMA_FLAG_TO_DEVICE (0x1 << 0)   /* memory to device */
+#define DMA_FLAG_FROM_DEVICE (0x1 << 1) /* device to memory */
+#define DMA_FLAG_BIDIRECTION (DMA_FLAG_TO_DEVICE | DMA_FLAG_FROM_DEVICE)
 
 /*
  * If DMA_FLAG_MULTI_PMEM is set, caller of prepare_dma must pass an array
@@ -75,7 +75,7 @@ struct dma_pmem {
  * physical memory block. If user space aperture is bigger than max size of
  * contiguous physical memory block, behavior controlled by DMA_ALLOW_PARTIAL.
  */
-#define DMA_FLAG_MULTI_PMEM		(0x1 << 2)
+#define DMA_FLAG_MULTI_PMEM (0x1 << 2)
 
 /*
  * If DMA_FLAG_ALLOW_PARTIAL is set, prepare_dma allows partial mapping of user
@@ -84,7 +84,6 @@ struct dma_pmem {
  * on multiple pages, if this bit is set, kernel maps [vaddr, end of first page]
  * with a single dma_pmem struct. If not set, kernel returns ERR_BAD_LEN.
  */
-#define DMA_FLAG_ALLOW_PARTIAL	(0x1 << 3)
-
+#define DMA_FLAG_ALLOW_PARTIAL (0x1 << 3)
 
 #endif /* __UAPI_MM_H */

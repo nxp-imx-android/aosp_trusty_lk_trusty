@@ -34,45 +34,47 @@
 
 typedef struct ipc_msg_queue ipc_msg_queue_t;
 
-int ipc_msg_queue_create(uint num_items, size_t item_sz, ipc_msg_queue_t **mq);
-void ipc_msg_queue_destroy(ipc_msg_queue_t *mq);
+int ipc_msg_queue_create(uint num_items, size_t item_sz, ipc_msg_queue_t** mq);
+void ipc_msg_queue_destroy(ipc_msg_queue_t* mq);
 
-bool ipc_msg_queue_is_empty(ipc_msg_queue_t *mq);
-bool ipc_msg_queue_is_full(ipc_msg_queue_t *mq);
+bool ipc_msg_queue_is_empty(ipc_msg_queue_t* mq);
+bool ipc_msg_queue_is_full(ipc_msg_queue_t* mq);
 
 /********** these structure definitions shared with userspace **********/
 
 /* The layout for iovec_user and ipc_msg_user MUST match
  * the layout of iovec_kern and ipc_msg_kern
  */
-#define MAX_MSG_HANDLES	8
+#define MAX_MSG_HANDLES 8
 
 typedef struct ipc_msg_kern {
-	uint		num_iov;
-	iovec_kern_t	*iov;
+    uint num_iov;
+    iovec_kern_t* iov;
 
-	uint		num_handles;
-	handle_t	**handles;
+    uint num_handles;
+    handle_t** handles;
 } ipc_msg_kern_t;
 
 typedef struct ipc_msg_user {
-	uint32_t	num_iov;
-	user_addr_t	iov;
+    uint32_t num_iov;
+    user_addr_t iov;
 
-	uint32_t	num_handles;
-	user_addr_t	handles; /* points to array of handle ids */
+    uint32_t num_handles;
+    user_addr_t handles; /* points to array of handle ids */
 } ipc_msg_user_t;
 
 typedef struct ipc_msg_info {
-	uint32_t	len;
-	uint32_t	id;
-	uint32_t	num_handles;
+    uint32_t len;
+    uint32_t id;
+    uint32_t num_handles;
 } ipc_msg_info_t;
 
-int ipc_get_msg(handle_t *chandle, ipc_msg_info_t *msg_info);
-int ipc_read_msg(handle_t *chandle, uint32_t msg_id, uint32_t offset,
-		 ipc_msg_kern_t *msg);
-int ipc_put_msg(handle_t *chandle, uint32_t msg_id);
-int ipc_send_msg(handle_t *chandle, ipc_msg_kern_t *msg);
+int ipc_get_msg(handle_t* chandle, ipc_msg_info_t* msg_info);
+int ipc_read_msg(handle_t* chandle,
+                 uint32_t msg_id,
+                 uint32_t offset,
+                 ipc_msg_kern_t* msg);
+int ipc_put_msg(handle_t* chandle, uint32_t msg_id);
+int ipc_send_msg(handle_t* chandle, ipc_msg_kern_t* msg);
 
 #endif

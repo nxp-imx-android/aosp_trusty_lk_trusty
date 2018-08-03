@@ -30,12 +30,12 @@
 #define MODE_ABT 0x17
 #define MODE_UND 0x1b
 #define MODE_SYS 0x1f
-#define MODE_SVC_IRQ_DISABLED	0x93
-#define MODE_SVC_IRQ_FIQ_DISABLED	0xd3
+#define MODE_SVC_IRQ_DISABLED 0x93
+#define MODE_SVC_IRQ_FIQ_DISABLED 0xd3
 
 /* SCR values for secure and non-secure modes */
-#define SM_SCR_NONSECURE	0x5
-#define SM_SCR_SECURE		0x0
+#define SM_SCR_NONSECURE 0x5
+#define SM_SCR_SECURE 0x0
 
 /* clang-format off */
 

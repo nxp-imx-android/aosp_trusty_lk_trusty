@@ -35,93 +35,89 @@
 #define ARM_GENERIC_TIMER_INT_CNTPS 29
 #define ARM_GENERIC_TIMER_INT_CNTP 30
 
-#define ARM_GENERIC_TIMER_INT_SELECTED(timer) ARM_GENERIC_TIMER_INT_ ## timer
-#define XARM_GENERIC_TIMER_INT_SELECTED(timer) ARM_GENERIC_TIMER_INT_SELECTED(timer)
-#define ARM_GENERIC_TIMER_INT XARM_GENERIC_TIMER_INT_SELECTED(TIMER_ARM_GENERIC_SELECTED)
+#define ARM_GENERIC_TIMER_INT_SELECTED(timer) ARM_GENERIC_TIMER_INT_##timer
+#define XARM_GENERIC_TIMER_INT_SELECTED(timer) \
+    ARM_GENERIC_TIMER_INT_SELECTED(timer)
+#define ARM_GENERIC_TIMER_INT \
+    XARM_GENERIC_TIMER_INT_SELECTED(TIMER_ARM_GENERIC_SELECTED)
 
 /* initial memory mappings. parsed by start.S */
 struct mmu_initial_mapping mmu_initial_mappings[] = {
-	/* Mark next entry as dynamic as it might be updated
-	   by platform_reset code to specify actual size and
-	   location of RAM to use */
-	{ .phys = MEMBASE + KERNEL_LOAD_OFFSET,
-	  .virt = KERNEL_BASE + KERNEL_LOAD_OFFSET,
-	  .size = MEMSIZE,
-	  .flags = MMU_INITIAL_MAPPING_FLAG_DYNAMIC,
-	  .name = "ram" },
+        /* Mark next entry as dynamic as it might be updated
+           by platform_reset code to specify actual size and
+           location of RAM to use */
+        {.phys = MEMBASE + KERNEL_LOAD_OFFSET,
+         .virt = KERNEL_BASE + KERNEL_LOAD_OFFSET,
+         .size = MEMSIZE,
+         .flags = MMU_INITIAL_MAPPING_FLAG_DYNAMIC,
+         .name = "ram"},
 
-	/* null entry to terminate the list */
-	{0, 0, 0, 0, 0}
-};
+        /* null entry to terminate the list */
+        {0, 0, 0, 0, 0}};
 
-static pmm_arena_t ram_arena = {
-    .name  = "ram",
-    .base  =  MEMBASE + KERNEL_LOAD_OFFSET,
-    .size  =  MEMSIZE,
-    .flags =  PMM_ARENA_FLAG_KMAP
-};
+static pmm_arena_t ram_arena = {.name = "ram",
+                                .base = MEMBASE + KERNEL_LOAD_OFFSET,
+                                .size = MEMSIZE,
+                                .flags = PMM_ARENA_FLAG_KMAP};
 
-void platform_init_mmu_mappings(void)
-{
-	/* go through mmu_initial_mapping to find dynamic entry
-	 * matching ram_arena (by name) and adjust it.
-	 */
-	struct mmu_initial_mapping *m = mmu_initial_mappings;
-	for (uint i = 0; i < countof(mmu_initial_mappings); i++, m++) {
-		if (!(m->flags & MMU_INITIAL_MAPPING_FLAG_DYNAMIC))
-			continue;
+void platform_init_mmu_mappings(void) {
+    /* go through mmu_initial_mapping to find dynamic entry
+     * matching ram_arena (by name) and adjust it.
+     */
+    struct mmu_initial_mapping* m = mmu_initial_mappings;
+    for (uint i = 0; i < countof(mmu_initial_mappings); i++, m++) {
+        if (!(m->flags & MMU_INITIAL_MAPPING_FLAG_DYNAMIC))
+            continue;
 
-		if (strcmp(m->name, ram_arena.name) == 0) {
-			/* update ram_arena */
-			ram_arena.base = m->phys;
-			ram_arena.size = m->size;
-			ram_arena.flags = PMM_ARENA_FLAG_KMAP;
+        if (strcmp(m->name, ram_arena.name) == 0) {
+            /* update ram_arena */
+            ram_arena.base = m->phys;
+            ram_arena.size = m->size;
+            ram_arena.flags = PMM_ARENA_FLAG_KMAP;
 
-			break;
-		}
-	}
-	pmm_add_arena(&ram_arena);
+            break;
+        }
+    }
+    pmm_add_arena(&ram_arena);
 }
 
-static void generic_arm64_map_regs(const char *name, vaddr_t vaddr,
-				   paddr_t paddr, size_t size)
-{
-	status_t ret;
-	void *vaddrp = (void *)vaddr;
+static void generic_arm64_map_regs(const char* name,
+                                   vaddr_t vaddr,
+                                   paddr_t paddr,
+                                   size_t size) {
+    status_t ret;
+    void* vaddrp = (void*)vaddr;
 
-	ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "gic",
-				 GICC_SIZE, &vaddrp, 0, paddr,
-				 VMM_FLAG_VALLOC_SPECIFIC,
-				 ARCH_MMU_FLAG_UNCACHED_DEVICE);
-	if (ret) {
-		dprintf(CRITICAL, "%s: failed %d\n", __func__, ret);
-	}
+    ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "gic", GICC_SIZE, &vaddrp,
+                             0, paddr, VMM_FLAG_VALLOC_SPECIFIC,
+                             ARCH_MMU_FLAG_UNCACHED_DEVICE);
+    if (ret) {
+        dprintf(CRITICAL, "%s: failed %d\n", __func__, ret);
+    }
 }
 
-static paddr_t generic_arm64_get_reg_base(int reg)
-{
+static paddr_t generic_arm64_get_reg_base(int reg) {
 #if ARCH_ARM64
-	return generic_arm64_smc(SMC_FC64_GET_REG_BASE, reg, 0, 0);
+    return generic_arm64_smc(SMC_FC64_GET_REG_BASE, reg, 0, 0);
 #else
-	return generic_arm64_smc(SMC_FC_GET_REG_BASE, reg, 0, 0);
+    return generic_arm64_smc(SMC_FC_GET_REG_BASE, reg, 0, 0);
 #endif
 }
 
-static void platform_after_vm_init(uint level)
-{
-	paddr_t gicc = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICC);
-	paddr_t gicd = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICD);
+static void platform_after_vm_init(uint level) {
+    paddr_t gicc = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICC);
+    paddr_t gicd = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICD);
 
-	dprintf(INFO, "gicc 0x%lx, gicd 0x%lx\n", gicc, gicd);
+    dprintf(INFO, "gicc 0x%lx, gicd 0x%lx\n", gicc, gicd);
 
-	generic_arm64_map_regs("gicc", GICC_BASE_VIRT, gicc, GICC_SIZE);
-	generic_arm64_map_regs("gicd", GICD_BASE_VIRT, gicd, GICD_SIZE);
+    generic_arm64_map_regs("gicc", GICC_BASE_VIRT, gicc, GICC_SIZE);
+    generic_arm64_map_regs("gicd", GICD_BASE_VIRT, gicd, GICD_SIZE);
 
-	/* initialize the interrupt controller */
-	arm_gic_init();
+    /* initialize the interrupt controller */
+    arm_gic_init();
 
-	/* initialize the timer block */
-	arm_generic_timer_init(ARM_GENERIC_TIMER_INT, 0);
+    /* initialize the timer block */
+    arm_generic_timer_init(ARM_GENERIC_TIMER_INT, 0);
 }
 
 LK_INIT_HOOK(platform_after_vm, platform_after_vm_init, LK_INIT_LEVEL_VM + 1);

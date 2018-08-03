@@ -28,9 +28,9 @@
 #define MAX_SYS_FD_HADLERS 10
 
 struct sys_fd_ops {
-	int32_t (*read) (uint32_t fd, user_addr_t user_ptr, uint32_t size);
-	int32_t (*write)(uint32_t fd, user_addr_t user_ptr, uint32_t size);
-	int32_t (*ioctl)(uint32_t fd, uint32_t cmd, user_addr_t user_ptr);
+    int32_t (*read)(uint32_t fd, user_addr_t user_ptr, uint32_t size);
+    int32_t (*write)(uint32_t fd, user_addr_t user_ptr, uint32_t size);
+    int32_t (*ioctl)(uint32_t fd, uint32_t cmd, user_addr_t user_ptr);
 };
 
-status_t install_sys_fd_handler(uint32_t fd, const struct sys_fd_ops *ops);
+status_t install_sys_fd_handler(uint32_t fd, const struct sys_fd_ops* ops);

@@ -35,14 +35,13 @@ int mmutest_arch_rodata_pnx(void);
 int mmutest_arch_data_pnx(void);
 int mmutest_arch_rodata_ro(void);
 
-int mmutest_arch_store_uint32(uint32_t *ptr, bool user);
+int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
 int mmutest_arch_nop(int ret);
 int mmutest_arch_nop_end(int ret);
 
-static int mmutest_vmm_store_uint32(uint arch_mmu_flags, bool user)
-{
+static int mmutest_vmm_store_uint32(uint arch_mmu_flags, bool user) {
     int ret;
-    void *ptr;
+    void* ptr;
     uint arch_mmu_flags_query = ~0;
 
     ret = vmm_alloc_contiguous(vmm_get_kernel_aspace(), "mmutest", PAGE_SIZE,
@@ -63,20 +62,17 @@ static int mmutest_vmm_store_uint32(uint arch_mmu_flags, bool user)
     return ret;
 }
 
-static int mmutest_vmm_store_uint32_kernel(uint arch_mmu_flags)
-{
+static int mmutest_vmm_store_uint32_kernel(uint arch_mmu_flags) {
     return mmutest_vmm_store_uint32(arch_mmu_flags, false);
 }
 
-static int mmutest_vmm_store_uint32_user(uint arch_mmu_flags)
-{
+static int mmutest_vmm_store_uint32_user(uint arch_mmu_flags) {
     return mmutest_vmm_store_uint32(arch_mmu_flags, true);
 }
 
-static int mmu_test_nx(void)
-{
+static int mmu_test_nx(void) {
     int ret;
-    void *ptr;
+    void* ptr;
     size_t len;
     int (*nop)(int ret);
 
@@ -98,8 +94,7 @@ static int mmu_test_nx(void)
     return ret;
 }
 
-static void print_result(int ret, const char *funcname, int expect)
-{
+static void print_result(int ret, const char* funcname, int expect) {
     if (ret == expect) {
         printf("PASSED - %s\n", funcname);
     } else {
@@ -107,8 +102,7 @@ static void print_result(int ret, const char *funcname, int expect)
     }
 }
 
-#define RUN_TEST(name, expect) \
-    print_result(name(), #name, expect)
+#define RUN_TEST(name, expect) print_result(name(), #name, expect)
 
 #define RUN_TEST1(name, arg, expect) \
     print_result(name(arg), #name "(" #arg ")", expect)
@@ -116,28 +110,52 @@ static void print_result(int ret, const char *funcname, int expect)
 #define RUN_TEST2(name, arg1, arg2, expect) \
     print_result(name(arg), #name "(" #arg1 "," #arg2 ")", expect)
 
-static void mmutest_init(uint level)
-{
+static void mmutest_init(uint level) {
     RUN_TEST(mmutest_arch_rodata_pnx, ERR_FAULT);
     RUN_TEST(mmutest_arch_data_pnx, ERR_FAULT);
     RUN_TEST(mmutest_arch_rodata_ro, ERR_FAULT);
 
     RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_NO_EXECUTE, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_NO_EXECUTE|ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_RO, ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_RO|ARCH_MMU_FLAG_PERM_USER, ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_NS, 2);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_NS|ARCH_MMU_FLAG_PERM_USER, 2);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_USER, 0);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE, 0);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
+                      ARCH_MMU_FLAG_PERM_USER,
+              0);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO, ERR_FAULT);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
+                      ARCH_MMU_FLAG_PERM_USER,
+              ERR_FAULT);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS, 2);
+    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_USER,
+              2);
     RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_NO_EXECUTE, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_NO_EXECUTE|ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_RO, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_PERM_RO|ARCH_MMU_FLAG_PERM_USER, ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_NS, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED|ARCH_MMU_FLAG_NS|ARCH_MMU_FLAG_PERM_USER, 2);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_USER, 0);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE,
+              ERR_GENERIC);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
+                      ARCH_MMU_FLAG_PERM_USER,
+              0);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO, ERR_GENERIC);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
+                      ARCH_MMU_FLAG_PERM_USER,
+              ERR_FAULT);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS, ERR_GENERIC);
+    RUN_TEST1(mmutest_vmm_store_uint32_user,
+              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_USER,
+              2);
 #if MMUTEST_RUN_FATAL_TESTS
     printf("Starting fatal tests, expect crash\n");
     RUN_TEST(mmu_test_nx, ERR_FAULT);

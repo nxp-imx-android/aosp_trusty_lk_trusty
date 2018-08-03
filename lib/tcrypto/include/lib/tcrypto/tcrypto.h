@@ -42,7 +42,7 @@ __BEGIN_CDECLS;
  * Return: 0 if first @len bytes in both areas are identical,
  *         non-zero otherwise.
  */
-int tc_memcmp(const void *p1, const void *p2, size_t len);
+int tc_memcmp(const void* p1, const void* p2, size_t len);
 
 /**
  *  tc_memset() - variant of memset that disables optimization
@@ -54,12 +54,10 @@ int tc_memcmp(const void *p1, const void *p2, size_t len);
  *
  *  Return: pointer to memory area @p.
  */
-inline __OPTIMIZE(O0)
-void *tc_memset(void *p, int c, size_t n)
-{
-	if(!p)
-		return p;
-	return memset(p, c, n);
+inline __OPTIMIZE(O0) void* tc_memset(void* p, int c, size_t n) {
+    if (!p)
+        return p;
+    return memset(p, c, n);
 }
 
 __END_CDECLS;

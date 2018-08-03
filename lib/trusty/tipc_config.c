@@ -21,12 +21,12 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <err.h>
 #include <assert.h>
+#include <err.h>
 #include <trace.h>
 
-#include <lk/init.h>
 #include <lib/trusty/tipc_dev.h>
+#include <lk/init.h>
 
 /* Default TIPC device (/dev/trusty-ipc-dev0) */
 DECLARE_TIPC_DEVICE_DESCR(_descr0, 0, 32, 32, "dev0");
@@ -34,24 +34,23 @@ DECLARE_TIPC_DEVICE_DESCR(_descr0, 0, 32, 32, "dev0");
 /*
  *  Returns true if uuid is associated with NS client.
  */
-bool is_ns_client(const uuid_t *uuid)
-{
-	if (uuid == &zero_uuid)
-		return true;
+bool is_ns_client(const uuid_t* uuid) {
+    if (uuid == &zero_uuid)
+        return true;
 
-	return false;
+    return false;
 }
 
-static void tipc_init(uint level)
-{
-	status_t res;
+static void tipc_init(uint level) {
+    status_t res;
 
-	res = create_tipc_device(&_descr0, sizeof(_descr0), &zero_uuid, NULL);
-	if (res != NO_ERROR) {
-		TRACEF("WARNING: failed (%d) to register tipc device\n", res);
-	}
+    res = create_tipc_device(&_descr0, sizeof(_descr0), &zero_uuid, NULL);
+    if (res != NO_ERROR) {
+        TRACEF("WARNING: failed (%d) to register tipc device\n", res);
+    }
 }
 
-LK_INIT_HOOK_FLAGS(tipc_init, tipc_init,
-                   LK_INIT_LEVEL_APPS-2, LK_INIT_FLAG_PRIMARY_CPU);
-
+LK_INIT_HOOK_FLAGS(tipc_init,
+                   tipc_init,
+                   LK_INIT_LEVEL_APPS - 2,
+                   LK_INIT_FLAG_PRIMARY_CPU);

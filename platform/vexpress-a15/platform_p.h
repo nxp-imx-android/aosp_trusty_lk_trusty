@@ -26,4 +26,3 @@
 void platform_init_timer(void);
 
 #endif
-

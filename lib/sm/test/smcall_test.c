@@ -21,12 +21,11 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <lib/sm.h>
 #include <debug.h>
+#include <lib/sm.h>
 
 void smc_test(uint32_t smc_nr, uint32_t num);
 
-void smc_test(uint32_t smc_nr, uint32_t num)
-{
-	dprintf(SPEW, "SMC TEST: 0x%x, scheduling secure...\n", num);
+void smc_test(uint32_t smc_nr, uint32_t num) {
+    dprintf(SPEW, "SMC TEST: 0x%x, scheduling secure...\n", num);
 }

@@ -26,11 +26,10 @@
 #include <stdio.h>
 #include <version.h>
 
-static void trusty_init(uint level)
-{
-	printf("initializing trusty (%s)\n", lk_version);
+static void trusty_init(uint level) {
+    printf("initializing trusty (%s)\n", lk_version);
 
-	trusty_app_init();
+    trusty_app_init();
 }
 
 LK_INIT_HOOK(libtrusty, trusty_init, LK_INIT_LEVEL_APPS - 1);
