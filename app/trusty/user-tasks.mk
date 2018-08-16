@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014, Google, Inc. All rights reserved
+# Copyright (c) 2014-2018, Google, Inc. All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -39,11 +39,17 @@ $(eval XBIN_TOP_MODULE := $(1))\
 $(eval XBIN_TYPE := USER_TASK)\
 $(eval XBIN_ARCH := $(TRUSTY_USER_ARCH))\
 $(eval XBIN_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
-$(eval XBIN_LINKER_SCRIPT := $(XBIN_BUILDDIR)/user_task.ld)\
-$(eval XBIN_LDFLAGS := )\
+$(eval XBIN_LINKER_SCRIPT := $(BASE_USER_TASK_LINKER_SCRIPT))\
+$(eval XBIN_LDFLAGS := $(BASE_XBIN_LDFLAGS))\
 $(eval XBIN_ALIGNMENT := 4096)\
 $(eval include make/xbin.mk)
 endef
+
+# pull in common arch specific user task settings
+BASE_XBIN_LDFLAGS := --gc-sections -z max-page-size=4096
+BASE_USER_TASK_LINKER_SCRIPT :=
+
+include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 
 # generate list of all user tasks we need to build
 
@@ -81,6 +87,9 @@ $(ALLUSER_TASK_OBJS): %.o: %.elf $(USER_TASK_OBJ_ASM)
 	$(NOECHO)$(CC) -DUSER_TASK_ELF=\"$<\" $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -c $(USER_TASK_OBJ_ASM) -o $@
 
 EXTRA_OBJS += $(ALLUSER_TASK_OBJS)
+
+BASE_XBIN_LDFLAGS :=
+BASE_USER_TASK_LINKER_SCRIPT :=
 
 endif
 

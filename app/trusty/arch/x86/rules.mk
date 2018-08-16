@@ -23,26 +23,12 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
-MODULE := $(LOCAL_DIR)
-
-# some linkers set the default arm pagesize to 32K. No idea why.
-XBIN_LDFLAGS += \
-	-z max-page-size=0x1000
-
-# linking script to link this user task
-USER_TASK_LINKER_SCRIPT := $(BUILDDIR)/user_task.ld
+# linking script for user tasks
 
 ifeq ($(SUBARCH),x86-64)
-SUBARCH_DIR := $(LOCAL_DIR)/64
+BASE_USER_TASK_LINKER_SCRIPT := $(LOCAL_DIR)/64/user_task-trusty.ld
+else
+$(error Unsupported SUBARCH=$(SUBARCH))
 endif
 
-# rule to copy it to BUILD directory
-$(USER_TASK_LINKER_SCRIPT): $(SUBARCH_DIR)/user_task-trusty.ld
-	@echo generating $@
-	@$(MKDIR)
-	$(NOECHO)cp $< $@
 
-GENERATED +=  $(USER_TASK_LINKER_SCRIPT)
-
-LOCAL_DIR :=
-SUBARCH_DIR :=

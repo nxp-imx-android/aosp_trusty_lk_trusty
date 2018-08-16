@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014, Google, Inc. All rights reserved
+# Copyright (c) 2014-2018, Google, Inc. All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -23,19 +23,5 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
-# some linkers set the default arm pagesize to 32K. No idea why.
-XBIN_LDFLAGS += \
-	-z max-page-size=0x1000
-
-# linking script to link this user task
-USER_TASK_LINKER_SCRIPT := $(BUILDDIR)/user_task.ld
-
-# rule to copy it to BUILD directory
-$(USER_TASK_LINKER_SCRIPT): $(LOCAL_DIR)/user_task-trusty.ld
-	@echo generating $@
-	@$(MKDIR)
-	$(NOECHO)cp $< $@
-
-GENERATED +=  $(USER_TASK_LINKER_SCRIPT)
-
-LOCAL_DIR :=
+# linking script for user tasks
+BASE_USER_TASK_LINKER_SCRIPT := $(LOCAL_DIR)/user_task-trusty.ld

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014, Google, Inc. All rights reserved
+# Copyright (c) 2014-2018, Google, Inc. All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -21,11 +21,4 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-LOCAL_DIR := $(GET_LOCAL_DIR)
-
-# common user task related globals
-XBIN_LDFLAGS := --gc-sections
-
-#include arch specific support for trusty user tasks
-
-include  $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
+# Nothing to do here
