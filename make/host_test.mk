@@ -41,12 +41,15 @@ ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 HOST_RUN_ENV := ASAN_OPTIONS=symbolize=1 ASAN_SYMBOLIZER_PATH=$(CLANG_BINDIR)/llvm-symbolizer
+# ASAN is not compatable with GDB.
+HOST_DEBUGGER :=
 else
 # TODO: use hermetic version of GCC.
 # To do this, we'd need to compile boringssl from source rather than using a system library.
 HOST_CC := gcc
 HOST_SANITIZER_FLAGS :=
 HOST_RUN_ENV :=
+HOST_DEBUGGER := gdb -batch -ex run -ex where
 endif
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
@@ -73,9 +76,10 @@ $(HOST_TEST_BIN): $(GENERIC_OBJS)
 host_tests: $(HOST_TEST_BIN)
 
 run_$(HOST_TEST): RUN_ENV := $(HOST_RUN_ENV)
+run_$(HOST_TEST): DEBUGGER := $(HOST_DEBUGGER)
 run_$(HOST_TEST): $(HOST_TEST_BIN) .PHONY
 	@echo running $<
-	$(NOECHO)$(RUN_ENV) gdb -batch -ex run -ex where $<
+	$(NOECHO)$(RUN_ENV) $(DEBUGGER) $<
 
 run_host_tests: run_$(HOST_TEST) .PHONY
 
@@ -89,6 +93,7 @@ HOST_LIBS :=
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
 HOST_RUN_ENV :=
+HOST_DEBUGGER :=
 HOST_TEST_BIN :=
 HOST_OBJ_DIR :=
 GENERIC_OBJS :=
