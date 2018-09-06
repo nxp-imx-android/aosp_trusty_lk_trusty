@@ -108,14 +108,14 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
         default:
             LTRACEF("Unsupported memory attr 0x%x\n",
                     (uint)NS_PTE_ATTR_MAIR(pinf->attr));
-            return ERR_NOT_SUPPORTED;
+//            return ERR_NOT_SUPPORTED;
         }
 #if WITH_SMP | WITH_SHAREABLE_CACHE
         if (mmu_flags == ARCH_MMU_FLAG_CACHED) {
             if (NS_PTE_ATTR_SHAREABLE(pinf->attr) != NS_INNER_SHAREABLE) {
                 LTRACEF("Unsupported sharable attr 0x%x\n",
                         (uint)NS_PTE_ATTR_SHAREABLE(pinf->attr));
-                return ERR_NOT_SUPPORTED;
+ //               return ERR_NOT_SUPPORTED;
             }
         }
 #endif
