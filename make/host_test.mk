@@ -72,6 +72,9 @@ $(HOST_TEST_BIN): $(GENERIC_OBJS)
 	@$(MKDIR)
 	$(NOECHO)$(CC) $^ $(LDFLAGS) -o $@
 
+# Build host test by default
+all:: $(HOST_TEST_BIN)
+
 # Aliases
 host_tests: $(HOST_TEST_BIN)
 
