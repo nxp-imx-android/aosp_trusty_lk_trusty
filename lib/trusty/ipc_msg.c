@@ -260,7 +260,7 @@ static ssize_t user_msg_write_locked(struct ipc_msg_queue* mq,
         return ret; /* no handles, just return body */
 
     /* copy handle ids from user space */
-    handle_id_t ids[msg->num_handles];
+    handle_id_t ids[MAX_MSG_HANDLES];
 
     rc = copy_from_user(&ids, msg->handles,
                         msg->num_handles * sizeof(handle_id_t));
@@ -681,7 +681,12 @@ static int user_return_handles(struct uctx* uctx,
                                struct handle** hptrs,
                                uint hcnt) {
     int rc;
-    handle_id_t hids[hcnt];
+    handle_id_t hids[MAX_MSG_HANDLES];
+
+    if (hcnt > MAX_MSG_HANDLES) {
+        LTRACEF("returning too many (%u) handles\n", hcnt);
+        return ERR_TOO_BIG;
+    }
 
     /* install handles */
     rc = user_install_multiple(uctx, hptrs, hids, hcnt);
