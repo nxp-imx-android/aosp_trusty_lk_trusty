@@ -16,8 +16,14 @@ GLOBAL_DEFINES += \
 	MEMBASE=$(MEMBASE) \
 	MEMSIZE=$(MEMSIZE) \
 
+MODULE_DEFINES += \
+	TARGET_SERIAL_IO_BASE=0x3f8 \
+
 GLOBAL_INCLUDES += \
 	$(LOCAL_DIR)/include
+
+MODULE_SRCS += \
+	$(LOCAL_DIR)/debug.c \
 
 MODULE_DEPS += \
 	dev/interrupt/x86_lapic \
