@@ -24,6 +24,7 @@ GLOBAL_INCLUDES += \
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/debug.c \
+	$(LOCAL_DIR)/platform.c \
 
 MODULE_DEPS += \
 	dev/interrupt/x86_lapic \
