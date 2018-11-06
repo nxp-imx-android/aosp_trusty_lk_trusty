@@ -88,9 +88,6 @@ clang_format_off = "/* clang-format off */\n\n"
 
 includes_header = "#include <%s>\n"
 
-# header file defines macros for asm
-# see include/asm.h in lk
-asm_header = "asm.h"
 
 class Architecture:
     def __init__(self, syscall_stub):
@@ -100,14 +97,18 @@ arch_dict = {
     "arm" : Architecture (
         syscall_stub = """
 .section .text._trusty_%(sys_fn)s
-FUNCTION(_trusty_%(sys_fn)s)
+.global _trusty_%(sys_fn)s
+.type _trusty_%(sys_fn)s,STT_FUNC
+_trusty_%(sys_fn)s:
     ldr     r12, =__NR_%(sys_fn)s
     swi     #0
     bx      lr
 """),
     "x86_64" : Architecture (
         syscall_stub = """
-FUNCTION(_trusty_%(sys_fn)s)
+.global _trusty_%(sys_fn)s
+.type _trusty_%(sys_fn)s,STT_FUNC
+_trusty_%(sys_fn)s:
     pushfq
     pushq %%rbp
     pushq %%rbx
@@ -265,7 +266,6 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
     if stubs_file is not None:
         with open(stubs_file, "w") as stubs:
             stubs.writelines(copyright_header + autogen_header)
-            stubs.writelines(includes_header % asm_header)
             stubs.writelines(includes_header % "trusty_syscalls.h")
             stubs.writelines(stub_lines)
 
