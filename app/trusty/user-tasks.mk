@@ -29,7 +29,8 @@ TRUSTY_APP_DIR := $(GET_LOCAL_DIR)
 # Input variables
 #
 #   TRUSTY_PREBUILT_USER_TASKS - list of precompiled user tasks to be included into final image
-#   TRUSTY_ALL_USER_TASKS      - list of compiled from source user tasks to be included into final image
+#   TRUSTY_BUILTIN_USER_TASKS      - list of compiled from source user tasks to be included into final image
+#   TRUSTY_LOADABLE_USER_TASKS - list of loadable apps compiled from source
 #
 
 # generate user task build rule: $(1): user task
@@ -56,41 +57,44 @@ BASE_USER_TASK_LINKER_SCRIPT :=
 include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 
 # generate list of all user tasks we need to build
+# include the legacy TRUSTY_ALL_USER_TASKS variable for projects that still use
+# it. This will be removed in the future and all projects should use
+# TRUSTY_BUILTIN_USER_TASKS directly.
+TRUSTY_BUILTIN_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) \
+                             $(TRUSTY_ALL_USER_TASKS)
 
+ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)
 # sort and remove duplicates
-TRUSTY_USER_TASKS := $(sort $(TRUSTY_USER_TASKS))
-
-ALLUSER_TASK_ELFS := $(foreach t, $(TRUSTY_ALL_USER_TASKS),\
-   $(addsuffix /$(notdir $(t)).elf, $(t)))
-
-ALLUSER_TASK_ELFS := $(addprefix $(BUILDDIR)/user_tasks/,$(ALLUSER_TASK_ELFS))
-
-# Add prebuilt user tasks
-ALLUSER_TASK_ELFS += $(TRUSTY_PREBUILT_USER_TASKS)
+ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 
 #
 # Generate build rules for each user task
 #
-$(foreach t,$(TRUSTY_ALL_USER_TASKS),\
+$(foreach t,$(ALL_USER_TASKS),\
    $(call user-task-build-rule,$(t)))
 
 #
 # Generate combined user task obj/bin if necessary
 #
-ifneq ($(strip $(ALLUSER_TASK_ELFS)),)
+ifneq ($(strip $(TRUSTY_BUILTIN_USER_TASKS)),)
 
-ALLUSER_TASK_OBJS := $(patsubst %.elf,%.o,$(ALLUSER_TASK_ELFS))
+BUILTIN_TASK_ELFS := $(foreach t, $(TRUSTY_BUILTIN_USER_TASKS),\
+   $(addsuffix /$(notdir $(t)).elf, $(t)))
 
-$(ALLUSER_TASK_OBJS): CC := $(CC)
-$(ALLUSER_TASK_OBJS): GLOBAL_COMPILEFLAGS := $(GLOBAL_COMPILEFLAGS)
-$(ALLUSER_TASK_OBJS): ARCH_COMPILEFLAGS := $(ARCH_$(ARCH)_COMPILEFLAGS)
-$(ALLUSER_TASK_OBJS): USER_TASK_OBJ_ASM:=$(TRUSTY_APP_DIR)/appobj.S
-$(ALLUSER_TASK_OBJS): %.o: %.elf $(USER_TASK_OBJ_ASM)
+BUILTIN_TASK_ELFS := $(addprefix $(BUILDDIR)/user_tasks/, $(BUILTIN_TASK_ELFS))
+
+BUILTIN_TASK_OBJS := $(patsubst %.elf,%.o,$(BUILTIN_TASK_ELFS))
+
+$(BUILTIN_TASK_OBJS): CC := $(CC)
+$(BUILTIN_TASK_OBJS): GLOBAL_COMPILEFLAGS := $(GLOBAL_COMPILEFLAGS)
+$(BUILTIN_TASK_OBJS): ARCH_COMPILEFLAGS := $(ARCH_$(ARCH)_COMPILEFLAGS)
+$(BUILTIN_TASK_OBJS): USER_TASK_OBJ_ASM:=$(TRUSTY_APP_DIR)/appobj.S
+$(BUILTIN_TASK_OBJS): %.o: %.elf $(USER_TASK_OBJ_ASM)
 	@$(MKDIR)
 	@echo converting $< to $@
 	$(NOECHO)$(CC) -DUSER_TASK_ELF=\"$<\" $(GLOBAL_COMPILEFLAGS) $(ARCH_COMPILEFLAGS) -c $(USER_TASK_OBJ_ASM) -o $@
 
-EXTRA_OBJS += $(ALLUSER_TASK_OBJS)
+EXTRA_OBJS += $(BUILTIN_TASK_OBJS)
 
 endif
 
