@@ -101,8 +101,18 @@ arch_dict = {
 .type _trusty_%(sys_fn)s,STT_FUNC
 _trusty_%(sys_fn)s:
     ldr     r12, =__NR_%(sys_fn)s
-    swi     #0
+    svc     #0
     bx      lr
+"""),
+    "arm64" : Architecture (
+        syscall_stub = """
+.section .text._trusty_%(sys_fn)s
+.global _trusty_%(sys_fn)s
+.type _trusty_%(sys_fn)s,STT_FUNC
+_trusty_%(sys_fn)s:
+    ldr     x12, =__NR_%(sys_fn)s
+    svc     #0
+    ret
 """),
     "x86_64" : Architecture (
         syscall_stub = """
