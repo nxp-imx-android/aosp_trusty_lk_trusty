@@ -124,7 +124,7 @@ _trusty_%(sys_fn)s:
     ret
 .size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
 """),
-    "x86_64" : Architecture (
+    "x86" : Architecture (
         syscall_stub = """
 .global _trusty_%(sys_fn)s
 .type _trusty_%(sys_fn)s,STT_FUNC
