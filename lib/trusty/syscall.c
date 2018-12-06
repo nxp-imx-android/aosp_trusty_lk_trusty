@@ -154,6 +154,7 @@ long sys_ioctl(uint32_t fd, uint32_t req, user_addr_t user_ptr) {
     return ERR_NOT_SUPPORTED;
 }
 
+#if IS_64BIT && USER_32BIT
 long sys_nanosleep(uint32_t clock_id,
                    uint32_t flags,
                    uint32_t sleep_time_l,
@@ -163,6 +164,13 @@ long sys_nanosleep(uint32_t clock_id,
 
     return NO_ERROR;
 }
+#else
+long sys_nanosleep(uint32_t clock_id, uint32_t flags, uint64_t sleep_time) {
+    thread_sleep((lk_time_t)(DIV_ROUND_UP(sleep_time, 1000 * 1000)));
+
+    return NO_ERROR;
+}
+#endif
 
 long sys_gettime(uint32_t clock_id, uint32_t flags, user_addr_t time) {
     // return time in nanoseconds
@@ -214,8 +222,9 @@ long sys_prepare_dma(user_addr_t uaddr,
     long ret;
     vaddr_t vaddr = uaddr;
 
-    LTRACEF("uaddr 0x%x, size 0x%x, flags 0x%x, pmem 0x%x\n", uaddr, size,
-            flags, pmem);
+    LTRACEF("uaddr 0x%" PRIxPTR_USER
+            ", size 0x%x, flags 0x%x, pmem 0x%" PRIxPTR_USER "\n",
+            uaddr, size, flags, pmem);
 
     if (size == 0 || !valid_address(vaddr, size))
         return ERR_INVALID_ARGS;
@@ -251,7 +260,8 @@ long sys_prepare_dma(user_addr_t uaddr,
 }
 
 long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
-    LTRACEF("uaddr 0x%x, size 0x%x, flags 0x%x\n", uaddr, size, flags);
+    LTRACEF("uaddr 0x%" PRIxPTR_USER ", size 0x%x, flags 0x%x\n", uaddr, size,
+            flags);
 
     /* check buffer is in task's address space */
     if (!valid_address((vaddr_t)uaddr, size))

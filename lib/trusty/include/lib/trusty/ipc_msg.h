@@ -48,10 +48,10 @@ bool ipc_msg_queue_is_full(ipc_msg_queue_t* mq);
 #define MAX_MSG_HANDLES 8
 
 typedef struct ipc_msg_kern {
-    uint num_iov;
+    uint32_t num_iov;
     iovec_kern_t* iov;
 
-    uint num_handles;
+    uint32_t num_handles;
     handle_t** handles;
 } ipc_msg_kern_t;
 
@@ -64,10 +64,16 @@ typedef struct ipc_msg_user {
 } ipc_msg_user_t;
 
 typedef struct ipc_msg_info {
-    uint32_t len;
+    size_t len;
     uint32_t id;
     uint32_t num_handles;
 } ipc_msg_info_t;
+
+typedef struct ipc_msg_info_user {
+    user_size_t len;
+    uint32_t id;
+    uint32_t num_handles;
+} ipc_msg_info_user_t;
 
 int ipc_get_msg(handle_t* chandle, ipc_msg_info_t* msg_info);
 int ipc_read_msg(handle_t* chandle,

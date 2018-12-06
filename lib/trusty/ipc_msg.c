@@ -555,7 +555,7 @@ int ipc_send_msg(handle_t* chandle, ipc_msg_kern_t* msg) {
 
 long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
     handle_t* chandle;
-    ipc_msg_info_t msg_info;
+    ipc_msg_info_t mi_kern;
     int ret;
 
     /* grab handle */
@@ -569,11 +569,15 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
         ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
         mutex_acquire(&chan->mlock);
         /* peek next filled message */
-        ret = msg_peek_next_filled_locked(chan->msg_queue, &msg_info);
+        ret = msg_peek_next_filled_locked(chan->msg_queue, &mi_kern);
         if (likely(ret == NO_ERROR)) {
             /* copy it to user space */
-            ret = copy_to_user(user_msg_info, &msg_info,
-                               sizeof(ipc_msg_info_t));
+            ipc_msg_info_user_t mi_user;
+
+            mi_user.len = (user_size_t)mi_kern.len;
+            mi_user.id = mi_kern.id;
+            mi_user.num_handles = mi_kern.num_handles;
+            ret = copy_to_user(user_msg_info, &mi_user, sizeof(mi_user));
             if (likely(ret == NO_ERROR)) {
                 /* and make it readable */
                 msg_get_filled_locked(chan->msg_queue);

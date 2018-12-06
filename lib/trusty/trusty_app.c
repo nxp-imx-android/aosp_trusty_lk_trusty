@@ -87,6 +87,35 @@ typedef struct trusty_app_manifest {
 
 #define PAGE_MASK (PAGE_SIZE - 1)
 
+#undef ELF_64BIT
+#if !IS_64BIT || USER_32BIT
+#define ELF_64BIT 0
+#else
+#define ELF_64BIT 1
+#endif
+
+#if ELF_64BIT
+#define ELF_SHDR Elf64_Shdr
+#define ELF_EHDR Elf64_Ehdr
+#define ELF_PHDR Elf64_Phdr
+
+#define PRIxELF_Off "llx"
+#define PRIuELF_Size "llu"
+#define PRIxELF_Size "llx"
+#define PRIxELF_Addr "llx"
+#define PRIxELF_Flags "llx"
+#else
+#define ELF_SHDR Elf32_Shdr
+#define ELF_EHDR Elf32_Ehdr
+#define ELF_PHDR Elf32_Phdr
+
+#define PRIxELF_Off "x"
+#define PRIuELF_Size "u"
+#define PRIxELF_Size "x"
+#define PRIxELF_Addr "x"
+#define PRIxELF_Flags "x"
+#endif
+
 static u_int trusty_next_app_id;
 static struct list_node trusty_app_list = LIST_INITIAL_VALUE(trusty_app_list);
 
@@ -156,7 +185,7 @@ static inline bool address_range_within_img(
                                        (const void*)appimg->img_end);
 }
 
-static bool compare_section_name(Elf32_Shdr* shdr,
+static bool compare_section_name(ELF_SHDR* shdr,
                                  const char* name,
                                  char* shstbl,
                                  uint32_t shstbl_size) {
@@ -194,6 +223,12 @@ int trusty_als_alloc_slot(void) {
     return ret;
 }
 
+#if ELF_64BIT
+#define ENTER_USPACE_FLAGS 0
+#else
+#define ENTER_USPACE_FLAGS ARCH_ENTER_USPACE_FLAG_32BIT
+#endif
+
 static int trusty_thread_startup(void* arg) {
     struct trusty_thread* trusty_thread = current_trusty_thread();
 
@@ -201,7 +236,7 @@ static int trusty_thread_startup(void* arg) {
 
     arch_enter_uspace(trusty_thread->entry,
                       ROUNDDOWN(trusty_thread->stack_start, 8),
-                      ARCH_ENTER_USPACE_FLAG_32BIT, 0);
+                      ENTER_USPACE_FLAGS, 0);
 
     __UNREACHABLE;
 }
@@ -273,7 +308,7 @@ err_stack:
 }
 
 static status_t load_app_config_options(trusty_app_t* trusty_app,
-                                        Elf32_Shdr* shdr) {
+                                        ELF_SHDR* shdr) {
     char* manifest_data;
     const char* port_name;
     uint32_t port_name_size;
@@ -284,8 +319,8 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
 
     /* have to at least have a valid UUID */
     if (shdr->sh_size < sizeof(uuid_t)) {
-        dprintf(CRITICAL, "app %u manifest too small %u\n", trusty_app->app_id,
-                shdr->sh_size);
+        dprintf(CRITICAL, "app %u manifest too small %" PRIuELF_Size "\n",
+                trusty_app->app_id, shdr->sh_size);
         return ERR_NOT_VALID;
     }
 
@@ -476,9 +511,9 @@ static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
 }
 
 static status_t alloc_address_map(trusty_app_t* trusty_app) {
-    Elf32_Ehdr* elf_hdr = (Elf32_Ehdr*)trusty_app->app_img->img_start;
+    ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
     void* trusty_app_image;
-    Elf32_Phdr* prg_hdr;
+    ELF_PHDR* prg_hdr;
     u_int i;
     status_t ret;
     vaddr_t start_code = ~0;
@@ -488,10 +523,9 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
     vaddr_t last_mem = 0;
     trusty_app_image = (void*)trusty_app->app_img->img_start;
 
-    prg_hdr = (Elf32_Phdr*)(trusty_app_image + elf_hdr->e_phoff);
+    prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
 
-    if (!address_range_within_img(prg_hdr,
-                                  sizeof(Elf32_Phdr) * elf_hdr->e_phnum,
+    if (!address_range_within_img(prg_hdr, sizeof(ELF_PHDR) * elf_hdr->e_phnum,
                                   trusty_app->app_img)) {
         dprintf(CRITICAL, "ELF program headers table out of bounds\n");
         return ERR_NOT_VALID;
@@ -501,8 +535,10 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
     for (i = 0; i < elf_hdr->e_phnum; i++, prg_hdr++) {
         vaddr_t first, last;
 
-        LTRACEF("trusty_app %d: ELF type 0x%x, vaddr 0x%08x, paddr 0x%08x"
-                " rsize 0x%08x, msize 0x%08x, flags 0x%08x\n",
+        LTRACEF("trusty_app %d: ELF type 0x%x"
+                ", vaddr 0x%08" PRIxELF_Addr ", paddr 0x%08" PRIxELF_Addr
+                ", rsize 0x%08" PRIxELF_Size ", msize 0x%08" PRIxELF_Size
+                ", flags 0x%08x\n",
                 trusty_app->app_id, prg_hdr->p_type, prg_hdr->p_vaddr,
                 prg_hdr->p_paddr, prg_hdr->p_filesz, prg_hdr->p_memsz,
                 prg_hdr->p_flags);
@@ -620,9 +656,9 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
             ASSERT(vaddr == prg_hdr->p_vaddr);
         }
 
-        LTRACEF("trusty_app %d: load vaddr 0x%08lx, paddr 0x%08lx,"
-                " rsize 0x%08zx, msize 0x%08x, access r%c%c,"
-                " flags 0x%x\n",
+        LTRACEF("trusty_app %d: load vaddr 0x%08lx, paddr 0x%08lx"
+                ", rsize 0x%08zx, msize 0x%08" PRIxELF_Size
+                ", access r%c%c, flags 0x%x\n",
                 trusty_app->app_id, vaddr, vaddr_to_paddr((void*)vaddr),
                 mapping_size, prg_hdr->p_memsz,
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO ? '-' : 'w',
@@ -662,8 +698,8 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
             trusty_app->app_id, trusty_app->end_bss);
     dprintf(SPEW, "trusty_app %d: brk:  start 0x%08lx end 0x%08lx\n",
             trusty_app->app_id, trusty_app->start_brk, trusty_app->end_brk);
-    dprintf(SPEW, "trusty_app %d: entry 0x%08x\n", trusty_app->app_id,
-            elf_hdr->e_entry);
+    dprintf(SPEW, "trusty_app %d: entry 0x%08" PRIxELF_Addr "\n",
+            trusty_app->app_id, elf_hdr->e_entry);
 
     return NO_ERROR;
 }
@@ -673,9 +709,9 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
  * apps
  */
 static status_t trusty_app_create(struct trusty_app_img* app_img) {
-    Elf32_Ehdr* ehdr;
-    Elf32_Shdr* shdr;
-    Elf32_Shdr *bss_shdr, *manifest_shdr;
+    ELF_EHDR* ehdr;
+    ELF_SHDR* shdr;
+    ELF_SHDR *bss_shdr, *manifest_shdr;
     char* shstbl;
     uint32_t shstbl_size;
     trusty_app_t* trusty_app;
@@ -700,8 +736,8 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
         return ERR_NO_MEMORY;
     }
 
-    ehdr = (Elf32_Ehdr*)app_img->img_start;
-    if (!address_range_within_img(ehdr, sizeof(Elf32_Ehdr), app_img)) {
+    ehdr = (ELF_EHDR*)app_img->img_start;
+    if (!address_range_within_img(ehdr, sizeof(ELF_EHDR), app_img)) {
         dprintf(CRITICAL, "trusty_app_create: ELF header out of bounds\n");
         ret = ERR_NOT_VALID;
         goto err_hdr;
@@ -713,8 +749,8 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
         goto err_hdr;
     }
 
-    shdr = (Elf32_Shdr*)((intptr_t)ehdr + ehdr->e_shoff);
-    if (!address_range_within_img(shdr, sizeof(Elf32_Shdr) * ehdr->e_shnum,
+    shdr = (ELF_SHDR*)((intptr_t)ehdr + ehdr->e_shoff);
+    if (!address_range_within_img(shdr, sizeof(ELF_SHDR) * ehdr->e_shnum,
                                   app_img)) {
         dprintf(CRITICAL,
                 "trusty_app_create: ELF section headers out of bounds\n");
@@ -743,8 +779,9 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
     for (i = 0; i < ehdr->e_shnum; i++) {
         if (shdr[i].sh_type == SHT_NULL)
             continue;
-
-        LTRACEF("trusty_app: sect %d, off 0x%08x, size 0x%08x, flags 0x%02x, name %s\n",
+        LTRACEF("trusty_app: sect %d"
+                ", off 0x%08" PRIxELF_Off ", size 0x%08" PRIxELF_Size
+                ", flags 0x%02" PRIxELF_Flags ", name %s\n",
                 i, shdr[i].sh_offset, shdr[i].sh_size, shdr[i].sh_flags,
                 shstbl + shdr[i].sh_name);
 
@@ -846,7 +883,7 @@ static status_t trusty_app_start(trusty_app_t* trusty_app) {
     char name[32];
     struct trusty_thread* trusty_thread;
     struct trusty_app_notifier* n;
-    Elf32_Ehdr* elf_hdr;
+    ELF_EHDR* elf_hdr;
     int ret;
 
     DEBUG_ASSERT(trusty_app->state == APP_STARTING);
@@ -892,7 +929,7 @@ static status_t trusty_app_start(trusty_app_t* trusty_app) {
         }
     }
 
-    elf_hdr = (Elf32_Ehdr*)trusty_app->app_img->img_start;
+    elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
     trusty_thread = trusty_thread_create(
             name, elf_hdr->e_entry, DEFAULT_PRIORITY, TRUSTY_APP_STACK_TOP,
             trusty_app->props.min_stack_size, trusty_app);
