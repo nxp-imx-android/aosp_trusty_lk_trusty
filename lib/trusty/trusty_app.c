@@ -342,6 +342,11 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
 
     PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
 
+    if (trusty_app_find_by_uuid(&trusty_app->props.uuid)) {
+        dprintf(CRITICAL, "app already registered\n");
+        return ERR_ALREADY_EXISTS;
+    }
+
     manifest_data += sizeof(trusty_app->props.uuid);
 
     config_blob = (u_int*)manifest_data;
