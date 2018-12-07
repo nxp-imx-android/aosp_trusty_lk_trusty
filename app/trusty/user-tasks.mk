@@ -45,6 +45,10 @@ $(eval XBIN_ALIGNMENT := 4096)\
 $(eval include make/xbin.mk)
 endef
 
+# while compiling user space we allow FP support
+SAVED_ALLOW_FP_USE := $(ALLOW_FP_USE)
+ALLOW_FP_USE := true
+
 # pull in common arch specific user task settings
 BASE_XBIN_LDFLAGS := --gc-sections -z max-page-size=4096
 BASE_USER_TASK_LINKER_SCRIPT :=
@@ -90,6 +94,9 @@ EXTRA_OBJS += $(ALLUSER_TASK_OBJS)
 
 BASE_XBIN_LDFLAGS :=
 BASE_USER_TASK_LINKER_SCRIPT :=
+
+ALLOW_FP_USE := $(SAVED_ALLOW_FP_USE)
+SAVED_ALLOW_FP_USE :=
 
 endif
 
