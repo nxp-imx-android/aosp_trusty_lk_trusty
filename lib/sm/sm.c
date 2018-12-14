@@ -233,9 +233,13 @@ static void sm_return_and_wait_for_next_stdcall(long ret, int cpu) {
     struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
 
     do {
+#if ARCH_HAS_FIQ
         arch_disable_fiqs();
+#endif
         sm_sched_nonsecure_fiq_loop(ret, &args);
+#if ARCH_HAS_FIQ
         arch_enable_fiqs();
+#endif
 
         /* Allow concurrent SMC_SC_NOP calls on multiple cpus */
         if (args.smc_nr == SMC_SC_NOP) {
@@ -501,7 +505,9 @@ void platform_halt(platform_halt_action suggested_action,
         dprintf(ALWAYS, "HALT: (reason = %d)\n", reason);
     }
 
+#if ARCH_HAS_FIQ
     arch_disable_fiqs();
+#endif
     while (true)
         sm_sched_nonsecure_fiq_loop(SM_ERR_PANIC, &args);
 }
