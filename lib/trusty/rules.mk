@@ -38,7 +38,8 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/ipc.c \
 	$(LOCAL_DIR)/ipc_msg.c \
 	$(LOCAL_DIR)/iovec.c \
-	$(LOCAL_DIR)/uuid.c
+	$(LOCAL_DIR)/uirq.c \
+	$(LOCAL_DIR)/uuid.c \
 
 GLOBAL_DEFINES += \
 	WITH_LIB_TRUSTY=1 \
