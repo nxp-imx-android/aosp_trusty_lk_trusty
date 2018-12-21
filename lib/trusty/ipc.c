@@ -260,27 +260,48 @@ static void port_shutdown(handle_t* phandle) {
          * back in the waiting for port list
          */
         if (is_startup_port) {
-            /* Get a local ref */
+            bool client_connecting = false;
+            /* Get a local ref to the client*/
             obj_ref_t tmp_client_ref = OBJ_REF_INITIAL_VALUE(tmp_client_ref);
             chan_add_ref(server->peer, &tmp_client_ref);
 
-            /* Remove peer refs */
+            /* Remove server -> client ref */
             client = server->peer;
             server->peer = NULL;
             chan_del_ref(client, &server->peer_ref);
-            client->peer = NULL;
-            chan_del_ref(server, &client->peer_ref);
 
-            /* Reset client */
-            ipc_msg_queue_destroy(client->msg_queue);
-            client->msg_queue = NULL;
-            client->path = strdup(port->path);
-            ASSERT(client->path);
+            mutex_acquire(&client->mlock);
+            if (client->state != IPC_CHAN_STATE_DISCONNECTING) {
+                /*
+                 * Remove client -> server ref if the client hasn't been closed
+                 */
+                client->peer = NULL;
+                chan_del_ref(server, &client->peer_ref);
+                ASSERT(client->state == IPC_CHAN_STATE_CONNECTING);
+                client_connecting = true;
+            }
+            mutex_release(&client->mlock);
 
-            /* Add client to waiting_for_port list */
-            mutex_acquire(&ipc_port_lock);
-            add_to_waiting_for_port_list_locked(client);
-            mutex_release(&ipc_port_lock);
+            if (client_connecting) {
+                /*
+                 * Reset client. This is needed before adding the client back
+                 * to the waiting for port list but it is still safe to do if
+                 * the client changes to disconnecting since we still hold a
+                 * reference to the client. When all the references go away
+                 * the destructor checks if the msg_queue has already been
+                 * destroyed.
+                 */
+                ipc_msg_queue_destroy(client->msg_queue);
+                client->msg_queue = NULL;
+                client->path = strdup(port->path);
+                ASSERT(client->path);
+
+                /* Add client to waiting_for_port list */
+                mutex_acquire(&ipc_port_lock);
+                if (client->state == IPC_CHAN_STATE_CONNECTING)
+                    add_to_waiting_for_port_list_locked(client);
+                mutex_release(&ipc_port_lock);
+            }
 
             /* Drop local ref */
             chan_del_ref(client, &tmp_client_ref);
@@ -589,6 +610,8 @@ static void chan_handle_destroy(handle_t* chandle) {
 
     ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
 
+    chan_shutdown(chan);
+
     if (!(chan->flags & IPC_CHAN_FLAG_SERVER)) {
         /*
          * When invoked from client side it is possible that channel
@@ -603,7 +626,7 @@ static void chan_handle_destroy(handle_t* chandle) {
         }
         mutex_release(&ipc_port_lock);
     }
-    chan_shutdown(chan);
+
     chan_del_ref(chan, &chan->handle_ref);
 }
 
