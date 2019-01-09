@@ -106,12 +106,17 @@ _trusty_%(sys_fn)s:
 .size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
 """),
     "arm64" : Architecture (
+        # Note: for arm64 we're using "mov" to set the syscall number instead of
+        # "ldr" because of an assembler bug. The ldr instruction would always
+        # load from a constant pool instead of encoding the constant in the
+        # instruction. For arm64, "mov" should work for the range of constants
+        # we care about.
         syscall_stub = """
 .section .text._trusty_%(sys_fn)s
 .global _trusty_%(sys_fn)s
 .type _trusty_%(sys_fn)s,STT_FUNC
 _trusty_%(sys_fn)s:
-    ldr     x12, =__NR_%(sys_fn)s
+    mov     x12, #__NR_%(sys_fn)s
     svc     #0
     ret
 .size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
