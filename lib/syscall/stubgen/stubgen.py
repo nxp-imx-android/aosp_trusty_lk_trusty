@@ -103,6 +103,7 @@ _trusty_%(sys_fn)s:
     ldr     r12, =__NR_%(sys_fn)s
     svc     #0
     bx      lr
+.size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
 """),
     "arm64" : Architecture (
         syscall_stub = """
@@ -113,6 +114,7 @@ _trusty_%(sys_fn)s:
     ldr     x12, =__NR_%(sys_fn)s
     svc     #0
     ret
+.size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
 """),
     "x86_64" : Architecture (
         syscall_stub = """
@@ -133,6 +135,7 @@ _trusty_%(sys_fn)s:
     popq %%rbp
     popfq
     ret
+.size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
 """),
 }
 
