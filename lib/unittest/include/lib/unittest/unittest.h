@@ -44,4 +44,11 @@ struct unittest {
 int unittest_printf(const char* fmt, ...);
 int unittest_add(struct unittest* test);
 
+#define trusty_unittest_printf(args...) \
+    do {                                \
+        unittest_printf(args);          \
+    } while (0)
+
+#include <lk/trusty_unittest.h>
+
 __END_CDECLS
