@@ -35,6 +35,7 @@
 #include <pow2.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "trusty-log.h"
 
@@ -89,6 +90,7 @@ static void __memlog_write(struct memlog* log, const char* str, size_t len) {
     log_offset = rb->alloc;
     rb->alloc += len;
 
+    /* Updates to alloc should be visible before the data is written. */
     wmb();
 
     for (i = 0; i < len; i++) {
@@ -96,10 +98,6 @@ static void __memlog_write(struct memlog* log, const char* str, size_t len) {
         volatile char* ptr = &rb->data[offset];
         *ptr = str[i];
     }
-
-    wmb();
-
-    rb->put += len;
 }
 
 static void memlog_write(struct memlog* log, const char* str, size_t len) {
@@ -115,6 +113,26 @@ static void memlog_write(struct memlog* log, const char* str, size_t len) {
     rem = len - i * chunk_size;
     if (rem)
         __memlog_write(log, &str[i * chunk_size], rem);
+    spin_unlock_restore(&log_lock, state, LOG_LOCK_FLAGS);
+}
+
+/* Signal that the buffered data is ready to read. */
+static void memlog_commit(struct memlog* log) {
+    spin_lock_saved_state_t state;
+    spin_lock_save(&log_lock, &state, LOG_LOCK_FLAGS);
+
+    /*
+     * Updates to the data should be visible before put is written.
+     * Arguably the existing spinlock implementations should take care of the
+     * ordering, but spinlocks for a non-SMP version of Trusty would not be
+     * required to use barriers. This code needs a barrier, however, because it
+     * is synchonizing with code that runs outside of Trusty, possibly on a
+     * different processor. (Even if Trusty itself is non-SMP.)
+     */
+    wmb();
+
+    log->rb->put = log->rb->alloc;
+
     spin_unlock_restore(&log_lock, state, LOG_LOCK_FLAGS);
 }
 
@@ -151,6 +169,11 @@ void memlog_print_callback(print_callback_t* cb, const char* str, size_t len) {
     memlog_write(log, str, len);
 }
 
+void memlog_commit_callback(print_callback_t* cb) {
+    struct memlog* log = containerof(cb, struct memlog, cb);
+    memlog_commit(log);
+}
+
 long memlog_add(paddr_t pa, size_t sz) {
     struct memlog* log;
     vaddr_t va;
@@ -165,6 +188,7 @@ long memlog_add(paddr_t pa, size_t sz) {
     if (!log) {
         return SM_ERR_INTERNAL_FAILURE;
     }
+    memset(log, 0, sizeof(*log));
     log->buf_pa = pa;
     log->buf_sz = sz;
 
@@ -184,6 +208,7 @@ long memlog_add(paddr_t pa, size_t sz) {
     list_add_head(&log_list, &log->entry);
 
     log->cb.print = memlog_print_callback;
+    log->cb.commit = memlog_commit_callback;
     register_print_callback(&log->cb);
     return 0;
 
