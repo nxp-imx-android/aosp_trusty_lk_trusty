@@ -35,6 +35,10 @@ __BEGIN_CDECLS
  * TEST(SuiteName, TestName) {
  *   ... test body ...
  * }
+ * or with:
+ * TEST_F(SuiteName, TestName) {
+ *   ... test body ...
+ * }
  *
  * Use EXPECT_<op> or ASSERT_<op> directly in test functions or from nested
  * functions to check test conditions. Where <op> can be:
@@ -52,9 +56,16 @@ __BEGIN_CDECLS
  * label in the calling function.
  *
  * Call RUN_ALL_TESTS() to run all tests defined by TEST (or
- * RUN_ALL_SUITE_TESTS(SuiteName) to only run tests with the specified
+ * RUN_ALL_SUITE_TESTS("SuiteName") to only run tests with the specified
  * SuiteName). RUN_ALL_TESTS and RUN_ALL_SUITE_TESTS return true if all the
  * tests passed.
+ *
+ * If test functions are defined with TEST_F, it expects the type <SuiteName>_t
+ * and <SuiteName>_SetUp and <SuiteName>_TearDown functions. A pointer to
+ * a <SuiteName>_t variable will be passed to the test function as _state.
+ *
+ * TEST_FIXTURE_ALIAS(NewSuiteName, OldSuiteName) can be used to use the test
+ * fixture defined for OldSuiteName with NewSuiteName.
  *
  * TEST_INIT, TEST_END and TESTS_PASSED are provided for backwards
  * compatibility.
@@ -132,12 +143,26 @@ static inline void TEST_END_FUNC(void) {
 
 #define STRINGIFY(x) #x
 
-#define TEST(suite_name, test_name)                                          \
-    static void suite_name##_##test_name##_inner(void);                      \
+#define TEST_FIXTURE_ALIAS(new_suite_name, old_suite_name)              \
+    typedef old_suite_name##_t new_suite_name##_t;                      \
+                                                                        \
+    static void new_suite_name##_SetUp(new_suite_name##_t* _state) {    \
+        old_suite_name##_SetUp(_state);                                 \
+    }                                                                   \
+    static void new_suite_name##_TearDown(new_suite_name##_t* _state) { \
+        old_suite_name##_TearDown(_state);                              \
+    }
+
+#define TEST_INTERNAL(suite_name, test_name, pre, post, arg, argp)           \
+    static void suite_name##_##test_name##_inner argp;                       \
                                                                              \
     static void suite_name##_##test_name(void) {                             \
         TEST_BEGIN_FUNC(STRINGIFY(suite_name##_##test_name));                \
-        suite_name##_##test_name##_inner();                                  \
+        {                                                                    \
+            pre;                                                             \
+            suite_name##_##test_name##_inner arg;                            \
+            post;                                                            \
+        }                                                                    \
         TEST_END_FUNC();                                                     \
     }                                                                        \
                                                                              \
@@ -151,7 +176,19 @@ static inline void TEST_END_FUNC(void) {
         list_add_tail(&_test_list, &suite_name##_##test_name##_node.node);   \
     }                                                                        \
                                                                              \
-    static void suite_name##_##test_name##_inner(void)
+    static void suite_name##_##test_name##_inner argp
+
+#define TEST(suite_name, test_name) \
+    TEST_INTERNAL(suite_name, test_name, , , (), (void))
+
+#define TEST_F_CUSTOM_ARGS(suite_name, test_name, arg, argp)                  \
+    TEST_INTERNAL(suite_name, test_name, suite_name##_t state;                \
+                  suite_name##_SetUp(&state);, suite_name##_TearDown(&state); \
+                  , arg, argp)
+
+#define TEST_F(suite_name, test_name)                   \
+    TEST_F_CUSTOM_ARGS(suite_name, test_name, (&state), \
+                       (suite_name##_t * _state))
 
 static inline bool RUN_ALL_SUITE_TESTS(const char* suite) {
     struct test_list_node* entry;
