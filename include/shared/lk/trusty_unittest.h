@@ -66,9 +66,6 @@ __BEGIN_CDECLS
  *
  * TEST_FIXTURE_ALIAS(NewSuiteName, OldSuiteName) can be used to use the test
  * fixture defined for OldSuiteName with NewSuiteName.
- *
- * TEST_INIT, TEST_END and TESTS_PASSED are provided for backwards
- * compatibility.
  */
 
 #ifndef trusty_unittest_printf
@@ -110,24 +107,12 @@ static struct test_context _test_context;
  */
 static struct list_node _test_list = LIST_INITIAL_VALUE(_test_list);
 
-static inline void TEST_INIT(void) {
-    _test_context.tests_total = 0;
-    _test_context.tests_failed = 0;
-}
-
-static inline bool TESTS_PASSED(void) {
-    return _test_context.tests_failed == 0;
-}
-
 static inline void TEST_BEGIN_FUNC(const char* name) {
     _test_context.test_name = name;
     _test_context.all_ok = true;
     _test_context.tests_total++;
     trusty_unittest_printf("[ RUN      ] %s\n", _test_context.test_name);
 }
-
-#define TEST_BEGIN(name) \
-    { TEST_BEGIN_FUNC(name); }
 
 static inline void TEST_END_FUNC(void) {
     if (_test_context.all_ok) {
@@ -137,9 +122,6 @@ static inline void TEST_END_FUNC(void) {
     }
     _test_context.test_name = NULL;
 }
-
-#define TEST_END \
-    { TEST_END_FUNC(); }
 
 #define STRINGIFY(x) #x
 
@@ -192,7 +174,8 @@ static inline void TEST_END_FUNC(void) {
 
 static inline bool RUN_ALL_SUITE_TESTS(const char* suite) {
     struct test_list_node* entry;
-    TEST_INIT();
+    _test_context.tests_total = 0;
+    _test_context.tests_failed = 0;
     list_for_every_entry(&_test_list, entry, struct test_list_node, node) {
         if (!suite || !strcmp(suite, entry->suite)) {
             entry->func();
@@ -210,7 +193,7 @@ static inline bool RUN_ALL_SUITE_TESTS(const char* suite) {
         trusty_unittest_printf("[  FAILED  ] %d tests.\n",
                                _test_context.tests_failed);
     }
-    return TESTS_PASSED();
+    return _test_context.tests_failed == 0;
 }
 
 static inline bool RUN_ALL_TESTS(void) {
@@ -240,11 +223,6 @@ static inline bool RUN_ALL_TESTS(void) {
 static inline bool HasFailure(void) {
     return !_test_context.all_ok;
 }
-
-#define ASSERT_ALL_OK()  \
-    if (HasFailure()) {  \
-        goto test_abort; \
-    }
 
 #define EXPECT_TEST(op, args...) ASSERT_EXPECT_TEST(op, , args)
 #define EXPECT_EQ(args...) EXPECT_TEST(==, args)
