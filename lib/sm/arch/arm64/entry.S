@@ -69,17 +69,3 @@ FUNCTION(sm_sched_nonsecure)
 .Lsm_err_busy:
 	mov	x1, #SM_ERR_BUSY
 	b	.Lreturn_sm_err
-
-FUNCTION(smc_fastcall_secure_monitor)
-	ldrh	w1, [x0]	/* r1 = function# */
-	ldr	x2, =sm_nr_fastcall_functions
-	ldr	w2, [x2]
-	cmp	w1, w2
-	bhs	.Lfastcall_smc_undefined
-	ldr	x2, =sm_fastcall_function_table
-	ldr	x2, [x2, x1, lsl#3]
-	cbz	x2, .Lfastcall_smc_undefined
-	br	x2
-.Lfastcall_smc_undefined:
-	ldr	x2, =smc_undefined
-	br	x2

@@ -47,7 +47,6 @@ static mutex_t smc_table_lock = MUTEX_INITIAL_VALUE(smc_table_lock);
 
 /* Defined elsewhere */
 long smc_fiq_exit(smc32_args_t* args);
-long smc_fastcall_secure_monitor(smc32_args_t* args);
 
 #define TRACE_SMC(msg, args)                                                \
     do {                                                                    \
@@ -148,7 +147,7 @@ static long smc_get_version_str(smc32_args_t* args) {
 }
 #endif
 
-smc32_handler_t sm_fastcall_function_table[] = {
+static smc32_handler_t sm_fastcall_function_table[] = {
         [SMC_FUNCTION(SMC_FC_REQUEST_FIQ)] = smc_intc_request_fiq,
         [SMC_FUNCTION(SMC_FC_FIQ_EXIT)] = smc_fiq_exit,
         [SMC_FUNCTION(SMC_FC_GET_NEXT_IRQ)] = smc_intc_get_next_irq,
@@ -164,7 +163,20 @@ smc32_handler_t sm_fastcall_function_table[] = {
         [SMC_FUNCTION(SMC_FC_FIQ_RESUME)] = smc_intc_fiq_resume,
 };
 
-uint32_t sm_nr_fastcall_functions = countof(sm_fastcall_function_table);
+static long smc_fastcall_secure_monitor(smc32_args_t* args) {
+    smc32_handler_t func = NULL;
+    uint16_t index = SMC_FUNCTION(args->smc_nr);
+
+    if (index < countof(sm_fastcall_function_table)) {
+        func = sm_fastcall_function_table[index];
+    }
+
+    if (func == NULL) {
+        func = smc_undefined;
+    }
+
+    return func(args);
+}
 
 /* SMC dispatch tables */
 smc32_handler_t sm_fastcall_table[SMC_NUM_ENTITIES] = {

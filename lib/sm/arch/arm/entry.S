@@ -125,14 +125,3 @@ FUNCTION(platform_reset)
 
 .Lall_done:
 	b	arm_reset
-
-FUNCTION(smc_fastcall_secure_monitor)
-	ldrh	r1, [r0]	/* r1 = function# */
-	ldr	r2, =sm_nr_fastcall_functions
-	ldr	r2, [r2]
-	cmp	r1, r2
-	ldrlo	r2, =sm_fastcall_function_table
-	ldrlo	r2, [r2, r1, lsl#2]
-	rsblos	r1, r2, #1	/* This will set the same flags as the cmp above */
-	ldrhs	r2, =smc_undefined
-	bx	r2
