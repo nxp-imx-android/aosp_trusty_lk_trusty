@@ -31,41 +31,14 @@
 
 FUNCTION(sm_sched_nonsecure)
 	push	x1, x30
-.Lfastcall_complete:
 	mov	x1, x0
-.Lreturn_sm_err:
+
 	ldr	x0, =SMC_SC_NS_RETURN
 	mov	x2, xzr
 	mov	x3, xzr
 	smc	#0
 
-	tbnz	x0, #30, .Lsm_err_not_supported /* Check calling convention */
-	tbz	x0, #31, .Lnot_fast_call
-
-	/* fastcall */
-	sub	sp, sp, #(4 * SMC_NUM_ARGS) /* allocate smc32_args_t on stack */
-	stp	w0, w1, [sp]
-	stp	w2, w3, [sp, #4 * 2]
-
-	ubfx	x0, x0, #24, #6		/* x0 = entity */
-	ldr	x9, =sm_fastcall_table
-	ldr	x9, [x9, x0, lsl #3]
-
-	mov	x0, sp			/* x0 = smc_args_t* args */
-	blr	x9
-	add	sp, sp, #(4 * SMC_NUM_ARGS)
-	b	.Lfastcall_complete
-
-.Lnot_fast_call:
 	pop	x9, x30
 	stp	w0, w1, [x9], #8
 	stp	w2, w3, [x9], #8
 	ret
-
-.Lsm_err_not_supported:
-	mov	x1, #SM_ERR_NOT_SUPPORTED
-	b	.Lreturn_sm_err
-
-.Lsm_err_busy:
-	mov	x1, #SM_ERR_BUSY
-	b	.Lreturn_sm_err

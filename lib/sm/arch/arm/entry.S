@@ -28,14 +28,12 @@
 
 #include <kernel/vm.h>
 
+#if !LIB_SM_CUSTOM_SCHED_NONSECURE
 /* sm_sched_nonsecure(uint32_t retval, smc32_args_t *args) */
 FUNCTION(sm_sched_nonsecure)
 	push	{r1, lr}
-
-.Lfastcall_complete:
 	mov	r1, r0
 
-.Lreturn_sm_err:
 #if LIB_SM_WITH_PLATFORM_NS_RETURN
 	bl	platform_ns_return
 #else
@@ -45,28 +43,10 @@ FUNCTION(sm_sched_nonsecure)
 	pop	{r4-r7}
 #endif
 
-	tst	r0, #(1 << 30)		/* Check calling convention */
-	movne	r1, #SM_ERR_NOT_SUPPORTED
-	bne	.Lreturn_sm_err
-
-	tst	r0, #(1 << 31)		/* Check if fastcall */
-	beq	.Lstdcall		/* handle stdcall */
-
-	push	{r0-r3}
-	ubfxne	r0, r0, #24, #6		/* r0 = entity */
-	ldrne	r14, =sm_fastcall_table
-	ldrne	r14, [r14, r0, lsl #2]
-
-	mov	r0, sp			/* r0 = smc_args_t* args */
-	blx	r14
-	add	sp, #(4 * SMC_NUM_ARGS)
-
-	b	.Lfastcall_complete
-
-.Lstdcall:
 	pop	{r12, lr}
 	stmia	r12, {r0-r3}
 	bx	lr
+#endif
 
 #if LIB_SM_WITH_PLATFORM_RESET
 FUNCTION(sm_reset)

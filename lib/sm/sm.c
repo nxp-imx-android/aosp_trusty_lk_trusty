@@ -74,6 +74,7 @@ struct sm_std_call_state stdcallstate = {
 
 extern smc32_handler_t sm_stdcall_table[];
 extern smc32_handler_t sm_nopcall_table[];
+extern smc32_handler_t sm_fastcall_table[];
 
 long smc_sm_api_version(smc32_args_t* args) {
     uint32_t api_version = args->params[0];
@@ -186,7 +187,17 @@ static void sm_return_and_wait_for_next_stdcall(long ret, int cpu) {
 
     do {
         arch_disable_fiqs();
-        sm_sched_nonsecure(ret, &args);
+        while (true) {
+            sm_sched_nonsecure(ret, &args);
+            if (SMC_IS_SMC64(args.smc_nr)) {
+                ret = SM_ERR_NOT_SUPPORTED;
+                continue;
+            }
+            if (!SMC_IS_FASTCALL(args.smc_nr)) {
+                break;
+            }
+            ret = sm_fastcall_table[SMC_ENTITY(args.smc_nr)](&args);
+        }
         arch_enable_fiqs();
 
         /* Allow concurrent SMC_SC_NOP calls on multiple cpus */

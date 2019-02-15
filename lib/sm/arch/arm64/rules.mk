@@ -23,7 +23,11 @@
 
 CUR_DIR := $(GET_LOCAL_DIR)
 
+ifeq (false,$(call TOBOOL,$(LIB_SM_CUSTOM_SCHED_NONSECURE)))
+
 MODULE_SRCS += \
 	$(CUR_DIR)/entry.S \
+
+endif
 
 CUR_DIR :=
