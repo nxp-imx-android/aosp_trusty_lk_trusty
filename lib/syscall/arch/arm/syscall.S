@@ -25,6 +25,8 @@
 
 #define MODE_SVC	0x13
 
+.syntax unified
+
 /* ARM syscall ABI
  * ===============
  * Only syscalls with 4 args (max) are currently supported
@@ -46,7 +48,7 @@ FUNCTION (arm_syscall)
 
 	ldrlo	r14, =syscall_table
 	ldrlo	r14, [r14, r12, lsl#2]
-	rsblos	r12, r14, #1	/* This will set the same flags as the cmp above */
+	rsbslo	r12, r14, #1	/* This will set the same flags as the cmp above */
 	ldrhs	r14,=sys_undefined
 	blx	r14
 
