@@ -207,7 +207,8 @@ status_t sm_register_entity(uint entity_nr, smc32_entity_t* entity) {
     if (!entity)
         return ERR_INVALID_ARGS;
 
-    if (!entity->fastcall_handler && !entity->stdcall_handler)
+    if (!entity->fastcall_handler && !entity->stdcall_handler &&
+        !entity->nopcall_handler)
         return ERR_NOT_VALID;
 
     mutex_acquire(&smc_table_lock);
