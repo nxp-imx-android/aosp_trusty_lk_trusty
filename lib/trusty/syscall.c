@@ -36,6 +36,7 @@
 
 #include <lib/trusty/sys_fd.h>
 #include <lib/trusty/trusty_app.h>
+#include <lib/trusty/uio.h>
 #include <platform.h>
 
 #define LOCAL_TRACE 0
@@ -93,24 +94,49 @@ static bool valid_address(vaddr_t addr, u_int size) {
 }
 
 /* handle stdout/stderr */
-static int32_t sys_std_write(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
-    size_t ret;
+static int32_t sys_std_write(uint32_t fd,
+                             user_addr_t iov_uaddr,
+                             uint32_t iov_cnt) {
+    /*
+     * Even if we're suppressing the output, we need to process the data to
+     * produce the correct return code.
+     */
+    bool should_output = ((fd == 2) ? INFO : SPEW) <= LK_DEBUGLEVEL;
+    FILE* fp = (fd == 2) ? stderr : stdout;
+    uint8_t buf[128];
 
-    /* check buffer is in task's address space */
-    if (!valid_address((vaddr_t)user_ptr, size))
-        return ERR_INVALID_ARGS;
-
-    if (((fd == 2) ? INFO : SPEW) > LK_DEBUGLEVEL) {
-        ret = size;
-    } else {
-        ret = fwrite((const void*)(uintptr_t)user_ptr, 1, size,
-                     (fd == 2) ? stderr : stdout);
+    if (should_output) {
+        io_lock(fp->io);
     }
 
+    iovec_iter_t iter = iovec_iter_create(iov_cnt);
+    size_t total_bytes = 0;
+    int ret;
+
+    while (iovec_iter_has_next(&iter)) {
+        ret = user_iovec_to_membuf_iter(buf, sizeof(buf), iov_uaddr, &iter);
+        if (ret < 0) {
+            goto write_done;
+        }
+        total_bytes += ret;
+        if (should_output) {
+            ret = io_write(fp->io, (const void*)buf, ret);
+            if (ret < 0) {
+                goto write_done;
+            }
+        }
+    }
+    ret = total_bytes;
+
+write_done:
+    if (should_output) {
+        io_write_commit(fp->io);
+        io_unlock(fp->io);
+    }
     return ret;
 }
 
-long sys_write(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
+long sys_writev(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
     const struct sys_fd_ops* ops = get_sys_fd_handler(fd);
 
     if (ops && ops->write)
