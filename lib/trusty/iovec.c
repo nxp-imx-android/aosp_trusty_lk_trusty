@@ -140,43 +140,62 @@ ssize_t membuf_to_user_iovec(user_addr_t iov_uaddr,
     return (ssize_t)copied;
 }
 
-ssize_t user_iovec_to_membuf(uint8_t* buf,
-                             size_t len,
-                             user_addr_t iov_uaddr,
-                             uint iov_cnt) {
+ssize_t user_iovec_to_membuf_iter(uint8_t* buf,
+                                  size_t buf_len,
+                                  user_addr_t iov_uaddr,
+                                  iovec_iter_t* iter) {
     status_t ret;
     size_t copied = 0;
     iovec_user_t uiov;
 
-    if (unlikely(iov_cnt == 0 || len == 0))
+    if (unlikely(buf_len == 0))
         return 0;
 
     if (unlikely(buf == NULL))
         return (ssize_t)ERR_INVALID_ARGS;
 
-    for (uint i = 0; i < iov_cnt; i++) {
+    while (buf_len > 0 && iovec_iter_has_next(iter)) {
         /* copy user iovec from user space into local buffer */
-        ret = copy_from_user(&uiov, iov_uaddr + i * sizeof(iovec_user_t),
+        ret = copy_from_user(&uiov,
+                             iov_uaddr + iter->iov_index * sizeof(iovec_user_t),
                              sizeof(iovec_user_t));
         if (unlikely(ret != NO_ERROR))
             return (ssize_t)ret;
 
-        size_t to_copy = len;
-        if (to_copy > uiov.len)
-            to_copy = uiov.len;
+        /* we've re-read the iov from userspace, it may have changed */
+        if (uiov.len < iter->data_offset)
+            return (ssize_t)ERR_INVALID_ARGS;
 
-        /* copy data to user space */
-        ret = copy_from_user(buf, uiov.base, to_copy);
+        /* figure out how much to copy */
+        size_t to_copy = uiov.len - iter->data_offset;
+        if (to_copy > buf_len)
+            to_copy = buf_len;
+
+        /* copy data from user space */
+        ret = copy_from_user(buf, uiov.base + iter->data_offset, to_copy);
         if (unlikely(ret != NO_ERROR))
             return (ssize_t)ret;
 
+        /* update the input state */
+        iter->data_offset += to_copy;
+        if (iter->data_offset >= uiov.len) {
+            iter->iov_index += 1;
+            iter->data_offset = 0;
+        }
+
+        /* update the output state */
         copied += to_copy;
         buf += to_copy;
-        len -= to_copy;
-        if (len == 0)
-            break;
-        ;
+        buf_len -= to_copy;
     }
 
     return (ssize_t)copied;
+}
+
+ssize_t user_iovec_to_membuf(uint8_t* buf,
+                             size_t buf_len,
+                             user_addr_t iov_uaddr,
+                             uint iov_cnt) {
+    iovec_iter_t iter = iovec_iter_create(iov_cnt);
+    return user_iovec_to_membuf_iter(buf, buf_len, iov_uaddr, &iter);
 }

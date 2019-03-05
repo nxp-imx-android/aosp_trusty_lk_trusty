@@ -37,6 +37,21 @@ typedef struct iovec_user {
     user_size_t len;
 } iovec_user_t;
 
+typedef struct iovec_iter {
+    uint iov_index;
+    uint iov_cnt;
+    size_t data_offset;
+} iovec_iter_t;
+
+static inline iovec_iter_t iovec_iter_create(uint iov_cnt) {
+    iovec_iter_t iter = {.iov_cnt = iov_cnt};
+    return iter;
+}
+
+static inline int iovec_iter_has_next(const iovec_iter_t* iter) {
+    return iter->iov_index < iter->iov_cnt;
+}
+
 ssize_t membuf_to_kern_iovec(const iovec_kern_t* iov,
                              uint iov_cnt,
                              const uint8_t* buf,
@@ -57,4 +72,8 @@ ssize_t user_iovec_to_membuf(uint8_t* buf,
                              user_addr_t iov_uaddr,
                              uint iov_cnt);
 
+ssize_t user_iovec_to_membuf_iter(uint8_t* buf,
+                                  size_t len,
+                                  user_addr_t iov_uaddr,
+                                  iovec_iter_t* iter);
 #endif

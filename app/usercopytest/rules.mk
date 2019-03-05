@@ -6,6 +6,7 @@ MODULE_DEPS += \
 	trusty/kernel/lib/unittest \
 
 MODULE_SRCS += \
+	$(LOCAL_DIR)/iovectest.c \
 	$(LOCAL_DIR)/usercopytest.c \
 
 include make/module.mk
