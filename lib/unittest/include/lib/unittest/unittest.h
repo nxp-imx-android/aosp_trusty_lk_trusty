@@ -51,4 +51,21 @@ int unittest_add(struct unittest* test);
 
 #include <lk/trusty_unittest.h>
 
+#include <lk/init.h>
+
+#define PORT_TEST(suite_name, port_name_string)           \
+    static bool run_##suite_name(struct unittest* test) { \
+        return RUN_ALL_TESTS();                           \
+    }                                                     \
+                                                          \
+    static void suite_name##_init(uint level) {           \
+        static struct unittest test = {                   \
+                .port_name = port_name_string,            \
+                .run_test = run_##suite_name,             \
+        };                                                \
+        unittest_add(&test);                              \
+    }                                                     \
+                                                          \
+    LK_INIT_HOOK(suite_name, suite_name##_init, LK_INIT_LEVEL_APPS);
+
 __END_CDECLS

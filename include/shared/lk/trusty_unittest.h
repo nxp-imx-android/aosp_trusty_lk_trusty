@@ -84,6 +84,7 @@ struct test_context {
     unsigned int tests_failed;
     const char* test_name;
     bool all_ok;
+    bool hard_fail;
 };
 
 /**
@@ -110,6 +111,7 @@ static struct list_node _test_list = LIST_INITIAL_VALUE(_test_list);
 static inline void TEST_BEGIN_FUNC(const char* name) {
     _test_context.test_name = name;
     _test_context.all_ok = true;
+    _test_context.hard_fail = false;
     _test_context.tests_total++;
     trusty_unittest_printf("[ RUN      ] %s\n", _test_context.test_name);
 }
@@ -142,7 +144,9 @@ static inline void TEST_END_FUNC(void) {
         TEST_BEGIN_FUNC(STRINGIFY(suite_name##_##test_name));                \
         {                                                                    \
             pre;                                                             \
-            suite_name##_##test_name##_inner arg;                            \
+            if (!_test_context.hard_fail) {                                  \
+                suite_name##_##test_name##_inner arg;                        \
+            }                                                                \
             post;                                                            \
         }                                                                    \
         TEST_END_FUNC();                                                     \
@@ -159,6 +163,12 @@ static inline void TEST_END_FUNC(void) {
     }                                                                        \
                                                                              \
     static void suite_name##_##test_name##_inner argp
+
+#define TEST_F_SETUP(suite_name) \
+    static void suite_name##_SetUp(suite_name##_t* _state)
+
+#define TEST_F_TEARDOWN(suite_name) \
+    static void suite_name##_TearDown(suite_name##_t* _state)
 
 #define TEST(suite_name, test_name) \
     TEST_INTERNAL(suite_name, test_name, , , (), (void))
@@ -200,7 +210,8 @@ static inline bool RUN_ALL_TESTS(void) {
     return RUN_ALL_SUITE_TESTS(NULL);
 }
 
-#define ASSERT_EXPECT_TEST(op, fail_action, val1, val2, extra_msg...)        \
+#define ASSERT_EXPECT_TEST(op, is_hard_fail, fail_action, val1, val2,        \
+                           extra_msg...)                                     \
     {                                                                        \
         __typeof__(val2) _val1 = val1;                                       \
         __typeof__(val2) _val2 = val2;                                       \
@@ -216,6 +227,7 @@ static inline bool RUN_ALL_TESTS(void) {
                 _test_context.all_ok = false;                                \
                 _test_context.tests_failed++;                                \
             }                                                                \
+            _test_context.hard_fail |= is_hard_fail;                         \
             fail_action                                                      \
         }                                                                    \
     }
@@ -224,7 +236,7 @@ static inline bool HasFailure(void) {
     return !_test_context.all_ok;
 }
 
-#define EXPECT_TEST(op, args...) ASSERT_EXPECT_TEST(op, , args)
+#define EXPECT_TEST(op, args...) ASSERT_EXPECT_TEST(op, false, , args)
 #define EXPECT_EQ(args...) EXPECT_TEST(==, args)
 #define EXPECT_NE(args...) EXPECT_TEST(!=, args)
 #define EXPECT_LT(args...) EXPECT_TEST(<, args)
@@ -232,7 +244,8 @@ static inline bool HasFailure(void) {
 #define EXPECT_GT(args...) EXPECT_TEST(>, args)
 #define EXPECT_GE(args...) EXPECT_TEST(>=, args)
 
-#define ASSERT_TEST(op, args...) ASSERT_EXPECT_TEST(op, goto test_abort;, args)
+#define ASSERT_TEST(op, args...) \
+    ASSERT_EXPECT_TEST(op, true, goto test_abort;, args)
 #define ASSERT_EQ(args...) ASSERT_TEST(==, args)
 #define ASSERT_NE(args...) ASSERT_TEST(!=, args)
 #define ASSERT_LT(args...) ASSERT_TEST(<, args)
