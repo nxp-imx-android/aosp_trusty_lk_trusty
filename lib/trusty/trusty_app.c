@@ -229,14 +229,102 @@ int trusty_als_alloc_slot(void) {
 #define ENTER_USPACE_FLAGS ARCH_ENTER_USPACE_FLAG_32BIT
 #endif
 
+/*
+ * Allocate space on the user stack.
+ */
+static user_addr_t user_stack_alloc(struct trusty_thread* trusty_thread,
+                                    user_size_t data_len,
+                                    user_size_t align,
+                                    user_addr_t* stack_ptr) {
+    user_addr_t ptr = ROUNDDOWN(*stack_ptr - data_len, align);
+    if (ptr < trusty_thread->stack_start - trusty_thread->stack_size) {
+        panic("stack underflow while initializing user space\n");
+    }
+    *stack_ptr = ptr;
+    return ptr;
+}
+
+/*
+ * Copy data to a preallocated spot on the user stack. This should not fail.
+ */
+static void copy_to_user_stack(user_addr_t dst_ptr,
+                               const void* data,
+                               user_size_t data_len) {
+    int ret = copy_to_user(dst_ptr, data, data_len);
+    if (ret) {
+        panic("copy_to_user failed %d\n", ret);
+    }
+}
+
+/*
+ * Allocate space on the user stack and fill it with data.
+ */
+static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
+                                     const void* data,
+                                     user_size_t data_len,
+                                     user_size_t align,
+                                     user_addr_t* stack_ptr) {
+    user_addr_t ptr =
+            user_stack_alloc(trusty_thread, data_len, align, stack_ptr);
+    copy_to_user_stack(ptr, data, data_len);
+    return ptr;
+}
+
+/* TODO share a common header file. */
+#define AT_PAGESZ 6
+
+/*
+ * Pass data to libc on the user stack.
+ * Prevent inlining so that the stack allocations inside this function don't get
+ * trapped on the kernel stack.
+ */
+static __NO_INLINE user_addr_t
+trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
+                               user_addr_t* stack_ptr) {
+    /* Construct the elf tables in reverse order - the stack grows down. */
+
+    /* auxv */
+    user_addr_t auxv[] = {
+            AT_PAGESZ,
+            PAGE_SIZE,
+            0,
+    };
+    add_to_user_stack(trusty_thread, auxv, sizeof(auxv), sizeof(user_addr_t),
+                      stack_ptr);
+
+    /* envp - for layout compatibility, unused */
+    user_addr_t envp[] = {
+            0,
+    };
+    add_to_user_stack(trusty_thread, envp, sizeof(envp), sizeof(user_addr_t),
+                      stack_ptr);
+
+    /* argv - for layout compatibility, unused */
+    user_addr_t argv[] = {
+            0,
+    };
+    add_to_user_stack(trusty_thread, argv, sizeof(argv), sizeof(user_addr_t),
+                      stack_ptr);
+
+    /* argc */
+    user_addr_t argc = 0;
+    user_addr_t argc_ptr = add_to_user_stack(trusty_thread, &argc, sizeof(argc),
+                                             sizeof(user_addr_t), stack_ptr);
+
+    return argc_ptr;
+}
+
 static int trusty_thread_startup(void* arg) {
     struct trusty_thread* trusty_thread = current_trusty_thread();
 
     vmm_set_active_aspace(trusty_thread->app->aspace);
 
-    arch_enter_uspace(trusty_thread->entry,
-                      ROUNDDOWN(trusty_thread->stack_start, 8),
-                      ENTER_USPACE_FLAGS, 0);
+    user_addr_t stack_ptr = trusty_thread->stack_start;
+    user_addr_t elf_tables =
+            trusty_thread_write_elf_tables(trusty_thread, &stack_ptr);
+
+    arch_enter_uspace(trusty_thread->entry, stack_ptr, ENTER_USPACE_FLAGS,
+                      elf_tables);
 
     __UNREACHABLE;
 }
