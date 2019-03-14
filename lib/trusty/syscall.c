@@ -298,3 +298,8 @@ long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
 
     return NO_ERROR;
 }
+
+long sys_set_user_tls(user_addr_t uaddr) {
+    arch_set_user_tls(uaddr);
+    return NO_ERROR;
+}
