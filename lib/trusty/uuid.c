@@ -23,4 +23,4 @@
 
 #include <lib/trusty/uuid.h>
 
-const struct uuid zero_uuid = ZERO_UUID;
+const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);

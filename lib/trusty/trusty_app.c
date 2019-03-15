@@ -41,39 +41,12 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
+#include <uapi/trusty_app_manifest_types.h>
 #include "elf.h"
 
 #define LOCAL_TRACE 0
-/*
- * Layout of .trusty_app.manifest section in the trusted application is the
- * required UUID followed by an abitrary number of configuration options.
- *
- * Note: Ensure that the manifest definition is kept in sync with the
- * one userspace uses to build the trusty apps.
- */
-
-enum {
-    TRUSTY_APP_CONFIG_KEY_MIN_STACK_SIZE = 1,
-    TRUSTY_APP_CONFIG_KEY_MIN_HEAP_SIZE = 2,
-    TRUSTY_APP_CONFIG_KEY_MAP_MEM = 3,
-    TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS = 4,
-    TRUSTY_APP_CONFIG_KEY_START_PORT = 5,
-};
-
-enum trusty_app_mgmt_flags {
-    TRUSTY_APP_MGMT_FLAGS_NONE = 0x0,
-    /* Restart application on exit */
-    TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT = 0x1,
-    /* Don't start the application at boot */
-    TRUSTY_APP_MGMT_FLAGS_DEFERRED_START = 0x2,
-};
 
 #define DEFAULT_MGMT_FLAGS TRUSTY_APP_MGMT_FLAGS_NONE
-
-typedef struct trusty_app_manifest {
-    uuid_t uuid;
-    uint32_t config_options[];
-} trusty_app_manifest_t;
 
 #define TRUSTY_APP_START_ADDR 0x8000
 

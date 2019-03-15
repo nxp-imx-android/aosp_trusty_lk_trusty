@@ -22,18 +22,7 @@
  */
 #pragma once
 
-#include <sys/types.h>
+#include <uapi/trusty_uuid.h>
 
-typedef struct uuid {
-    uint32_t time_low;
-    uint16_t time_mid;
-    uint16_t time_hi_and_version;
-    uint8_t clock_seq_and_node[8];
-} uuid_t;
-
-#define ZERO_UUID                                                 \
-    {                                                             \
-        0x0, 0x0, 0x0, { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } \
-    }
-
+/* uuid assigned to non-secure connections */
 extern const struct uuid zero_uuid;
