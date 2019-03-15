@@ -31,25 +31,51 @@
 
 static thread_t* smptest_thread[SMPTEST_THREAD_COUNT];
 static int smptest_thread_unblock_count[SMPTEST_THREAD_COUNT];
+static int smptest_thread_done_count[SMPTEST_THREAD_COUNT];
 
 static int smptest(void* arg) {
-    int i = (uintptr_t)arg;
+    uint i = (uintptr_t)arg;
+    uint cpu = arch_curr_cpu_num();
+
+    if (cpu != i) {
+        /* Warn if the thread starts on another CPU than it was pinned to */
+        printf("%s: thread %d started on wrong cpu: %d\n", __func__, i, cpu);
+    }
 
     while (true) {
         THREAD_LOCK(state1);
         get_current_thread()->state = THREAD_BLOCKED;
         thread_block();
+
+        cpu = arch_curr_cpu_num();
+        if (cpu != i) {
+            /* Don't update any state if the thread runs on the wrong CPU. */
+            printf("%s: thread %d ran on wrong cpu: %d\n", __func__, i, cpu);
+            continue;
+        }
+        /*
+         * Update unblock count for this cpu so the main test thread can see
+         * that it ran.
+         */
         smptest_thread_unblock_count[i]++;
         THREAD_UNLOCK(state1);
 
+        /* Sleep to simplify tracing and test CPU local timers */
         thread_sleep(100);
 
         THREAD_LOCK(state2);
         if (i + 1 < SMPTEST_THREAD_COUNT) {
+            /* Wake up next CPU */
             thread_unblock(smptest_thread[i + 1], false);
         } else {
+            /* Print status from last CPU. */
             printf("%s: %d %d\n", __func__, i, smptest_thread_unblock_count[i]);
         }
+        /*
+         * Update unblock count for this cpu so the main test thread can see
+         * that it completed.
+         */
+        smptest_thread_done_count[i]++;
         THREAD_UNLOCK(state2);
     }
     return 0;
@@ -57,6 +83,7 @@ static int smptest(void* arg) {
 
 static bool run_smp_test(struct unittest* test) {
     int i;
+    int j;
     bool wait_for_cpus = false;
 
     for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
@@ -67,6 +94,10 @@ static bool run_smp_test(struct unittest* test) {
         }
     }
     if (wait_for_cpus) {
+        /*
+         * test-runner can start the test before all CPUs have finished booting.
+         * Wait another second for all the CPUs we need to be ready.
+         */
         thread_sleep(1000);
     }
     for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
@@ -78,22 +109,48 @@ static bool run_smp_test(struct unittest* test) {
     unittest_printf("smptest start\n");
     for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
         smptest_thread_unblock_count[i] = 0;
+        smptest_thread_done_count[i] = 0;
     }
-    THREAD_LOCK(state);
-    thread_unblock(smptest_thread[0], false);
-    THREAD_UNLOCK(state);
-    thread_sleep(1000);
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        switch (smptest_thread_unblock_count[i]) {
-        case 0:
-            unittest_printf("smptest cpu %d FAILED to run\n", i);
-            return false;
-        case 1:
+
+    /*
+     * Repeat the test at least once, in case the CPUs don't go back to the
+     * same state after the first wake-up
+     */
+    for (j = 1; j <= 2; j++) {
+        THREAD_LOCK(state);
+        /*
+         * Wake up thread on CPU 0 to start a test run. It will wake up CPU 1,
+         * CPU 1 will wake up CPU 2 and CPU 2 will wake up CPU 3.
+         */
+        thread_unblock(smptest_thread[0], false);
+        THREAD_UNLOCK(state);
+
+        /*
+         * Sleep 1 second to allow all CPUs to run. Each CPU sleeps 100 ms, so
+         * this leaves 600 ms of execution time.
+         */
+        thread_sleep(1000);
+
+        /*
+         * Check that every CPU-thread ran exactly once each time we woke up the
+         * thread on CPU 0.
+         */
+        for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
+            int unblock_count = smptest_thread_unblock_count[i];
+            int done_count = smptest_thread_done_count[i];
+            if (unblock_count < j) {
+                unittest_printf("smptest cpu %d FAILED to run\n", i);
+                return false;
+            }
+            if (done_count < j) {
+                unittest_printf("smptest cpu %d FAILED to complete\n", i);
+                return false;
+            }
+            if (unblock_count > j || done_count > j) {
+                unittest_printf("smptest cpu %d FAILED to block\n", i);
+                return false;
+            }
             unittest_printf("smptest cpu %d ran\n", i);
-            break;
-        default:
-            unittest_printf("smptest cpu %d FAILED to block\n", i);
-            return false;
         }
     }
     return true;
