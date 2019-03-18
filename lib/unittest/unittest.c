@@ -149,39 +149,38 @@ static int unittest_loop(void* arg) {
     LTRACEF("waiting for connection\n");
     for (;;) {
         ret = handle_set_wait(unittest_handle_set, &evt, INFINITE_TIME);
+        if (ret < 0) {
+            TRACEF("handle_set_wait failed: %d\n", ret);
+            break;
+        }
         test = evt.cookie;
         LTRACEF("got event (ret=%d): ev=%x handle=%p port=%s\n", ret, evt.emask,
                 evt.handle, test->port_name);
-        if (ret == NO_ERROR) {
-            if (evt.emask & IPC_HANDLE_POLL_READY) {
-                /* get connection request */
-                ret = ipc_port_accept(evt.handle, &chandle, &dummy_uuid_p);
-                LTRACEF("accept returned %d\n", ret);
-                if (ret >= 0) {
-                    char tx_buffer[1];
-                    iovec_kern_t tx_iov = {
-                            tx_buffer,
-                            sizeof(tx_buffer),
-                    };
-                    ipc_msg_kern_t tx_msg = {1, &tx_iov, 0, NULL};
+        if (evt.emask & IPC_HANDLE_POLL_READY) {
+            /* get connection request */
+            ret = ipc_port_accept(evt.handle, &chandle, &dummy_uuid_p);
+            LTRACEF("accept returned %d\n", ret);
+            if (ret >= 0) {
+                char tx_buffer[1];
+                iovec_kern_t tx_iov = {
+                        tx_buffer,
+                        sizeof(tx_buffer),
+                };
+                ipc_msg_kern_t tx_msg = {1, &tx_iov, 0, NULL};
 
-                    /* then run unittest test */
-                    ipc_printf_handle = chandle;
-                    tx_buffer[0] =
-                            test->run_test(test) ? TEST_PASSED : TEST_FAILED;
-                    mutex_acquire(&unittest_lock);
-                    ipc_printf_handle = NULL;
+                /* then run unittest test */
+                ipc_printf_handle = chandle;
+                tx_buffer[0] = test->run_test(test) ? TEST_PASSED : TEST_FAILED;
+                mutex_acquire(&unittest_lock);
+                ipc_printf_handle = NULL;
 
-                    send_msg_wait(chandle, &tx_msg);
-                    mutex_release(&unittest_lock);
+                send_msg_wait(chandle, &tx_msg);
+                mutex_release(&unittest_lock);
 
-                    /* and close it */
-                    handle_close(chandle);
-                }
+                /* and close it */
+                handle_close(chandle);
             }
         }
-        if (ret < 0)
-            break;
     }
 
     return ret;
