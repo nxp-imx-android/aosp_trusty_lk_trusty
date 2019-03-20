@@ -30,6 +30,7 @@
 #include <kernel/vm.h>
 #include <lib/trusty/uuid.h>
 #include <list.h>
+#include <stdbool.h>
 #include <sys/types.h>
 
 enum app_state {
@@ -37,6 +38,14 @@ enum app_state {
     APP_STARTING,
     APP_RUNNING,
     APP_TERMINATING,
+};
+
+struct manifest_port_entry {
+    uint32_t flags;
+    uint32_t path_len;
+    /* Points to a string within an application's manifest blob */
+    const char* path;
+    struct list_node node;
 };
 
 typedef struct {
@@ -47,6 +56,7 @@ typedef struct {
     uint32_t map_io_mem_cnt;
     uint32_t config_entry_cnt;
     uint32_t* config_blob;
+    struct list_node port_entry_list;
 } trusty_app_props_t;
 
 struct trusty_app_img {
@@ -84,16 +94,29 @@ typedef struct trusty_app {
 void trusty_app_init(void);
 
 /**
- * trusty_app_request_start() - Request that an application be started
- * @app: application to be started
+ * trusty_app_is_startup_port() - Query if the specified port is a startup port
+ * @port_path: path of the port to check.
+ *
+ * Return: true if @port_path has been registered as a startup port by an
+ * application, false otherwise.
+ */
+bool trusty_app_is_startup_port(const char* port_path);
+
+/**
+ * trusty_app_request_start_by_port() - Request that the application (if any)
+ * that has registered the given port be started.
+ * @port_path: path of the registered port.
+ * @uuid: uuid of the application triggering the request.
  *
  * If the application is already running then this function has no effect.
  * Otherwise the application will be started.
  *
- * Return: ERR_ALREADY_STARTED if the application is already running. NO_ERROR
- * otherwise.
+ * Return: ERR_NOT_FOUND if no application has registered @port_path or if the
+ * port is not accessible to @uuid, ERR_ALREADY_STARTED
+ * if the application is already running or NO_ERROR otherwise.
  */
-status_t trusty_app_request_start(struct trusty_app* app);
+status_t trusty_app_request_start_by_port(const char* port_path,
+                                          const uuid_t* uuid);
 
 void trusty_app_exit(int status) __NO_RETURN;
 status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,

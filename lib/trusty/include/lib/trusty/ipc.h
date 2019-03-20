@@ -144,33 +144,15 @@ int ipc_port_accept(handle_t* phandle,
                     const uuid_t** uuid_ptr);
 
 /**
- * ipc_register_startup_port() - Register a start-on-connection port
- * @app: application owning the port
- * @path: name of the port
- * @len: length of path
- * @flags: port attributes
+ * ipc_connection_waiting_for_port () - Query if the given port path has any
+ * valid connection waiting for it.
+ * @path: port for the query
+ * @flags: flags to validate connections against
  *
- * Registering a port casues the owning application to be:
- *
- * 1. started when a connection is received on that port
- * 2. restarted after exiting if there are still pending connections for that
- *    port
- *
- * Return: ERR_ALREADY_EXISTS if a port with the same name has already been
- * registered. ERR_NO_MEMORY if the port can not be created. ERR_INVALID_ARGS
- * if len is invalid. NO_ERROR if the port is succesfully registered
+ * Return: true if there is a valid connection waiting for @port_path, false
+ * otherwise.
  */
-status_t ipc_register_startup_port(struct trusty_app* app,
-                                   const char* path,
-                                   uint32_t len,
-                                   uint32_t flags);
-
-/**
- * ipc_handle_app_exit() - Perform necessary actions when an application exits
- * @app: exiting application
- *
- */
-void ipc_handle_app_exit(struct trusty_app* app);
+bool ipc_connection_waiting_for_port(const char* path, uint32_t flags);
 
 /* client requests a connection to a port */
 enum {
@@ -200,4 +182,13 @@ bool ipc_is_port(handle_t* handle);
  */
 bool is_ns_client(const uuid_t* uuid);
 
+/**
+ * ipc_port_check_access() - Check if an application can access a port with the
+ * given flags.
+ * @port_flags: flags of the port to check against
+ * @uuid: uuid of the application to check
+ *
+ * Return: NO_ERROR if the access is allowed, ERR_ACCESS_DENIED otherwise.
+ */
+int ipc_port_check_access(uint32_t port_flags, const uuid_t* uuid);
 #endif

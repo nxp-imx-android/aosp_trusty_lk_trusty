@@ -368,6 +368,27 @@ err_stack:
     return NULL;
 }
 
+static struct manifest_port_entry* find_manifest_port_entry(
+        const char* port_path,
+        struct trusty_app** app_out) {
+    struct trusty_app* app;
+    struct manifest_port_entry* entry;
+
+    list_for_every_entry(&trusty_app_list, app, trusty_app_t, node) {
+        list_for_every_entry(&app->props.port_entry_list, entry,
+                             struct manifest_port_entry, node) {
+            if (!strncmp(port_path, entry->path, entry->path_len)) {
+                if (app_out)
+                    *app_out = app;
+
+                return entry;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 static status_t load_app_config_options(trusty_app_t* trusty_app,
                                         ELF_SHDR* shdr) {
     char* manifest_data;
@@ -376,7 +397,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
     uint32_t port_flags;
     u_int *config_blob, config_blob_size;
     u_int i;
-    status_t ret;
+    struct manifest_port_entry* entry;
 
     /* have to at least have a valid UUID */
     if (shdr->sh_size < sizeof(uuid_t)) {
@@ -497,15 +518,42 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
                 return ERR_NOT_VALID;
             }
 
-            ret = ipc_register_startup_port(trusty_app, port_name,
-                                            port_name_size, port_flags);
-            if (ret != NO_ERROR) {
-                dprintf(CRITICAL, "app %u failed to register port: %s\n",
-                        trusty_app->app_id, port_name);
-                return ret;
+            if (!port_name_size || port_name_size > IPC_PORT_PATH_MAX) {
+                dprintf(CRITICAL,
+                        "app %u manifest port name has invalid size:%#x\n",
+                        trusty_app->app_id, port_name_size);
+                return ERR_NOT_VALID;
+            }
+
+            size_t bound_len = strnlen(port_name, IPC_PORT_PATH_MAX);
+            if (!bound_len || bound_len == IPC_PORT_PATH_MAX) {
+                dprintf(CRITICAL,
+                        "app %u manifest port name is empty or not null-terminated\n",
+                        trusty_app->app_id);
+                return ERR_NOT_VALID;
             }
 
             i += DIV_ROUND_UP(port_name_size, sizeof(uint32_t)) - 1;
+
+            entry = find_manifest_port_entry(port_name, NULL);
+            if (entry) {
+                dprintf(CRITICAL, "Port %s is already registered\n", port_name);
+                return ERR_ALREADY_EXISTS;
+            }
+
+            entry = calloc(1, sizeof(struct manifest_port_entry));
+            if (!entry) {
+                dprintf(CRITICAL,
+                        "Failed to allocate memory for manifest port %s of app %u\n",
+                        port_name, trusty_app->app_id);
+                return ERR_NO_MEMORY;
+            }
+
+            entry->flags = port_flags;
+            entry->path_len = port_name_size;
+            entry->path = port_name;
+
+            list_add_tail(&trusty_app->props.port_entry_list, &entry->node);
 
             break;
         default:
@@ -783,6 +831,19 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
     return NO_ERROR;
 }
 
+static bool has_waiting_connection(struct trusty_app* app) {
+    struct manifest_port_entry* entry;
+
+    list_for_every_entry(&app->props.port_entry_list, entry,
+                         struct manifest_port_entry, node) {
+        if (ipc_connection_waiting_for_port(entry->path, entry->flags)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /*
  * Create a trusty_app from its memory image and add it to the global list of
  * apps
@@ -796,6 +857,8 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
     trusty_app_t* trusty_app;
     u_int i;
     status_t ret;
+    struct manifest_port_entry* entry;
+    struct manifest_port_entry* tmp_entry;
 
     if (app_img->img_start & PAGE_MASK || app_img->img_end & PAGE_MASK) {
         dprintf(CRITICAL,
@@ -814,6 +877,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
                 "trusty_app: failed to allocate memory for trusty app\n");
         return ERR_NO_MEMORY;
     }
+    list_initialize(&trusty_app->props.port_entry_list);
 
     ehdr = (ELF_EHDR*)app_img->img_start;
     if (!address_range_within_img(ehdr, sizeof(ELF_EHDR), app_img)) {
@@ -893,7 +957,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
 
     ret = load_app_config_options(trusty_app, manifest_shdr);
     if (ret != NO_ERROR) {
-        dprintf(CRITICAL, "manifest processing failed\n");
+        dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
         goto err_load;
     }
 
@@ -902,7 +966,11 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
     return NO_ERROR;
 
 err_load:
-    trusty_next_app_id--;
+    list_for_every_entry_safe(&trusty_app->props.port_entry_list, entry,
+                              tmp_entry, struct manifest_port_entry, node) {
+        list_delete(&entry->node);
+        free(entry);
+    }
 err_hdr:
     free(trusty_app);
     return ret;
@@ -1103,14 +1171,13 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     free(app->thread);
     ret = vmm_free_aspace(app->aspace);
 
-    if (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT) {
+    if (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT ||
+        has_waiting_connection(app)) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
     } else {
         app->state = APP_NOT_RUNNING;
     }
-
-    ipc_handle_app_exit(app);
 
     return ret;
 }
@@ -1161,10 +1228,23 @@ static void app_mgr_init(void) {
         panic("Failed to start app manager thread\n");
 }
 
-status_t trusty_app_request_start(struct trusty_app* app) {
-    int oldstate;
+bool trusty_app_is_startup_port(const char* port_path) {
+    return (find_manifest_port_entry(port_path, NULL) != NULL);
+}
 
-    oldstate = atomic_cmpxchg((int*)&app->state, APP_NOT_RUNNING, APP_STARTING);
+status_t trusty_app_request_start_by_port(const char* port_path,
+                                          const uuid_t* uuid) {
+    int oldstate;
+    struct manifest_port_entry* entry;
+    struct trusty_app* owner = NULL;
+
+    entry = find_manifest_port_entry(port_path, &owner);
+
+    if (!owner || ipc_port_check_access(entry->flags, uuid) != NO_ERROR)
+        return ERR_NOT_FOUND;
+
+    oldstate =
+            atomic_cmpxchg((int*)&owner->state, APP_NOT_RUNNING, APP_STARTING);
 
     if (oldstate == APP_NOT_RUNNING) {
         event_signal(&app_mgr_event, false);
@@ -1216,8 +1296,10 @@ static void start_apps(uint level) {
         if (trusty_app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_DEFERRED_START)
             continue;
 
-        trusty_app_request_start(trusty_app);
+        trusty_app->state = APP_STARTING;
     }
+
+    event_signal(&app_mgr_event, false);
 }
 
 LK_INIT_HOOK(libtrusty_apps, start_apps, LK_INIT_LEVEL_APPS + 1);
