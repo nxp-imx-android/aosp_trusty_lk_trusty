@@ -368,11 +368,14 @@ err_stack:
     return NULL;
 }
 
-static struct manifest_port_entry* find_manifest_port_entry(
+/* Must be called with the apps_lock held */
+static struct manifest_port_entry* find_manifest_port_entry_locked(
         const char* port_path,
         struct trusty_app** app_out) {
     struct trusty_app* app;
     struct manifest_port_entry* entry;
+
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
 
     list_for_every_entry(&trusty_app_list, app, trusty_app_t, node) {
         list_for_every_entry(&app->props.port_entry_list, entry,
@@ -384,6 +387,19 @@ static struct manifest_port_entry* find_manifest_port_entry(
                 return entry;
             }
         }
+    }
+
+    return NULL;
+}
+/* Must be called with the apps_lock held */
+static trusty_app_t* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
+    trusty_app_t* app;
+
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
+
+    list_for_every_entry(&trusty_app_list, app, trusty_app_t, node) {
+        if (!memcmp(&app->props.uuid, uuid, sizeof(uuid_t)))
+            return app;
     }
 
     return NULL;
@@ -424,7 +440,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
 
     PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
 
-    if (trusty_app_find_by_uuid(&trusty_app->props.uuid)) {
+    if (trusty_app_find_by_uuid_locked(&trusty_app->props.uuid)) {
         dprintf(CRITICAL, "app already registered\n");
         return ERR_ALREADY_EXISTS;
     }
@@ -535,7 +551,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
 
             i += DIV_ROUND_UP(port_name_size, sizeof(uint32_t)) - 1;
 
-            entry = find_manifest_port_entry(port_name, NULL);
+            entry = find_manifest_port_entry_locked(port_name, NULL);
             if (entry) {
                 dprintf(CRITICAL, "Port %s is already registered\n", port_name);
                 return ERR_ALREADY_EXISTS;
@@ -834,6 +850,12 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
 static bool has_waiting_connection(struct trusty_app* app) {
     struct manifest_port_entry* entry;
 
+    /*
+     * Don't hold the apps lock when calling into other subsystems with calls
+     * that may grab additional locks.
+     */
+    DEBUG_ASSERT(!is_mutex_held(&apps_lock));
+
     list_for_every_entry(&app->props.port_entry_list, entry,
                          struct manifest_port_entry, node) {
         if (ipc_connection_waiting_for_port(entry->path, entry->flags)) {
@@ -842,6 +864,19 @@ static bool has_waiting_connection(struct trusty_app* app) {
     }
 
     return false;
+}
+
+/* Must be called with the apps_lock held */
+static status_t request_app_start_locked(struct trusty_app* app) {
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
+
+    if (app->state == APP_NOT_RUNNING) {
+        app->state = APP_STARTING;
+        event_signal(&app_mgr_event, false);
+        return NO_ERROR;
+    }
+
+    return ERR_ALREADY_STARTED;
 }
 
 /*
@@ -955,15 +990,19 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
     trusty_app->app_img = app_img;
     trusty_app->state = APP_NOT_RUNNING;
 
+    mutex_acquire(&apps_lock);
+
     ret = load_app_config_options(trusty_app, manifest_shdr);
-    if (ret != NO_ERROR) {
-        dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
-        goto err_load;
+    if (ret == NO_ERROR) {
+        list_add_tail(&trusty_app_list, &trusty_app->node);
     }
 
-    list_add_tail(&trusty_app_list, &trusty_app->node);
+    mutex_release(&apps_lock);
 
-    return NO_ERROR;
+    if (ret == NO_ERROR)
+        return ret;
+
+    dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
 
 err_load:
     list_for_every_entry_safe(&trusty_app->props.port_entry_list, entry,
@@ -984,6 +1023,9 @@ status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
     u_int i;
     u_int id, offset, size;
     uint32_t port_name_size;
+
+    /* Should only be called on the currently running app */
+    DEBUG_ASSERT(trusty_app == current_trusty_app());
 
     /* step thru configuration blob looking for I/O mapping requests */
     for (i = 0; i < trusty_app->props.config_entry_cnt; i++) {
@@ -1127,8 +1169,6 @@ void trusty_app_exit(int status) {
 
     LTRACEF("app %u exiting...\n", app->app_id);
 
-    app->state = APP_TERMINATING;
-
     list_for_every_entry(&app_notifier_list, notifier,
                          struct trusty_app_notifier, node) {
         if (!notifier->shutdown)
@@ -1141,6 +1181,11 @@ void trusty_app_exit(int status) {
     }
 
     free(app->als);
+
+    mutex_acquire(&apps_lock);
+    app->state = APP_TERMINATING;
+    mutex_release(&apps_lock);
+
     event_signal(&app_mgr_event, false);
     trusty_thread_exit(status);
 }
@@ -1148,7 +1193,9 @@ void trusty_app_exit(int status) {
 static status_t app_mgr_handle_starting(struct trusty_app* app) {
     status_t ret;
 
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
     DEBUG_ASSERT(app->state == APP_STARTING);
+
     LTRACEF("starting app %u\n", app->app_id);
 
     ret = trusty_app_start(app);
@@ -1162,8 +1209,11 @@ static status_t app_mgr_handle_starting(struct trusty_app* app) {
 static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     status_t ret;
     int retcode;
+    bool has_connection;
 
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
     DEBUG_ASSERT(app->state == APP_TERMINATING);
+
     LTRACEF("waiting for app %u to exit \n", app->app_id);
 
     ret = thread_join(app->thread->thread, &retcode, INFINITE_TIME);
@@ -1171,8 +1221,16 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     free(app->thread);
     ret = vmm_free_aspace(app->aspace);
 
+    /*
+     * Drop the lock to call into ipc to check for connections. This is safe
+     * since the app is in the APP_TERMINANTING state so it cannot be removed.
+     */
+    mutex_release(&apps_lock);
+    has_connection = has_waiting_connection(app);
+    mutex_acquire(&apps_lock);
+
     if (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT ||
-        has_waiting_connection(app)) {
+        has_connection) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
     } else {
@@ -1189,6 +1247,9 @@ static int app_mgr(void* arg) {
     while (true) {
         LTRACEF("app manager waiting for events\n");
         event_wait(&app_mgr_event);
+
+        mutex_acquire(&apps_lock);
+
         list_for_every_entry(&trusty_app_list, app, struct trusty_app, node) {
             switch (app->state) {
             case APP_TERMINATING:
@@ -1209,6 +1270,8 @@ static int app_mgr(void* arg) {
                 panic("app %u in unknown state %u\n", app->app_id, app->state);
             }
         }
+
+        mutex_release(&apps_lock);
     }
 }
 
@@ -1229,29 +1292,34 @@ static void app_mgr_init(void) {
 }
 
 bool trusty_app_is_startup_port(const char* port_path) {
-    return (find_manifest_port_entry(port_path, NULL) != NULL);
+    struct manifest_port_entry* entry;
+
+    mutex_acquire(&apps_lock);
+    entry = find_manifest_port_entry_locked(port_path, NULL);
+    mutex_release(&apps_lock);
+
+    return entry != NULL;
 }
 
 status_t trusty_app_request_start_by_port(const char* port_path,
                                           const uuid_t* uuid) {
-    int oldstate;
     struct manifest_port_entry* entry;
     struct trusty_app* owner = NULL;
+    status_t ret;
 
-    entry = find_manifest_port_entry(port_path, &owner);
+    mutex_acquire(&apps_lock);
 
-    if (!owner || ipc_port_check_access(entry->flags, uuid) != NO_ERROR)
-        return ERR_NOT_FOUND;
+    entry = find_manifest_port_entry_locked(port_path, &owner);
 
-    oldstate =
-            atomic_cmpxchg((int*)&owner->state, APP_NOT_RUNNING, APP_STARTING);
-
-    if (oldstate == APP_NOT_RUNNING) {
-        event_signal(&app_mgr_event, false);
-        return NO_ERROR;
+    if (!owner || ipc_port_check_access(entry->flags, uuid) != NO_ERROR) {
+        ret = ERR_NOT_FOUND;
+    } else {
+        ret = request_app_start_locked(owner);
     }
 
-    return ERR_ALREADY_STARTED;
+    mutex_release(&apps_lock);
+
+    return ret;
 }
 
 void trusty_app_init(void) {
@@ -1268,17 +1336,6 @@ void trusty_app_init(void) {
     }
 }
 
-trusty_app_t* trusty_app_find_by_uuid(uuid_t* uuid) {
-    trusty_app_t* ta;
-
-    /* find app for this uuid */
-    list_for_every_entry(
-            &trusty_app_list, ta, trusty_app_t,
-            node) if (!memcmp(&ta->props.uuid, uuid, sizeof(uuid_t))) return ta;
-
-    return NULL;
-}
-
 /* rather export trusty_app_list?  */
 void trusty_app_forall(void (*fn)(trusty_app_t* ta, void* data), void* data) {
     trusty_app_t* ta;
@@ -1286,20 +1343,22 @@ void trusty_app_forall(void (*fn)(trusty_app_t* ta, void* data), void* data) {
     if (fn == NULL)
         return;
 
+    mutex_acquire(&apps_lock);
     list_for_every_entry(&trusty_app_list, ta, trusty_app_t, node) fn(ta, data);
+    mutex_release(&apps_lock);
 }
 
 static void start_apps(uint level) {
     trusty_app_t* trusty_app;
 
+    mutex_acquire(&apps_lock);
     list_for_every_entry(&trusty_app_list, trusty_app, trusty_app_t, node) {
         if (trusty_app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_DEFERRED_START)
             continue;
 
-        trusty_app->state = APP_STARTING;
+        request_app_start_locked(trusty_app);
     }
-
-    event_signal(&app_mgr_event, false);
+    mutex_release(&apps_lock);
 }
 
 LK_INIT_HOOK(libtrusty_apps, start_apps, LK_INIT_LEVEL_APPS + 1);
