@@ -61,3 +61,7 @@ DEF_SYSCALL(0x20, get_msg, long, 2, uint32_t handle, struct ipc_msg_info *msg_in
 DEF_SYSCALL(0x21, read_msg, long, 4, uint32_t handle, uint32_t msg_id, uint32_t offset, struct ipc_msg *msg)
 DEF_SYSCALL(0x22, put_msg, long, 2, uint32_t handle, uint32_t msg_id)
 DEF_SYSCALL(0x23, send_msg, long, 2, uint32_t handle, struct ipc_msg *msg)
+
+/* application management */
+DEF_SYSCALL(0x30, register_app, long, 2, void *uaddr, uint32_t img_size)
+DEF_SYSCALL(0x31, unregister_app, long, 1, struct uuid *app_uuid)
