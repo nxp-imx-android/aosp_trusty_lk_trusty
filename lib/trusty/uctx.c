@@ -137,6 +137,18 @@ static int _check_handle_id(uctx_t* ctx, handle_id_t handle_id) {
 
     DEBUG_ASSERT(ctx);
 
+    /*
+     * This check is technically not required because the wrapping of the
+     * arithemtic combined with the bounds check will detect this case.
+     * However, this makes it more obviously correct, guards against someone
+     * making idx signed or IPC_MAX_HANDLES very high, and makes us pass
+     * UBSan.
+     */
+    if (unlikely(handle_id < ctx->handle_id_base)) {
+        LTRACEF("%d is below handle base\n", handle_id);
+        return ERR_BAD_HANDLE;
+    }
+
     idx = handle_id - ctx->handle_id_base;
     if (unlikely(idx >= IPC_MAX_HANDLES)) {
         LTRACEF("%d is invalid handle id\n", handle_id);
