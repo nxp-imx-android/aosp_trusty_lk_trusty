@@ -97,6 +97,8 @@ arch_dict = {
     "arm" : Architecture (
         syscall_stub = """
 .section .text._trusty_%(sys_fn)s
+.arm
+.balign 4
 .global _trusty_%(sys_fn)s
 .type _trusty_%(sys_fn)s,STT_FUNC
 _trusty_%(sys_fn)s:
@@ -113,6 +115,7 @@ _trusty_%(sys_fn)s:
         # we care about.
         syscall_stub = """
 .section .text._trusty_%(sys_fn)s
+.balign 4
 .global _trusty_%(sys_fn)s
 .type _trusty_%(sys_fn)s,STT_FUNC
 _trusty_%(sys_fn)s:
