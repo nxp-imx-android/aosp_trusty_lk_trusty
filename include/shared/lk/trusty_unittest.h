@@ -210,26 +210,25 @@ static inline bool RUN_ALL_TESTS(void) {
     return RUN_ALL_SUITE_TESTS(NULL);
 }
 
-#define ASSERT_EXPECT_TEST(op, is_hard_fail, fail_action, val1, val2,        \
-                           extra_msg...)                                     \
-    {                                                                        \
-        __typeof__(val2) _val1 = val1;                                       \
-        __typeof__(val2) _val2 = val2;                                       \
-        if (!(_val1 op _val2)) {                                             \
-            trusty_unittest_printf("%s: @ %s:%d\n", _test_context.test_name, \
-                                   __FILE__, __LINE__);                      \
-            trusty_unittest_printf("  expected: " #val1 " (%ld) " #op        \
-                                   " " #val2 " (%ld)\n",                     \
-                                   (long)_val1, (long)_val2);                \
-            trusty_unittest_printf("  " extra_msg);                          \
-            trusty_unittest_printf("\n");                                    \
-            if (_test_context.all_ok) {                                      \
-                _test_context.all_ok = false;                                \
-                _test_context.tests_failed++;                                \
-            }                                                                \
-            _test_context.hard_fail |= is_hard_fail;                         \
-            fail_action                                                      \
-        }                                                                    \
+#define ASSERT_EXPECT_TEST(op, is_hard_fail, fail_action, val1, val2,         \
+                           extra_msg...)                                      \
+    {                                                                         \
+        __typeof__(val2) _val1 = val1;                                        \
+        __typeof__(val2) _val2 = val2;                                        \
+        if (!(_val1 op _val2)) {                                              \
+            trusty_unittest_printf("%s: @ %s:%d\n", _test_context.test_name,  \
+                                   __FILE__, __LINE__);                       \
+            trusty_unittest_printf("  expected: %s (%ld) " #op " %s (%ld)\n", \
+                                   #val1, (long)_val1, #val2, (long)_val2);   \
+            trusty_unittest_printf("  " extra_msg);                           \
+            trusty_unittest_printf("\n");                                     \
+            if (_test_context.all_ok) {                                       \
+                _test_context.all_ok = false;                                 \
+                _test_context.tests_failed++;                                 \
+            }                                                                 \
+            _test_context.hard_fail |= is_hard_fail;                          \
+            fail_action                                                       \
+        }                                                                     \
     }
 
 static inline bool HasFailure(void) {
