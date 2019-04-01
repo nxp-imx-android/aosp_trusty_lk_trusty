@@ -704,22 +704,35 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
                 return ERR_NOT_VALID;
             }
 
-            paddr_t paddr = vaddr_to_paddr((void*)img_kvaddr);
+            paddr_t* paddr_arr =
+                    calloc(mapping_size / PAGE_SIZE, sizeof(paddr_t));
+            if (!paddr_arr) {
+                dprintf(CRITICAL,
+                        "Failed to allocate physical address array\n");
+                return ERR_NO_MEMORY;
+            }
 
-            ASSERT(paddr && !(paddr & PAGE_MASK));
+            for (size_t j = 0; j < mapping_size / PAGE_SIZE; j++) {
+                paddr_arr[j] =
+                        vaddr_to_paddr((void*)(img_kvaddr + PAGE_SIZE * j));
+                DEBUG_ASSERT(paddr_arr[j] && !(paddr_arr[j] & PAGE_MASK));
+            }
 
             arch_mmu_flags += ARCH_MMU_FLAG_PERM_RO;
-            ret = vmm_alloc_physical(trusty_app->aspace, "elfseg", mapping_size,
-                                     (void**)&vaddr, PAGE_SIZE_SHIFT, paddr,
-                                     VMM_FLAG_VALLOC_SPECIFIC, arch_mmu_flags);
+            ret = vmm_alloc_physical_etc(
+                    trusty_app->aspace, "elfseg", mapping_size, (void**)&vaddr,
+                    PAGE_SIZE_SHIFT, paddr_arr, mapping_size / PAGE_SIZE,
+                    VMM_FLAG_VALLOC_SPECIFIC, arch_mmu_flags);
             if (ret != NO_ERROR) {
                 dprintf(CRITICAL,
                         "failed(%d) to map RO segment(0x%lx) %u for app %u\n",
                         ret, vaddr, i, trusty_app->app_id);
+                free(paddr_arr);
                 return ret;
             }
 
             ASSERT(vaddr == prg_hdr->p_vaddr);
+            free(paddr_arr);
         }
 
         LTRACEF("trusty_app %d: load vaddr 0x%08lx, paddr 0x%08lx"
