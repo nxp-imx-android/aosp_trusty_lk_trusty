@@ -18,6 +18,7 @@
     # Boot tests (test-runner + trusty only)
     boottest("com.android.kernel.console-unittest"),
     boottest("com.android.kernel.iovectest"),
+    boottest("com.android.kernel.mmutest"),
     boottest("com.android.kernel.smp-unittest"),
     boottest("com.android.kernel.usercopy-unittest"),
 
@@ -25,6 +26,7 @@
     # Linux + android userspace present
     androidport("com.android.kernel.console-unittest"),
     androidport("com.android.kernel.iovectest"),
+    androidport("com.android.kernel.mmutest"),
     androidport("com.android.kernel.smp-unittest"),
     androidport("com.android.kernel.usercopy-unittest"),
 ]

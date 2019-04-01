@@ -24,12 +24,11 @@
 #include <err.h>
 #include <kernel/thread.h>
 #include <kernel/vm.h>
+#include <lib/unittest/unittest.h>
 #include <lk/init.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-
-#define MMUTEST_RUN_FATAL_TESTS 0
 
 int mmutest_arch_rodata_pnx(void);
 int mmutest_arch_data_pnx(void);
@@ -39,21 +38,34 @@ int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
 int mmutest_arch_nop(int ret);
 int mmutest_arch_nop_end(int ret);
 
+static int mmutest_alloc(void** ptrp, uint arch_mmu_flags) {
+    int ret;
+    uint arch_mmu_flags_query = ~0;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+
+    ret = vmm_alloc_contiguous(aspace, "mmutest", PAGE_SIZE, ptrp, 0, 0,
+                               arch_mmu_flags);
+
+    EXPECT_EQ(0, ret, "vmm_alloc_contiguous failed\n");
+    if (ret) {
+        return ret;
+    }
+
+    arch_mmu_query(&aspace->arch_aspace, (vaddr_t)*ptrp, NULL,
+                   &arch_mmu_flags_query);
+    EXPECT_EQ(arch_mmu_flags_query, arch_mmu_flags,
+              "arch_mmu_query, 0x%x, does not match requested flags, 0x%x\n",
+              arch_mmu_flags_query, arch_mmu_flags);
+    return 0;
+}
+
 static int mmutest_vmm_store_uint32(uint arch_mmu_flags, bool user) {
     int ret;
     void* ptr;
-    uint arch_mmu_flags_query = ~0;
 
-    ret = vmm_alloc_contiguous(vmm_get_kernel_aspace(), "mmutest", PAGE_SIZE,
-                               &ptr, 0, 0, arch_mmu_flags);
-
-    if (ret)
+    ret = mmutest_alloc(&ptr, arch_mmu_flags);
+    if (ret) {
         return ret;
-
-    arch_mmu_query((vaddr_t)ptr, NULL, &arch_mmu_flags_query);
-    if (arch_mmu_flags_query != arch_mmu_flags) {
-        printf("%s: Warning: arch_mmu_query flags, 0x%x, does not match requested flags, 0x%x\n",
-               __func__, arch_mmu_flags_query, arch_mmu_flags);
     }
 
     ret = mmutest_arch_store_uint32(ptr, user);
@@ -70,16 +82,16 @@ static int mmutest_vmm_store_uint32_user(uint arch_mmu_flags) {
     return mmutest_vmm_store_uint32(arch_mmu_flags, true);
 }
 
-static int mmu_test_nx(void) {
+static int mmu_test_nx(bool execute) {
     int ret;
     void* ptr;
     size_t len;
     int (*nop)(int ret);
 
-    ret = vmm_alloc_contiguous(vmm_get_kernel_aspace(), "mmutest", PAGE_SIZE,
-                               &ptr, 0, 0, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
-    if (ret)
+    ret = mmutest_alloc(&ptr, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+    if (ret) {
         return ret;
+    }
 
     nop = ptr;
     len = mmutest_arch_nop_end - mmutest_arch_nop;
@@ -87,79 +99,94 @@ static int mmu_test_nx(void) {
     memcpy(ptr, mmutest_arch_nop, len);
     arch_sync_cache_range((addr_t)ptr, len);
 
-    ret = nop(0);
+    if (execute) {
+        printf("Starting fatal test, expect crash\n");
+        ret = nop(0);
+    }
 
     vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)ptr);
 
     return ret;
 }
 
-static void print_result(int ret, const char* funcname, int expect) {
-    if (ret == expect) {
-        printf("PASSED - %s\n", funcname);
-    } else {
-        printf("*FAILED* - %s - expected %d, got %d\n", funcname, expect, ret);
-    }
-}
-
-#define RUN_TEST(name, expect) print_result(name(), #name, expect)
-
-#define RUN_TEST1(name, arg, expect) \
-    print_result(name(arg), #name "(" #arg ")", expect)
-
-#define RUN_TEST2(name, arg1, arg2, expect) \
-    print_result(name(arg), #name "(" #arg1 "," #arg2 ")", expect)
-
-static void mmutest_init(uint level) {
-    RUN_TEST(mmutest_arch_rodata_pnx, ERR_FAULT);
-    RUN_TEST(mmutest_arch_data_pnx, ERR_FAULT);
-    RUN_TEST(mmutest_arch_rodata_ro, ERR_FAULT);
-
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel, ARCH_MMU_FLAG_CACHED, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                      ARCH_MMU_FLAG_PERM_USER,
-              0);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO, ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
-                      ARCH_MMU_FLAG_PERM_USER,
-              ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS, 2);
-    RUN_TEST1(mmutest_vmm_store_uint32_kernel,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_USER,
-              2);
-    RUN_TEST1(mmutest_vmm_store_uint32_user, ARCH_MMU_FLAG_CACHED, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_USER, 0);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE,
-              ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                      ARCH_MMU_FLAG_PERM_USER,
-              0);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
-                      ARCH_MMU_FLAG_PERM_USER,
-              ERR_FAULT);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS, ERR_GENERIC);
-    RUN_TEST1(mmutest_vmm_store_uint32_user,
-              ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_USER,
-              2);
-#if MMUTEST_RUN_FATAL_TESTS
-    printf("Starting fatal tests, expect crash\n");
-    RUN_TEST(mmu_test_nx, ERR_FAULT);
+/* Skip kernel permission tests on ARM as it uses 1MB mappings */
+#if ARCH_ARM
+#define DISABLED_ON_ARM_NAME(name) DISABLED_##name
+#else
+#define DISABLED_ON_ARM_NAME(name) name
 #endif
+
+TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_pnx)) {
+    EXPECT_EQ(ERR_FAULT, mmutest_arch_rodata_pnx());
 }
 
-LK_INIT_HOOK(mmutest, mmutest_init, LK_INIT_LEVEL_APPS);
+TEST(mmutest, DISABLED_ON_ARM_NAME(data_pnx)) {
+    EXPECT_EQ(ERR_FAULT, mmutest_arch_data_pnx());
+}
+
+TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_ro)) {
+    EXPECT_EQ(ERR_FAULT, mmutest_arch_rodata_ro());
+}
+
+TEST(mmutest, store_kernel) {
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED));
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
+                                                 ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(
+                         ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE));
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
+                                                 ARCH_MMU_FLAG_PERM_NO_EXECUTE |
+                                                 ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(ERR_FAULT, mmutest_vmm_store_uint32_kernel(
+                                 ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO));
+    EXPECT_EQ(ERR_FAULT, mmutest_vmm_store_uint32_kernel(
+                                 ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
+                                 ARCH_MMU_FLAG_PERM_USER));
+}
+
+TEST(mmutest, store_user) {
+    EXPECT_EQ(ERR_GENERIC, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED));
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                               ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(ERR_GENERIC,
+              mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                            ARCH_MMU_FLAG_PERM_NO_EXECUTE));
+    EXPECT_EQ(0, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                               ARCH_MMU_FLAG_PERM_NO_EXECUTE |
+                                               ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(ERR_GENERIC,
+              mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                            ARCH_MMU_FLAG_PERM_RO));
+    EXPECT_EQ(ERR_FAULT, mmutest_vmm_store_uint32_user(
+                                 ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO |
+                                 ARCH_MMU_FLAG_PERM_USER));
+}
+
+/*
+ * The current implementation of this test checks checks that the data is lost
+ * when reading back from memory, but allows the store to reach the cache. This
+ * is not the only allowed behavior and the emulator does not emulate this
+ * behavior, so disable this test for now.
+ */
+TEST(mmutest, DISABLED_store_ns) {
+    EXPECT_EQ(2, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
+                                                 ARCH_MMU_FLAG_NS));
+    EXPECT_EQ(2, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
+                                                 ARCH_MMU_FLAG_NS |
+                                                 ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(ERR_GENERIC, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                                         ARCH_MMU_FLAG_NS));
+    EXPECT_EQ(2, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                               ARCH_MMU_FLAG_NS |
+                                               ARCH_MMU_FLAG_PERM_USER));
+}
+
+TEST(mmutest, check_nx) {
+    EXPECT_EQ(0, mmu_test_nx(false));
+}
+
+TEST(mmutest, DISABLED_run_nx) {
+    EXPECT_EQ(ERR_FAULT, mmu_test_nx(true));
+}
+
+PORT_TEST(mmutest, "com.android.kernel.mmutest");
