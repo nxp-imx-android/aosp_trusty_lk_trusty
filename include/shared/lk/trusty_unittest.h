@@ -75,12 +75,14 @@ __BEGIN_CDECLS
 /**
  * struct test_context - struct representing the state of a test run.
  * @tests_total:    Number of conditions checked
+ * @tests_disabled: Number of disabled tests skipped
  * @tests_failed:   Number of conditions failed
  * @test_name:      Name of current test case
  * @all_ok:         State of current test case
  */
 struct test_context {
     unsigned int tests_total;
+    unsigned int tests_disabled;
     unsigned int tests_failed;
     const char* test_name;
     bool all_ok;
@@ -91,12 +93,14 @@ struct test_context {
  * struct test_list_node - node to hold test function in list of tests
  * @node:       List node
  * @suite:      Name of test suite (optionally used for filtering)
+ * @test:       Name of test (optionally used for filtering)
  * @func:       Test function
  */
 
 struct test_list_node {
     struct list_node node;
     const char* suite;
+    const char* name;
     void (*func)(void);
 };
 
@@ -141,7 +145,7 @@ static inline void TEST_END_FUNC(void) {
     static void suite_name##_##test_name##_inner argp;                       \
                                                                              \
     static void suite_name##_##test_name(void) {                             \
-        TEST_BEGIN_FUNC(STRINGIFY(suite_name##_##test_name));                \
+        TEST_BEGIN_FUNC(STRINGIFY(suite_name) "." STRINGIFY(test_name));     \
         {                                                                    \
             pre;                                                             \
             if (!_test_context.hard_fail) {                                  \
@@ -155,6 +159,7 @@ static inline void TEST_END_FUNC(void) {
     static struct test_list_node suite_name##_##test_name##_node = {         \
             .node = LIST_INITIAL_CLEARED_VALUE,                              \
             .suite = #suite_name,                                            \
+            .name = #test_name,                                              \
             .func = suite_name##_##test_name,                                \
     };                                                                       \
                                                                              \
@@ -182,13 +187,30 @@ static inline void TEST_END_FUNC(void) {
     TEST_F_CUSTOM_ARGS(suite_name, test_name, (&state), \
                        (suite_name##_t * _state))
 
+static inline bool has_disabled_prefix(const char* str) {
+    const char disabled_prefix[] = "DISABLED_";
+    return strncmp(str, disabled_prefix, strlen(disabled_prefix)) == 0;
+}
+
+static inline bool test_is_disabled(struct test_list_node* entry) {
+    return has_disabled_prefix(entry->suite) ||
+           has_disabled_prefix(entry->name);
+}
+
 static inline bool RUN_ALL_SUITE_TESTS(const char* suite) {
     struct test_list_node* entry;
     _test_context.tests_total = 0;
+    _test_context.tests_disabled = 0;
     _test_context.tests_failed = 0;
     list_for_every_entry(&_test_list, entry, struct test_list_node, node) {
         if (!suite || !strcmp(suite, entry->suite)) {
-            entry->func();
+            if (test_is_disabled(entry)) {
+                trusty_unittest_printf("[ DISABLED ] %s.%s\n", entry->suite,
+                                       entry->name);
+                _test_context.tests_disabled++;
+            } else {
+                entry->func();
+            }
         }
     }
 
@@ -198,6 +220,10 @@ static inline bool RUN_ALL_SUITE_TESTS(const char* suite) {
         trusty_unittest_printf(
                 "[  PASSED  ] %d tests.\n",
                 _test_context.tests_total - _test_context.tests_failed);
+    }
+    if (_test_context.tests_disabled) {
+        trusty_unittest_printf("[ DISABLED ] %d tests.\n",
+                               _test_context.tests_disabled);
     }
     if (_test_context.tests_failed) {
         trusty_unittest_printf("[  FAILED  ] %d tests.\n",
