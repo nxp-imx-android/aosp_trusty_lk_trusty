@@ -25,6 +25,8 @@
 #include <arch/asm_macros.h>
 #include <err.h>
 
+.syntax unified
+
 /**
  * int mmutest_arch_rodata_pnx(void) - Test that rodata section is mapped pnx
  *
@@ -95,7 +97,7 @@ FUNCTION(mmutest_arch_store_uint32)
 	ldreq	r1, [r0]
 
 	set_fault_handler	.Lmmutest_setup_fault
-	ldrnet	r1, [r0]
+	ldrtne	r1, [r0]
 
 	neg	r1, r1
 
@@ -103,7 +105,7 @@ FUNCTION(mmutest_arch_store_uint32)
 	streq	r1, [r0]
 
 	set_fault_handler	.Lmmutest_fault
-	strnet	r1, [r0]
+	strtne	r1, [r0]
 
 	dmb
 
