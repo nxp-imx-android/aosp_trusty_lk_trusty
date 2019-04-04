@@ -177,7 +177,7 @@ $(XBIN_BIN): $(XBIN_ELF)
 	$(NOECHO)$(XBIN_OBJCOPY) -O binary $< $@
 
 # Also generate listings
-all:: $(XBIN_ELF).lst $(XBIN_ELF).debug.lst
+all:: $(XBIN_BIN) $(XBIN_ELF) $(XBIN_ELF).lst $(XBIN_ELF).debug.lst
 
 $(XBIN_ELF).lst: XBIN_OBJDUMP := $(XBIN_OBJDUMP)
 $(XBIN_ELF).lst: $(XBIN_SYMS_ELF)
