@@ -91,4 +91,4 @@ FUNCTION (x86_syscall)
     swapgs
     sti
 
-    rex.W sysexit
+    sysexitq
