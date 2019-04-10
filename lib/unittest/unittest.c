@@ -220,7 +220,7 @@ static int unittest_add_locked(struct unittest* test) {
     }
     handle_incref(phandle);
     test->_href.handle = phandle;
-    test->_href.emask = ~0;
+    test->_href.emask = ~0U;
     test->_href.cookie = test;
     ret = handle_set_attach(unittest_handle_set, &test->_href);
     if (ret < 0) {

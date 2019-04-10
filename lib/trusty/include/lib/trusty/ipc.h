@@ -79,11 +79,9 @@ enum {
 };
 
 /* aux state bitmasks */
-enum {
-    IPC_CHAN_AUX_STATE_PEER_SEND_BLOCKED = 0x1,
-    IPC_CHAN_AUX_STATE_SEND_UNBLOCKED = 0x2,
-    IPC_CHAN_AUX_STATE_CONNECTED = 0x4,
-};
+#define IPC_CHAN_AUX_STATE_PEER_SEND_BLOCKED (1U << 1)
+#define IPC_CHAN_AUX_STATE_SEND_UNBLOCKED (1U << 2)
+#define IPC_CHAN_AUX_STATE_CONNECTED (1U << 3)
 
 #define IPC_CHAN_MAX_BUFS 32
 #define IPC_CHAN_MAX_BUF_SIZE 4096
@@ -155,11 +153,10 @@ int ipc_port_accept(handle_t* phandle,
 bool ipc_connection_waiting_for_port(const char* path, uint32_t flags);
 
 /* client requests a connection to a port */
-enum {
-    IPC_CONNECT_WAIT_FOR_PORT = 0x1,
-    IPC_CONNECT_ASYNC = 0x2,
-    IPC_CONNECT_MASK = IPC_CONNECT_WAIT_FOR_PORT | IPC_CONNECT_ASYNC,
-};
+#define IPC_CONNECT_WAIT_FOR_PORT 0x1U
+#define IPC_CONNECT_ASYNC 0x2U
+#define IPC_CONNECT_MASK (IPC_CONNECT_WAIT_FOR_PORT | IPC_CONNECT_ASYNC)
+
 int ipc_port_connect_async(const uuid_t* cid,
                            const char* path,
                            size_t max_path,

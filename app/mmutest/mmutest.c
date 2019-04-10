@@ -40,7 +40,7 @@ int mmutest_arch_nop_end(int ret);
 
 static int mmutest_alloc(void** ptrp, uint arch_mmu_flags) {
     int ret;
-    uint arch_mmu_flags_query = ~0;
+    uint arch_mmu_flags_query = ~0U;
     vmm_aspace_t* aspace = vmm_get_kernel_aspace();
 
     ret = vmm_alloc_contiguous(aspace, "mmutest", PAGE_SIZE, ptrp, 0, 0,

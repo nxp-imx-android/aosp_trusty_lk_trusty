@@ -659,7 +659,7 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
     ELF_PHDR* prg_hdr;
     u_int i;
     status_t ret;
-    vaddr_t start_code = ~0;
+    vaddr_t start_code = ~0U;
     vaddr_t start_data = 0;
     vaddr_t end_code = 0;
     vaddr_t end_data = 0;

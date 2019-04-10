@@ -156,7 +156,7 @@ static int hset_attach_ref(struct handle_set* hset, struct handle_ref* ref) {
     handle_add_waiter(ref->handle, &ref->waiter);
     mutex_release(&hset->mlock);
 
-    if (ref->handle->ops->poll(ref->handle, ~0, false)) {
+    if (ref->handle->ops->poll(ref->handle, ~0U, false)) {
         /*
          * TODO: this could be optimized a bit:
          * instead of waking up all clients of this handle

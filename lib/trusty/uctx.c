@@ -262,8 +262,8 @@ static int rebuild_hset_all(struct uctx* ctx) {
         if (!h || !h->ops->poll)
             continue; /* skip NULL and non-pollable handles */
 
-        ret = _hset_add_handle(hset_all, h, ctx->handle_id_base + idx, ~0, NULL,
-                               &ctx->htbl[idx].ref_list);
+        ret = _hset_add_handle(hset_all, h, ctx->handle_id_base + idx, ~0U,
+                               NULL, &ctx->htbl[idx].ref_list);
         if (ret != NO_ERROR) {
             LTRACEF("Failed (%d) to add handle\n", ret);
             goto err_add_handle;
@@ -382,7 +382,7 @@ int uctx_handle_install(uctx_t* ctx, handle_t* handle, handle_id_t* id) {
     /* if hset_all exists autoadd pollable handle */
     if (ctx->hset_all && handle->ops->poll) {
         ret = _hset_add_handle(ctx->hset_all, handle, ctx->handle_id_base + idx,
-                               ~0, NULL, &ctx->htbl[idx].ref_list);
+                               ~0U, NULL, &ctx->htbl[idx].ref_list);
         if (ret)
             goto err;
     }
@@ -415,7 +415,7 @@ static int uctx_handle_get_tmp_ref(struct uctx* ctx,
         handle_incref(h);
         out->handle = h;
         out->id = handle_id;
-        out->emask = ~0;
+        out->emask = ~0U;
         out->cookie = NULL;
 
 #if WITH_WAIT_ANY_SUPPORT
