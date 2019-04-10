@@ -15,18 +15,9 @@
 # This file lists kernel tests
 
 [
-    # Boot tests (test-runner + trusty only)
-    boottest("com.android.kernel.console-unittest"),
-    boottest("com.android.kernel.iovectest"),
-    boottest("com.android.kernel.mmutest"),
-    boottest("com.android.kernel.smp-unittest"),
-    boottest("com.android.kernel.usercopy-unittest"),
-
-    # Android shell port tests - same as above, but triggered with
-    # Linux + android userspace present
-    androidport("com.android.kernel.console-unittest"),
-    androidport("com.android.kernel.iovectest"),
-    androidport("com.android.kernel.mmutest"),
-    androidport("com.android.kernel.smp-unittest"),
-    androidport("com.android.kernel.usercopy-unittest"),
+    porttest("com.android.kernel.console-unittest"),
+    porttest("com.android.kernel.iovectest"),
+    porttest("com.android.kernel.mmutest"),
+    porttest("com.android.kernel.smp-unittest").needs(smp4=True),
+    porttest("com.android.kernel.usercopy-unittest"),
 ]
