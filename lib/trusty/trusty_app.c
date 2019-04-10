@@ -972,7 +972,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
         goto err_hdr;
     }
 
-    shdr = (ELF_SHDR*)((intptr_t)ehdr + ehdr->e_shoff);
+    shdr = (ELF_SHDR*)((uintptr_t)ehdr + ehdr->e_shoff);
     if (!address_range_within_img(shdr, sizeof(ELF_SHDR) * ehdr->e_shnum,
                                   app_img)) {
         dprintf(CRITICAL,
@@ -988,7 +988,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
         goto err_hdr;
     }
 
-    shstbl = (char*)((intptr_t)ehdr + shdr[ehdr->e_shstrndx].sh_offset);
+    shstbl = (char*)((uintptr_t)ehdr + shdr[ehdr->e_shstrndx].sh_offset);
     shstbl_size = shdr[ehdr->e_shstrndx].sh_size;
     if (!address_range_within_img(shstbl, shstbl_size, app_img)) {
         dprintf(CRITICAL,

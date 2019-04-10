@@ -137,7 +137,7 @@ struct tipc_conn_req_body {
 
 struct tipc_conn_rsp_body {
     uint32_t target;
-    uint32_t status;
+    int32_t status;
     uint32_t remote;
     uint32_t max_msg_size;
     uint32_t max_msg_cnt;
@@ -246,7 +246,7 @@ static const vqueue_cb_t notify_cbs[TIPC_VQ_NUM] = {
 static int send_conn_rsp(struct tipc_dev* dev,
                          uint32_t local,
                          uint32_t remote,
-                         uint32_t status,
+                         int32_t status,
                          uint32_t msg_sz,
                          uint32_t msg_cnt) {
     struct {

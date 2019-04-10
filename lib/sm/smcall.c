@@ -134,7 +134,7 @@ static long smc_cpu_resume(smc32_args_t* args) {
 
 #if WITH_LIB_VERSION
 static long smc_get_version_str(smc32_args_t* args) {
-    int32_t index = args->params[0];
+    int32_t index = (int32_t)args->params[0];
     size_t version_len = strlen(lk_version);
 
     if (index == -1)
