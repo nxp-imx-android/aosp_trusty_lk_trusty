@@ -50,10 +50,8 @@ enum {
     TRUSTY_APP_CONFIG_KEY_START_PORT = 5,
 };
 
-enum trusty_app_mgmt_flags {
-    TRUSTY_APP_MGMT_FLAGS_NONE = 0x0,
-    /* Restart the application on exit */
-    TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT = 0x1,
-    /* Don't start the application at boot */
-    TRUSTY_APP_MGMT_FLAGS_DEFERRED_START = 0x2,
-};
+#define TRUSTY_APP_MGMT_FLAGS_NONE 0u
+/* Restart the application on exit */
+#define TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT (1u << 0)
+/* Don't start the application at boot */
+#define TRUSTY_APP_MGMT_FLAGS_DEFERRED_START (1u << 1)
