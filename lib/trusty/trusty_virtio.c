@@ -93,7 +93,7 @@ static status_t map_descr(ns_paddr_t buf_pa,
 
     /* map resource table into our address space */
     return vmm_alloc_physical(vmm_get_kernel_aspace(), "virtio",
-                              ROUNDUP(sz, PAGE_SIZE), buf_va, PAGE_SIZE_SHIFT,
+                              round_up(sz, PAGE_SIZE), buf_va, PAGE_SIZE_SHIFT,
                               (paddr_t)buf_pa, 0, buf_mmu_flags);
 }
 

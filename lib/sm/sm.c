@@ -387,8 +387,8 @@ static void sm_init(uint level) {
     /* Map the boot arguments if supplied by the bootloader */
     if (lk_boot_args[1] && lk_boot_args[2]) {
         ulong offset = lk_boot_args[1] & (PAGE_SIZE - 1);
-        paddr_t paddr = ROUNDDOWN(lk_boot_args[1], PAGE_SIZE);
-        size_t size = ROUNDUP(lk_boot_args[2] + offset, PAGE_SIZE);
+        paddr_t paddr = round_down(lk_boot_args[1], PAGE_SIZE);
+        size_t size = round_up(lk_boot_args[2] + offset, PAGE_SIZE);
         void* vptr;
 
         err = vmm_alloc_physical(vmm_get_kernel_aspace(), "sm", size, &vptr,

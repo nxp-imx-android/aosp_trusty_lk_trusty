@@ -57,7 +57,7 @@ int vqueue_init(struct vqueue* vq,
 
     vq->vring_sz = vring_size(num, align);
     ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "vqueue",
-                             ROUNDUP(vq->vring_sz, PAGE_SIZE), &vptr,
+                             round_up(vq->vring_sz, PAGE_SIZE), &vptr,
                              PAGE_SIZE_SHIFT, paddr, 0,
                              ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
                                      ARCH_MMU_FLAG_CACHED);
@@ -220,7 +220,7 @@ int vqueue_map_iovs(struct vqueue_iovs* vqiovs, u_int flags) {
     for (i = 0; i < vqiovs->used; i++) {
         vqiovs->iovs[i].base = NULL;
         ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "vqueue",
-                                 ROUNDUP(vqiovs->iovs[i].len, PAGE_SIZE),
+                                 round_up(vqiovs->iovs[i].len, PAGE_SIZE),
                                  &vqiovs->iovs[i].base, PAGE_SIZE_SHIFT,
                                  vqiovs->phys[i], 0, flags);
         if (ret)

@@ -222,7 +222,7 @@ static user_addr_t user_stack_alloc(struct trusty_thread* trusty_thread,
                                     user_size_t data_len,
                                     user_size_t align,
                                     user_addr_t* stack_ptr) {
-    user_addr_t ptr = ROUNDDOWN(*stack_ptr - data_len, align);
+    user_addr_t ptr = round_down(*stack_ptr - data_len, align);
     if (ptr < trusty_thread->stack_start - trusty_thread->stack_size) {
         panic("stack underflow while initializing user space\n");
     }
@@ -489,7 +489,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
                         trusty_app->app_id);
                 return ERR_NOT_VALID;
             }
-            trusty_app->props.min_stack_size = ROUNDUP(config_blob[++i], 4096);
+            trusty_app->props.min_stack_size = round_up(config_blob[++i], 4096);
             if (trusty_app->props.min_stack_size == 0) {
                 dprintf(CRITICAL, "app %u manifest MIN_STACK_SIZE is 0\n",
                         trusty_app->app_id);
@@ -618,13 +618,13 @@ static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
         return ERR_NOT_VALID;
     }
 
-    hint_page_end = ROUNDUP(hint, PAGE_SIZE);
+    hint_page_end = round_up(hint, PAGE_SIZE);
 
     if (!(arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO)) {
-        start_brk = ROUNDUP(hint, CACHE_LINE);
+        start_brk = round_up(hint, CACHE_LINE);
         remaining = hint_page_end - start_brk;
     } else {
-        start_brk = ROUNDUP(hint, PAGE_SIZE);
+        start_brk = round_up(hint, PAGE_SIZE);
         remaining = 0;
     }
 
@@ -642,7 +642,7 @@ static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
             return ERR_NO_MEMORY;
         }
 
-        ASSERT(hint_page_end == ROUNDUP(hint, PAGE_SIZE));
+        ASSERT(hint_page_end == round_up(hint, PAGE_SIZE));
     }
 
     trusty_app->start_brk = start_brk;
@@ -733,7 +733,7 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
             void* load_kvaddr;
             size_t copy_size;
             size_t file_size;
-            mapping_size = ROUNDUP(prg_hdr->p_memsz, PAGE_SIZE);
+            mapping_size = round_up(prg_hdr->p_memsz, PAGE_SIZE);
 
             if (!address_range_within_img((void*)img_kvaddr, prg_hdr->p_filesz,
                                           trusty_app->app_img)) {
@@ -773,7 +773,7 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
             }
 
         } else {
-            mapping_size = ROUNDUP(prg_hdr->p_filesz, PAGE_SIZE);
+            mapping_size = round_up(prg_hdr->p_filesz, PAGE_SIZE);
 
             if (!address_range_within_img((void*)img_kvaddr, mapping_size,
                                           trusty_app->app_img)) {
@@ -1098,12 +1098,12 @@ status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
         case TRUSTY_APP_CONFIG_KEY_MAP_MEM:
             id = trusty_app->props.config_blob[++i];
             offset = trusty_app->props.config_blob[++i];
-            size = ROUNDUP(trusty_app->props.config_blob[++i], PAGE_SIZE);
+            size = round_up(trusty_app->props.config_blob[++i], PAGE_SIZE);
 
             if (id != mmio_id)
                 continue;
 
-            map_size = ROUNDUP(map_size, PAGE_SIZE);
+            map_size = round_up(map_size, PAGE_SIZE);
             if (map_size > size)
                 return ERR_INVALID_ARGS;
             ret = vmm_alloc_physical(
@@ -1487,7 +1487,7 @@ long __SYSCALL sys_register_app(user_addr_t img_uaddr, uint32_t img_size) {
         return ERR_NO_MEMORY;
     }
 
-    aligned_size = ROUNDUP(img_size, PAGE_SIZE);
+    aligned_size = round_up(img_size, PAGE_SIZE);
 
     rc = vmm_alloc(vmm_get_kernel_aspace(), "app_img", aligned_size,
                    (void**)&app_img->img_start, PAGE_SIZE_SHIFT, 0,

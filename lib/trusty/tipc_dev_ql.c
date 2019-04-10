@@ -208,7 +208,7 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
     dev->ns_sz = buf_sz;
     dev->ns_mmu_flags = buf_mmu_flags;
     res = vmm_alloc_physical(
-            vmm_get_kernel_aspace(), "tipc", ROUNDUP(buf_sz, PAGE_SIZE),
+            vmm_get_kernel_aspace(), "tipc", round_up(buf_sz, PAGE_SIZE),
             &dev->ns_va, PAGE_SIZE_SHIFT, (paddr_t)buf_pa, 0, buf_mmu_flags);
     if (res != NO_ERROR) {
         LTRACEF("failed (%d) to map shared buffer\n", res);

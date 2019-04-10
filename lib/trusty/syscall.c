@@ -79,8 +79,8 @@ static const struct sys_fd_ops* get_sys_fd_handler(uint32_t fd) {
 }
 
 static bool valid_address(vaddr_t addr, u_int size) {
-    size = ROUNDUP(size + (addr & (PAGE_SIZE - 1)), PAGE_SIZE);
-    addr = ROUNDDOWN(addr, PAGE_SIZE);
+    size = round_up(size + (addr & (PAGE_SIZE - 1)), PAGE_SIZE);
+    addr = round_down(addr, PAGE_SIZE);
 
     while (size) {
         if (!is_user_address(addr) || !vaddr_to_paddr((void*)addr)) {

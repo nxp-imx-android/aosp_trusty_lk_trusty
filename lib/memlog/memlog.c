@@ -144,8 +144,8 @@ static status_t map_rb(paddr_t pa, size_t sz, vaddr_t* va) {
                      ARCH_MMU_FLAG_PERM_NO_EXECUTE;
 
     offset = pa & (mb - 1);
-    pa = ROUNDDOWN(pa, mb);
-    sz = ROUNDUP((sz + offset), mb);
+    pa = round_down(pa, mb);
+    sz = round_up((sz + offset), mb);
 
     err = vmm_alloc_physical(vmm_get_kernel_aspace(), "logmem", sz, (void**)va,
                              PAGE_SIZE_SHIFT, pa, 0, flags);
