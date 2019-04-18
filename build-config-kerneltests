@@ -17,6 +17,7 @@
 [
     porttest("com.android.kernel.console-unittest"),
     porttest("com.android.kernel.iovectest"),
+    porttest("com.android.kernel.memorytest"),
     porttest("com.android.kernel.mmutest"),
     porttest("com.android.kernel.smp-unittest").needs(smp4=True),
     porttest("com.android.kernel.usercopy-unittest"),
