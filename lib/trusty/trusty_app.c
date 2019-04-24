@@ -605,50 +605,38 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
 
 static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
     status_t status;
-    uint arch_mmu_flags;
     vaddr_t start_brk;
-    vaddr_t hint_page_end;
-    size_t remaining;
+    vaddr_t brk_size;
 
-    status = arch_mmu_query(&trusty_app->aspace->arch_aspace, hint, NULL,
-                            &arch_mmu_flags);
-    if (status != NO_ERROR) {
-        dprintf(CRITICAL, "app %u heap hint page is not mapped %u\n",
-                trusty_app->app_id, status);
-        return ERR_NOT_VALID;
-    }
+    /*
+     * Make sure the heap is page aligned and page sized.
+     * Most user space allocators assume this. Historically, we tried to
+     * scavange space at the end of .bss for the heap but this misaligned the
+     * heap and caused userspace allocators to behave is subtly unpredictable
+     * ways.
+     * TODO: ensure address space gaps around the heap.
+     */
+    start_brk = round_up(hint, PAGE_SIZE);
+    brk_size = round_up(trusty_app->props.min_heap_size, PAGE_SIZE);
 
-    hint_page_end = round_up(hint, PAGE_SIZE);
-
-    if (!(arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO)) {
-        start_brk = round_up(hint, CACHE_LINE);
-        remaining = hint_page_end - start_brk;
-    } else {
-        start_brk = round_up(hint, PAGE_SIZE);
-        remaining = 0;
-    }
-
-    if (remaining < trusty_app->props.min_heap_size) {
+    /* Allocate if needed. */
+    if (brk_size > 0) {
         status = vmm_alloc(
-                trusty_app->aspace, "heap",
-                trusty_app->props.min_heap_size - remaining,
-                (void**)&hint_page_end, PAGE_SIZE_SHIFT,
-                VMM_FLAG_VALLOC_SPECIFIC,
+                trusty_app->aspace, "heap", brk_size, (void**)&start_brk,
+                PAGE_SIZE_SHIFT, VMM_FLAG_VALLOC_SPECIFIC,
                 ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
         if (status != NO_ERROR) {
             dprintf(CRITICAL, "failed(%d) to create heap(0x%lx) for app %u\n",
-                    status, hint_page_end, trusty_app->app_id);
+                    status, start_brk, trusty_app->app_id);
             return ERR_NO_MEMORY;
         }
-
-        ASSERT(hint_page_end == round_up(hint, PAGE_SIZE));
     }
 
+    /* Record the location. */
     trusty_app->start_brk = start_brk;
-    trusty_app->cur_brk = trusty_app->start_brk;
-    trusty_app->end_brk =
-            trusty_app->start_brk + trusty_app->props.min_heap_size;
+    trusty_app->cur_brk = start_brk;
+    trusty_app->end_brk = start_brk + brk_size;
 
     return NO_ERROR;
 }
