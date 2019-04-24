@@ -55,6 +55,14 @@
 #define TRUSTY_APP_STACK_TOP 0x1000000 /* 16MB */
 #endif
 
+/*
+ * An arbitrary gap to put between the data segment and the heap.
+ * This should be large enough to catch small memory safety issues, but small
+ * enough that we don't add another page to the page table.
+ * TODO: rethink app memory layout.
+ */
+#define TRUSTY_APP_HEAP_GAP (16 * PAGE_SIZE)
+
 #ifndef DEFAULT_HEAP_SIZE
 #define DEFAULT_HEAP_SIZE (4 * PAGE_SIZE)
 #endif
@@ -827,7 +835,8 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
         last_mem = MAX(last_mem, prg_hdr->p_vaddr + prg_hdr->p_memsz);
     }
 
-    ret = init_brk(trusty_app, last_mem);
+    ret = init_brk(trusty_app,
+                   round_up(last_mem, PAGE_SIZE) + TRUSTY_APP_HEAP_GAP);
     if (ret != NO_ERROR) {
         dprintf(CRITICAL,
                 "failed to load trusty_app: trusty_app heap creation error\n");
