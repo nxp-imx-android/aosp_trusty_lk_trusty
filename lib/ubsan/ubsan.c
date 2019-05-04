@@ -139,10 +139,10 @@ static bool start() {
 
 static void finish() {
     assert(in_ubsan);
-    in_ubsan = false;
 #ifdef UBSAN_HARD_FAIL
     ubsan_fail("UBSAN_HARD_FAIL");
 #endif
+    in_ubsan = false;
 }
 
 /*
