@@ -24,6 +24,7 @@
 #include "ubsan.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -90,7 +91,7 @@ static void render_val(char* out,
             out += warn_len;
             out_size -= warn_len;
         }
-        snprintf(out, out_size, "%lld", val_signed(type, val));
+        snprintf(out, out_size, "%" PRId64, val_signed(type, val));
     } else if (type_is_unsigned_integer(type)) {
         if (width > sizeof(uint64_t) * 8) {
             size_t warn_len = snprintf(
@@ -98,7 +99,7 @@ static void render_val(char* out,
             out += warn_len;
             out_size -= warn_len;
         }
-        snprintf(out, out_size, "%llu", val_unsigned(type, val));
+        snprintf(out, out_size, "%" PRIu64, val_unsigned(type, val));
     } else if (type_is_float(type)) {
         /*
          * Printing floating point correctly requires a more powerful printf
