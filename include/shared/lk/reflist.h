@@ -45,6 +45,10 @@ static inline __ALWAYS_INLINE void obj_ref_init(obj_ref_t* ref) {
     *ref = (obj_ref_t)OBJ_REF_INITIAL_VALUE(*ref);
 }
 
+static inline __ALWAYS_INLINE bool obj_ref_active(obj_ref_t* ref) {
+    return list_in_list(&ref->ref_node);
+}
+
 static inline __ALWAYS_INLINE void obj_init(obj_t* obj, obj_ref_t* ref) {
     list_initialize(&obj->ref_list);
     list_add_tail(&obj->ref_list, &ref->ref_node);
