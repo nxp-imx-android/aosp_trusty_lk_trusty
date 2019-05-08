@@ -35,4 +35,4 @@ src:*/system/keymaster/key_blob_utils/ocb.c
 
 # test-runner is missing important facilities for error reporting (e.g. printf)
 # and is not a actual product, just testing infrastructure.
-src:external/trusty/*
+src:external/trusty/bootloader/*
