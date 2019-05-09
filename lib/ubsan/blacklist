@@ -36,3 +36,9 @@ src:*/system/keymaster/key_blob_utils/ocb.c
 # test-runner is missing important facilities for error reporting (e.g. printf)
 # and is not a actual product, just testing infrastructure.
 src:external/trusty/bootloader/*
+
+# Musl is fond of negating unsigned integers to round values up.
+# There are also a few not-quite-buggy unsigned overflows and signed constants
+# being coerced to unsigned values.
+[unsigned-integer-overflow|implicit-integer-sign-change]
+src:external/trusty/musl/src/*
