@@ -23,7 +23,7 @@
 
 # dlmalloc is fragile enough that it isn't worth the risk to try to make it
 # UBSan clean
-src:trusty/user/base/lib/libc-trusty/dlmalloc.c
+src:*/dlmalloc.c
 
 # Fixing errors in boringssl is more likely to cause problems than fix them
 src:external/boringssl/*
