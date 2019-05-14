@@ -23,6 +23,7 @@
 MODULES += \
 	trusty/kernel/app/busytest \
 	trusty/kernel/app/consoletest \
+	trusty/kernel/app/dpctest \
 	trusty/kernel/app/memorytest \
 	trusty/kernel/app/mmutest \
 	trusty/kernel/app/smptest \
