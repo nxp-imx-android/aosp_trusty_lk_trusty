@@ -209,7 +209,8 @@ static int unittest_add_locked(struct unittest* test) {
     }
     const uuid_t uuid = UUID_INITIAL_VALUE(uuid);
     ret = ipc_port_create(&uuid, test->port_name, 1, MAX_PORT_BUF_SIZE,
-                          IPC_PORT_ALLOW_NS_CONNECT, &phandle);
+                          IPC_PORT_ALLOW_NS_CONNECT | IPC_PORT_ALLOW_TA_CONNECT,
+                          &phandle);
     if (ret) {
         goto err_port_create;
     }
