@@ -28,33 +28,9 @@
 #include <lk/init.h>
 #include <stdio.h>
 #include <string.h>
+#include <trusty/string.h>
 
-static const struct {
-    user_addr_t addr;
-    enum {
-        NO_PAGE = 0,
-        USER_RW = ARCH_MMU_FLAG_PERM_USER,
-        USER_RO = ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_RO,
-    } arch_mmu_flags;
-    enum {
-        TEST_NONE = 0,
-        TEST_OVERLAP_WITH_PREV = 1U << 0,
-        TEST_NO_OVERLAP = 1U << 1,
-        TEST_BOTH = TEST_OVERLAP_WITH_PREV | TEST_NO_OVERLAP,
-    } test_with;
-} user_bufs[] = {
-        {PAGE_SIZE * 0x10, NO_PAGE, TEST_NO_OVERLAP},
-        {PAGE_SIZE * 0x11, USER_RO, TEST_BOTH},
-        {PAGE_SIZE * 0x12, NO_PAGE, TEST_OVERLAP_WITH_PREV},
-        {PAGE_SIZE * 0x13, USER_RW, TEST_BOTH},
-        {PAGE_SIZE * 0x14, NO_PAGE, TEST_OVERLAP_WITH_PREV},
-        {PAGE_SIZE * 0x15, USER_RO, TEST_NONE},
-        {PAGE_SIZE * 0x16, USER_RW, TEST_OVERLAP_WITH_PREV},
-        {PAGE_SIZE * 0x17, NO_PAGE, TEST_NONE},
-        {PAGE_SIZE * 0x18, USER_RW, TEST_NONE},
-        {PAGE_SIZE * 0x19, USER_RO, TEST_OVERLAP_WITH_PREV},
-        {PAGE_SIZE * 0x1a, NO_PAGE, TEST_NONE},
-};
+#define PORT_NAME "com.android.kernel.usercopy-unittest"
 
 #define TEST_BUF_SIZE (16)
 #define TEST_BUF1_SIZE (TEST_BUF_SIZE / 2)
@@ -68,6 +44,36 @@ static const struct {
 
 #define SRC_DATA (0x22)
 #define DEST_DATA (0x11)
+
+#define FLAGS_NO_PAGE (0)
+#define FLAGS_RO_USER (ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_RO)
+#define FLAGS_RW_USER (ARCH_MMU_FLAG_PERM_USER)
+
+#define STACK_ADDR_IDX (0)
+#define HEAP_ADDR_IDX (1)
+#define GLOBAL_ADDR_IDX (2)
+
+#define START_PAGE_ADDR ((void*)(PAGE_SIZE * 0x10))
+#define TEST_BUF_ADDR \
+    ((user_addr_t)(START_PAGE_ADDR + PAGE_SIZE - TEST_BUF1_SIZE))
+
+static inline user_addr_t get_addr_param() {
+    const void* const* param_arr = GetParam();
+    const user_addr_t* addr = param_arr[0];
+    return *addr;
+}
+
+static inline uint32_t get_start_flags_param() {
+    const void* const* param_arr = GetParam();
+    const uint32_t* start_flags = param_arr[1];
+    return *start_flags;
+}
+
+static inline uint32_t get_end_flags_param() {
+    const void* const* param_arr = GetParam();
+    const uint32_t* end_flags = param_arr[2];
+    return *end_flags;
+}
 
 static int checkbuf(const char* buf, char c, size_t size) {
     int error_count = 0;
@@ -97,13 +103,55 @@ static void usercopy_test_init_buf(char* kbuf1,
     }
 }
 
-typedef void (*user_copy_test_func_t)(user_addr_t addr,
-                                      uint arch_mmu_flags_start,
-                                      uint arch_mmu_flags_end);
+typedef struct {
+    struct vmm_aspace* aspace;
+} usercopytest_t;
 
-static void usercopy_test_copy_to_user(user_addr_t addr,
-                                       uint arch_mmu_flags_start,
-                                       uint arch_mmu_flags_end) {
+TEST_F_SETUP(usercopytest) {
+    int ret;
+    void* addr = START_PAGE_ADDR;
+    uint32_t start_flags = get_start_flags_param();
+    uint32_t end_flags = get_end_flags_param();
+
+    _state->aspace = NULL;
+
+    ret = vmm_create_aspace(&_state->aspace, "usercopy_test", 0);
+    ASSERT_EQ(NO_ERROR, ret);
+
+    if (start_flags != FLAGS_NO_PAGE) {
+        ret = vmm_alloc(_state->aspace, "start-page", PAGE_SIZE, &addr, 0,
+                        VMM_FLAG_VALLOC_SPECIFIC, start_flags);
+        ASSERT_EQ(NO_ERROR, ret);
+        ASSERT_EQ(START_PAGE_ADDR, addr);
+    }
+
+    addr += PAGE_SIZE;
+
+    if (end_flags != FLAGS_NO_PAGE) {
+        ret = vmm_alloc(_state->aspace, "end-page", PAGE_SIZE, &addr, 0,
+                        VMM_FLAG_VALLOC_SPECIFIC, end_flags);
+        ASSERT_EQ(NO_ERROR, ret);
+        ASSERT_EQ(START_PAGE_ADDR + PAGE_SIZE, addr);
+    }
+
+    vmm_set_active_aspace(_state->aspace);
+
+test_abort:
+    return;
+}
+
+TEST_F_TEARDOWN(usercopytest) {
+    vmm_set_active_aspace(NULL);
+
+    if (_state->aspace) {
+        vmm_free_aspace(_state->aspace);
+    }
+}
+
+TEST_P(usercopytest, copy_to_user) {
+    user_addr_t addr = get_addr_param();
+    uint32_t arch_mmu_flags_start = get_start_flags_param();
+    uint32_t arch_mmu_flags_end = get_end_flags_param();
     int ret;
     char src_buf[TEST_BUF_SIZE];
     char* dest_kbuf1;
@@ -191,9 +239,10 @@ static void usercopy_test_copy_to_user(user_addr_t addr,
     }
 }
 
-static void usercopy_test_copy_from_user(user_addr_t addr,
-                                         uint arch_mmu_flags_start,
-                                         uint arch_mmu_flags_end) {
+TEST_P(usercopytest, copy_from_user) {
+    user_addr_t addr = get_addr_param();
+    uint32_t arch_mmu_flags_start = get_start_flags_param();
+    uint32_t arch_mmu_flags_end = get_end_flags_param();
     int ret;
     char dest_buf[TEST_BUF_SIZE];
     char* src_kbuf1;
@@ -364,9 +413,10 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
     EXPECT_EQ(DEST_DATA, dest_buf[TEST_BUF_SIZE - 1]);
 }
 
-static void usercopy_test_strlcpy_from_user(user_addr_t addr,
-                                            uint arch_mmu_flags_start,
-                                            uint arch_mmu_flags_end) {
+TEST_P(usercopytest, strlcpy_from_user) {
+    user_addr_t addr = get_addr_param();
+    uint32_t arch_mmu_flags_start = get_start_flags_param();
+    uint32_t arch_mmu_flags_end = get_end_flags_param();
     size_t copy_sizes[] = {TEST_BUF1_COPY_SIZE, TEST_BUF_COPY_SIZE};
     size_t copy_sizes_index;
     int null_off;
@@ -384,108 +434,106 @@ static void usercopy_test_strlcpy_from_user(user_addr_t addr,
     }
 }
 
-static const char* usercopy_arch_mmu_flags_str(uint arch_mmu_flags) {
-    switch (arch_mmu_flags) {
-    case 0:
+static const char* flags_to_str(uint32_t flags) {
+    switch (flags) {
+    case FLAGS_NO_PAGE:
         return "--";
-    case ARCH_MMU_FLAG_PERM_USER:
-        return "rw";
-    case ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_RO:
+    case FLAGS_RO_USER:
         return "ro";
+    case FLAGS_RW_USER:
+        return "rw";
     default:
         return "??";
     }
 }
 
-static void usercopy_test_addr(user_copy_test_func_t func,
-                               user_addr_t addr,
-                               uint arch_mmu_flags_start,
-                               uint arch_mmu_flags_end) {
-    if (!is_kernel_address(addr)) {
-        unittest_printf("addr 0x%" PRIxPTR_USER " %s%s:\n", addr,
-                        usercopy_arch_mmu_flags_str(arch_mmu_flags_start),
-                        usercopy_arch_mmu_flags_str(arch_mmu_flags_end));
+static void user_param_to_string(const void* param,
+                                 char* buf,
+                                 size_t buf_size) {
+    uint32_t start_flags = get_start_flags_param();
+    uint32_t end_flags = get_end_flags_param();
+    size_t count = 0;
+
+    count = scnprintf(buf + count, buf_size - count, "%s",
+                      flags_to_str(start_flags));
+    scnprintf(buf + count, buf_size - count, "%s", flags_to_str(end_flags));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        UserCopyTestParams,
+        usercopytest,
+        testing_Combine(
+                testing_Values(TEST_BUF_ADDR),
+                testing_Values(FLAGS_NO_PAGE, FLAGS_RO_USER, FLAGS_RW_USER),
+                testing_Values(FLAGS_NO_PAGE, FLAGS_RO_USER, FLAGS_RW_USER)),
+        user_param_to_string);
+
+#if IS_64BIT && USER_32BIT
+/*
+ * Tests with Kernel addresses are not applicable to arm64u32 since kernel
+ * addresses do not fit in a user_addr_t.
+ */
+static_assert(KERNEL_BASE > UINT32_MAX);
+
+PORT_TEST(usercopy_tests, PORT_NAME)
+
+#else
+/* These are filled in before the tests are run */
+static user_addr_t kernel_addrs[3];
+
+static void kernel_param_to_string(const void* param,
+                                   char* buf,
+                                   size_t buf_size) {
+    const void* const* kernel_param = param;
+    size_t idx = ((user_addr_t*)kernel_param[0] - kernel_addrs);
+    const char* str;
+
+    switch (idx) {
+    case STACK_ADDR_IDX:
+        str = "kernel-stack";
+        break;
+    case HEAP_ADDR_IDX:
+        str = "kernel-heap";
+        break;
+    case GLOBAL_ADDR_IDX:
+        str = "kernel-global";
+        break;
+    default:
+        str = "unknown-address-type";
     }
-    func(addr, arch_mmu_flags_start, arch_mmu_flags_end);
+
+    scnprintf(buf, buf_size, "%s", str);
 }
 
-static void usercopy_test(user_copy_test_func_t func) {
-    uint8_t test_buf_kstack[TEST_BUF_SIZE];
-
-    unittest_printf("addr kernel stack:\n");
-    usercopy_test_addr(func, (user_addr_t)(uintptr_t)test_buf_kstack, 0, 0);
-
-    for (size_t i = 0; i < countof(user_bufs); i++) {
-        if (user_bufs[i].test_with & TEST_OVERLAP_WITH_PREV) {
-            EXPECT_NE(0, i);
-            if (i) {
-                usercopy_test_addr(func, user_bufs[i].addr - TEST_BUF1_SIZE,
-                                   user_bufs[i - 1].arch_mmu_flags,
-                                   user_bufs[i].arch_mmu_flags);
-            }
-        }
-        if (user_bufs[i].test_with & TEST_NO_OVERLAP) {
-            usercopy_test_addr(func, user_bufs[i].addr,
-                               user_bufs[i].arch_mmu_flags,
-                               user_bufs[i].arch_mmu_flags);
-        }
-    }
-}
-
-TEST(usercopytest, copy_to_user) {
-    usercopy_test(usercopy_test_copy_to_user);
-}
-
-TEST(usercopytest, copy_from_user) {
-    usercopy_test(usercopy_test_copy_from_user);
-}
-
-TEST(usercopytest, strlcpy_from_user) {
-    usercopy_test(usercopy_test_strlcpy_from_user);
-}
+INSTANTIATE_TEST_SUITE_P(KernelUserCopyTestParams,
+                         usercopytest,
+                         testing_Combine(testing_ValuesIn(kernel_addrs),
+                                         testing_Values(FLAGS_NO_PAGE),
+                                         testing_Values(FLAGS_NO_PAGE)),
+                         kernel_param_to_string);
 
 static bool run_usercopy_test(struct unittest* test) {
-    status_t ret;
     bool tests_passed;
-    struct vmm_aspace* aspace;
+    static uint8_t global_buf[TEST_BUF_SIZE];
+    uint8_t stack_buf[TEST_BUF_SIZE];
+    uint8_t* heap_buf = malloc(TEST_BUF_SIZE);
 
-    ret = vmm_create_aspace(&aspace, "usercopy_test", 0);
-    if (ret) {
-        unittest_printf("%s: failed to create aspace\n", __func__);
-        goto err_create_aspace;
-    }
-    for (size_t i = 0; i < countof(user_bufs); i++) {
-        void* user_ptr = (void*)(uintptr_t)user_bufs[i].addr;
-        if (!user_bufs[i].arch_mmu_flags) {
-            continue; /* skip holes in address space used by tests */
-        }
-        ret = vmm_alloc(aspace, "usercopy-test", PAGE_SIZE, &user_ptr, 0,
-                        VMM_FLAG_VALLOC_SPECIFIC, user_bufs[i].arch_mmu_flags);
-        if (ret) {
-            unittest_printf("%s: failed to allocate buffer at %x: %d\n",
-                            __func__, user_bufs[i].addr, ret);
-            goto err_alloc;
-        }
-    }
+    ASSERT(heap_buf);
 
-    vmm_set_active_aspace(aspace);
+    kernel_addrs[STACK_ADDR_IDX] = (user_addr_t)stack_buf;
+    kernel_addrs[HEAP_ADDR_IDX] = (user_addr_t)heap_buf;
+    kernel_addrs[GLOBAL_ADDR_IDX] = (user_addr_t)global_buf;
 
     tests_passed = RUN_ALL_TESTS();
 
-    vmm_set_active_aspace(NULL);
-    vmm_free_aspace(aspace);
+    free(heap_buf);
 
     return tests_passed;
-
-err_alloc:
-    vmm_free_aspace(aspace);
-err_create_aspace:
-    return false;
 }
 
 static void usercopy_test_init(uint level) {
     static struct unittest usercopy_unittest = {
-            .port_name = "com.android.kernel.usercopy-unittest",
+            .port_name = PORT_NAME,
             .run_test = run_usercopy_test,
     };
 
@@ -493,3 +541,4 @@ static void usercopy_test_init(uint level) {
 }
 
 LK_INIT_HOOK(usercopy_test, usercopy_test_init, LK_INIT_LEVEL_APPS);
+#endif  // !(IS_64BIT && USER_32BIT)
