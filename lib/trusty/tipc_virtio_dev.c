@@ -926,18 +926,22 @@ static status_t tipc_dev_probe(struct tipc_dev* dev,
     snprintf(tname, sizeof(tname), "tipc-dev%d-rx", dev->vd.devid);
     dev->rx_thread = thread_create(tname, tipc_rx_thread_func, dev,
                                    DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-
-    if (dev->rx_thread) {
-        thread_resume(dev->rx_thread);
+    if (!dev->rx_thread) {
+        ret = ERR_NO_MEMORY;
+        goto err_create_rx_thread;
     }
 
     /* create tx thread */
     snprintf(tname, sizeof(tname), "tipc-dev%d-tx", dev->vd.devid);
     dev->tx_thread = thread_create(tname, tipc_tx_thread_func, dev,
                                    DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-    if (dev->tx_thread) {
-        thread_resume(dev->tx_thread);
+    if (!dev->tx_thread) {
+        ret = ERR_NO_MEMORY;
+        goto err_create_tx_thread;
     }
+
+    thread_resume(dev->rx_thread);
+    thread_resume(dev->tx_thread);
 
     ret = _go_online(dev);
     if (ret == NO_ERROR) {
@@ -946,10 +950,14 @@ static status_t tipc_dev_probe(struct tipc_dev* dev,
 
     return ret;
 
+err_create_tx_thread:
+    /* TODO: free rx thread */
+err_create_rx_thread:
 err_vq_init:
-    while (vring_cnt--) {
+    for (; vring_cnt > 0; vring_cnt--) {
         vqueue_destroy(&dev->vqs[vring_cnt]);
     }
+    TRACEF("failed, ret = %d\n", ret);
     return ret;
 }
 
