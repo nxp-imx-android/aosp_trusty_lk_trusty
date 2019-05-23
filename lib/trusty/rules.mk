@@ -72,6 +72,7 @@ GLOBAL_INCLUDES += \
 	$(LOCAL_DIR)/include \
 
 MODULE_DEPS += \
+	lib/libc-ext \
 	lib/syscall \
 	lib/version \
 
