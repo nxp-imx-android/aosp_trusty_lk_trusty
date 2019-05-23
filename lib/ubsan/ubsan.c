@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <trusty/string.h>
 
 /*
  * in_ubsan is used to track whether we are currently processing a UBSan
@@ -86,20 +87,20 @@ static void render_val(char* out,
     size_t width = type_width_bits(type);
     if (type_is_signed_integer(type)) {
         if (width > sizeof(int64_t) * 8) {
-            size_t warn_len = snprintf(out, out_size,
-                                       "~int%zu_t->int64_t:truncated ", width);
+            size_t warn_len = scnprintf(out, out_size,
+                                        "~int%zu_t->int64_t:truncated ", width);
             out += warn_len;
             out_size -= warn_len;
         }
-        snprintf(out, out_size, "%" PRId64, val_signed(type, val));
+        scnprintf(out, out_size, "%" PRId64, val_signed(type, val));
     } else if (type_is_unsigned_integer(type)) {
         if (width > sizeof(uint64_t) * 8) {
-            size_t warn_len = snprintf(
+            size_t warn_len = scnprintf(
                     out, out_size, "~uint%zu_t->uint64_t:truncated ", width);
             out += warn_len;
             out_size -= warn_len;
         }
-        snprintf(out, out_size, "%" PRIu64, val_unsigned(type, val));
+        scnprintf(out, out_size, "%" PRIu64, val_unsigned(type, val));
     } else if (type_is_float(type)) {
         /*
          * Printing floating point correctly requires a more powerful printf
@@ -108,9 +109,9 @@ static void render_val(char* out,
          * Since it is unlikely the exact value of a float triggering a
          * sanitizer will be important, we don't format it.
          */
-        snprintf(out, out_size, "<floating point value>");
+        scnprintf(out, out_size, "<floating point value>");
     } else {
-        snprintf(out, out_size, "value with unknown type");
+        scnprintf(out, out_size, "value with unknown type");
     }
 }
 
@@ -174,18 +175,18 @@ static void handle_overflow(struct overflow_data* data,
 
     char overflow_kind[16];
 
-    snprintf(overflow_kind, sizeof(overflow_kind), "overflow:%s", op);
+    scnprintf(overflow_kind, sizeof(overflow_kind), "overflow:%s", op);
 
     const struct type_descriptor* type = data->type;
 
     render_val(rendered_lhs, sizeof(rendered_lhs), type, lhs);
     render_val(rendered_rhs, sizeof(rendered_rhs), type, rhs);
 
-    snprintf(details, sizeof(details),
-             "%s integer overflow: %s %s %s cannot be represented in type"
-             " %s\n",
-             type_is_signed_integer(type) ? "signed" : "unsigned", rendered_lhs,
-             op, rendered_rhs, type->name);
+    scnprintf(details, sizeof(details),
+              "%s integer overflow: %s %s %s cannot be represented in type"
+              " %s\n",
+              type_is_signed_integer(type) ? "signed" : "unsigned",
+              rendered_lhs, op, rendered_rhs, type->name);
 
     log(&data->loc, overflow_kind, details);
     UBSAN_FINISH;
@@ -225,9 +226,9 @@ UBSAN_HANDLER(negate_overflow, struct overflow_data* data, value_handle_t val) {
     char details[DETAIL_RENDER_SIZE];
 
     render_val(rendered_val, sizeof(rendered_val), data->type, val);
-    snprintf(details, sizeof(details),
-             "negation of %s cannot be represented in type %s", rendered_val,
-             data->type->name);
+    scnprintf(details, sizeof(details),
+              "negation of %s cannot be represented in type %s", rendered_val,
+              data->type->name);
 
     log(&data->loc, "negation overflow", details);
     UBSAN_FINISH;
@@ -239,9 +240,9 @@ UBSAN_HANDLER(pointer_overflow,
               uintptr_t result) {
     UBSAN_START;
     char details[DETAIL_RENDER_SIZE];
-    snprintf(details, sizeof(details),
-             "pointer arithmetic on %p overflowed resulting in %p", (void*)base,
-             (void*)result);
+    scnprintf(details, sizeof(details),
+              "pointer arithmetic on %p overflowed resulting in %p",
+              (void*)base, (void*)result);
     log(&data->loc, "pointer_overflow", details);
     UBSAN_FINISH;
 }
@@ -265,9 +266,9 @@ UBSAN_HANDLER(implicit_conversion,
 
     render_val(rendered_src, sizeof(rendered_src), data->from_type, src);
     render_val(rendered_dst, sizeof(rendered_dst), data->to_type, dst);
-    snprintf(details, sizeof(details),
-             "implicit conversion (%s) from %s to %s\n", kind_str, rendered_src,
-             rendered_dst);
+    scnprintf(details, sizeof(details),
+              "implicit conversion (%s) from %s to %s\n", kind_str,
+              rendered_src, rendered_dst);
 
     log(&data->loc, "implicit conversion", details);
     UBSAN_FINISH;
@@ -281,16 +282,16 @@ UBSAN_HANDLER(type_mismatch_v1,
 
     intptr_t alignment = 1 << data->log_alignment;
     if (!ptr) {
-        snprintf(details, sizeof(details), "%s null pointer type %s",
-                 type_check_kinds[data->type_check_kind], data->type->name);
+        scnprintf(details, sizeof(details), "%s null pointer type %s",
+                  type_check_kinds[data->type_check_kind], data->type->name);
     } else if (ptr & (alignment - 1)) {
-        snprintf(
+        scnprintf(
                 details, sizeof(details),
                 "%s misaligned pointer %p for type %s which requires %d byte alignment",
                 type_check_kinds[data->type_check_kind], (void*)ptr,
                 data->type->name, (int)alignment);
     } else {
-        snprintf(
+        scnprintf(
                 details, sizeof(details),
                 "%s pointer %p points at a region with insufficient space for a value of type %s",
                 type_check_kinds[data->type_check_kind], (void*)ptr,
@@ -330,20 +331,20 @@ UBSAN_HANDLER(shift_out_of_bounds,
     uint64_t rhs_u64 = val_unsigned(data->rhs_type, rhs);
 
     if (is_negative(data->rhs_type, rhs)) {
-        snprintf(details, sizeof(details), "shift amount is negative: %s",
-                 rendered_rhs);
+        scnprintf(details, sizeof(details), "shift amount is negative: %s",
+                  rendered_rhs);
     } else if (type_width_bits(data->lhs_type) < rhs_u64) {
-        snprintf(details, sizeof(details),
-                 "shift amount %s is too large for type %s", rendered_rhs,
-                 data->lhs_type->name);
+        scnprintf(details, sizeof(details),
+                  "shift amount %s is too large for type %s", rendered_rhs,
+                  data->lhs_type->name);
     } else if (is_negative(data->lhs_type, lhs)) {
         /* At this point, we know we are dealing with a left shift, as right
          * shift is covered by the above two cases */
-        snprintf(details, sizeof(details), "left shifting a negative value: %s",
-                 rendered_lhs);
+        scnprintf(details, sizeof(details),
+                  "left shifting a negative value: %s", rendered_lhs);
     } else {
-        snprintf(details, sizeof(details), "%s << %s does not fit in %s",
-                 rendered_lhs, rendered_rhs, data->lhs_type->name);
+        scnprintf(details, sizeof(details), "%s << %s does not fit in %s",
+                  rendered_lhs, rendered_rhs, data->lhs_type->name);
     }
 
     log(&data->loc, "shift out of bounds", details);
@@ -358,8 +359,8 @@ UBSAN_HANDLER(out_of_bounds,
     char details[DETAIL_RENDER_SIZE];
 
     render_val(rendered_index, sizeof(rendered_index), data->index_type, index);
-    snprintf(details, sizeof(details), "index %s out of bounds for %s\n",
-             rendered_index, data->array_type->name);
+    scnprintf(details, sizeof(details), "index %s out of bounds for %s\n",
+              rendered_index, data->array_type->name);
 
     log(&data->loc, "out of bounds access", details);
     UBSAN_FINISH;
@@ -373,9 +374,9 @@ UBSAN_HANDLER(load_invalid_value,
     char details[DETAIL_RENDER_SIZE];
 
     render_val(rendered_val, sizeof(rendered_val), data->type, val);
-    snprintf(details, sizeof(details),
-             "load of value %s outside of range for type %s", rendered_val,
-             data->type->name);
+    scnprintf(details, sizeof(details),
+              "load of value %s outside of range for type %s", rendered_val,
+              data->type->name);
 
     log(&data->loc, "invalid value", details);
     UBSAN_FINISH;
