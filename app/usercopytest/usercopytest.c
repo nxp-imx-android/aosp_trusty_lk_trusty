@@ -45,7 +45,8 @@
 #define SRC_DATA (0x22)
 #define DEST_DATA (0x11)
 
-#define FLAGS_NO_PAGE (0)
+#define FLAGS_NO_PAGE (ARCH_MMU_FLAG_INVALID)
+#define FLAGS_NO_USER (0u)
 #define FLAGS_RO_USER (ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_RO)
 #define FLAGS_RW_USER (ARCH_MMU_FLAG_PERM_USER)
 
@@ -163,9 +164,9 @@ TEST_P(usercopytest, copy_to_user) {
     dest_kbuf2 = paddr_to_kvaddr(
             vaddr_to_paddr((void*)(uintptr_t)addr + TEST_BUF1_SIZE));
 
-    /* dest_kbuf1 or dest_kbuf2 should only be NULL if page is unmapped */
-    ASSERT(dest_kbuf1 || arch_mmu_flags_start == 0);
-    ASSERT(dest_kbuf2 || arch_mmu_flags_end == 0);
+    /* dest buffs should be NULL iff their flags are FLAGS_NO_PAGE */
+    EXPECT_EQ((dest_kbuf1 == NULL), (arch_mmu_flags_start == FLAGS_NO_PAGE));
+    EXPECT_EQ((dest_kbuf2 == NULL), (arch_mmu_flags_end == FLAGS_NO_PAGE));
 
     usercopy_test_init_buf(dest_kbuf1, dest_kbuf2, DEST_DATA, -1);
     memset(src_buf, SRC_DATA, sizeof(src_buf));
@@ -255,9 +256,9 @@ TEST_P(usercopytest, copy_from_user) {
     src_kbuf2 = paddr_to_kvaddr(
             vaddr_to_paddr((void*)(uintptr_t)addr + TEST_BUF1_SIZE));
 
-    /* src_kbuf1 or src_kbuf2 should only be NULL if page is unmapped */
-    ASSERT(src_kbuf1 || arch_mmu_flags_start == 0);
-    ASSERT(src_kbuf2 || arch_mmu_flags_end == 0);
+    /* src buffs should be NULL iff their flags are FLAGS_NO_PAGE */
+    EXPECT_EQ((src_kbuf1 == NULL), (arch_mmu_flags_start == FLAGS_NO_PAGE));
+    EXPECT_EQ((src_kbuf2 == NULL), (arch_mmu_flags_end == FLAGS_NO_PAGE));
 
     usercopy_test_init_buf(src_kbuf1, src_kbuf2, SRC_DATA, -1);
 
@@ -331,9 +332,9 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
     src_kbuf2 = paddr_to_kvaddr(
             vaddr_to_paddr((void*)(uintptr_t)addr + TEST_BUF1_SIZE));
 
-    /* src_kbuf1 or src_kbuf2 should only be NULL if page is unmapped */
-    ASSERT(src_kbuf1 || arch_mmu_flags_start == 0);
-    ASSERT(src_kbuf2 || arch_mmu_flags_end == 0);
+    /* src buffs should be NULL iff their flags are FLAGS_NO_PAGE */
+    EXPECT_EQ((src_kbuf1 == NULL), (arch_mmu_flags_start == FLAGS_NO_PAGE));
+    EXPECT_EQ((src_kbuf2 == NULL), (arch_mmu_flags_end == FLAGS_NO_PAGE));
 
     usercopy_test_init_buf(src_kbuf1, src_kbuf2, SRC_DATA, null_off);
 
@@ -438,6 +439,8 @@ static const char* flags_to_str(uint32_t flags) {
     switch (flags) {
     case FLAGS_NO_PAGE:
         return "--";
+    case FLAGS_NO_USER:
+        return "ko";
     case FLAGS_RO_USER:
         return "ro";
     case FLAGS_RW_USER:
@@ -459,14 +462,18 @@ static void user_param_to_string(const void* param,
     scnprintf(buf + count, buf_size - count, "%s", flags_to_str(end_flags));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-        UserCopyTestParams,
-        usercopytest,
-        testing_Combine(
-                testing_Values(TEST_BUF_ADDR),
-                testing_Values(FLAGS_NO_PAGE, FLAGS_RO_USER, FLAGS_RW_USER),
-                testing_Values(FLAGS_NO_PAGE, FLAGS_RO_USER, FLAGS_RW_USER)),
-        user_param_to_string);
+INSTANTIATE_TEST_SUITE_P(UserCopyTestParams,
+                         usercopytest,
+                         testing_Combine(testing_Values(TEST_BUF_ADDR),
+                                         testing_Values(FLAGS_NO_PAGE,
+                                                        FLAGS_NO_USER,
+                                                        FLAGS_RO_USER,
+                                                        FLAGS_RW_USER),
+                                         testing_Values(FLAGS_NO_PAGE,
+                                                        FLAGS_NO_USER,
+                                                        FLAGS_RO_USER,
+                                                        FLAGS_RW_USER)),
+                         user_param_to_string);
 
 #if IS_64BIT && USER_32BIT
 /*
@@ -508,8 +515,8 @@ static void kernel_param_to_string(const void* param,
 INSTANTIATE_TEST_SUITE_P(KernelUserCopyTestParams,
                          usercopytest,
                          testing_Combine(testing_ValuesIn(kernel_addrs),
-                                         testing_Values(FLAGS_NO_PAGE),
-                                         testing_Values(FLAGS_NO_PAGE)),
+                                         testing_Values(FLAGS_NO_USER),
+                                         testing_Values(FLAGS_NO_USER)),
                          kernel_param_to_string);
 
 static bool run_usercopy_test(struct unittest* test) {
