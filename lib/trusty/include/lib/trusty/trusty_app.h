@@ -27,6 +27,7 @@
 
 #include <assert.h>
 #include <kernel/thread.h>
+#include <kernel/usercopy.h>
 #include <kernel/vm.h>
 #include <lib/trusty/uuid.h>
 #include <list.h>
@@ -125,8 +126,8 @@ status_t trusty_app_request_start_by_port(const char* port_path,
 
 void trusty_app_exit(int status) __NO_RETURN;
 status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
-                               u_int mmio_id,
-                               vaddr_t* vaddr,
+                               uint32_t mmio_id,
+                               user_addr_t* uaddr_p,
                                uint32_t size);
 void trusty_app_forall(void (*fn)(trusty_app_t* ta, void* data), void* data);
 void trusty_thread_exit(int status);

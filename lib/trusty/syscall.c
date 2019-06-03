@@ -210,7 +210,6 @@ long sys_mmap(user_addr_t uaddr,
               uint32_t flags,
               uint32_t handle) {
     trusty_app_t* trusty_app = current_trusty_app();
-    vaddr_t vaddr;
     long ret;
 
     /*
@@ -218,14 +217,16 @@ long sys_mmap(user_addr_t uaddr,
      * must be 0 for now.
      * TBD: Add support in to use uaddr as a hint.
      */
-    if (flags != MMAP_FLAG_IO_HANDLE || uaddr != 0)
+    if (flags != MMAP_FLAG_IO_HANDLE || uaddr != 0) {
         return ERR_INVALID_ARGS;
+    }
 
-    ret = trusty_app_setup_mmio(trusty_app, handle, &vaddr, size);
-    if (ret != NO_ERROR)
+    ret = trusty_app_setup_mmio(trusty_app, handle, &uaddr, size);
+    if (ret != NO_ERROR) {
         return ret;
+    }
 
-    return vaddr;
+    return uaddr;
 }
 
 long sys_munmap(user_addr_t uaddr, uint32_t size) {

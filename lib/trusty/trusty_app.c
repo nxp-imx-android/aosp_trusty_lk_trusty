@@ -1078,16 +1078,19 @@ err_hdr:
 }
 
 status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
-                               u_int mmio_id,
-                               vaddr_t* vaddr,
+                               uint32_t mmio_id,
+                               user_addr_t* uaddr_p,
                                uint32_t map_size) {
     status_t ret;
-    u_int i;
-    u_int id, offset, size;
+    uint32_t i;
+    uint32_t id, offset, size;
     uint32_t port_name_size;
 
     /* Should only be called on the currently running app */
     DEBUG_ASSERT(trusty_app == current_trusty_app());
+
+    ASSERT(uaddr_p);
+    void* va = (void*)(uintptr_t)(*uaddr_p);
 
     /* step thru configuration blob looking for I/O mapping requests */
     for (i = 0; i < trusty_app->props.config_entry_cnt; i++) {
@@ -1104,11 +1107,15 @@ status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
             if (map_size > size)
                 return ERR_INVALID_ARGS;
             ret = vmm_alloc_physical(
-                    trusty_app->aspace, "mmio", map_size, (void**)vaddr,
-                    PAGE_SIZE_SHIFT, offset, 0,
+                    trusty_app->aspace, "mmio", map_size, &va, PAGE_SIZE_SHIFT,
+                    offset, 0,
                     ARCH_MMU_FLAG_UNCACHED_DEVICE | ARCH_MMU_FLAG_PERM_USER);
-            dprintf(SPEW, "mmio: vaddr 0x%lx, paddr 0x%x, ret %d\n", *vaddr,
-                    offset, ret);
+            dprintf(SPEW, "mmio: vaddr %p, paddr 0x%x, ret %d\n", va, offset,
+                    ret);
+            if (ret == NO_ERROR) {
+                *uaddr_p = (user_addr_t)(uintptr_t)va;
+                DEBUG_ASSERT((void*)(uintptr_t)(*uaddr_p) == va);
+            }
             return ret;
         case TRUSTY_APP_CONFIG_KEY_START_PORT:
             /* START_PORT takes 2 data values plus the aligned port name size */
