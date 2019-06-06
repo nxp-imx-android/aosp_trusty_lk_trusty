@@ -135,7 +135,9 @@ static void busy_test_cpu_init(uint level) {
     snprintf(thread_name, sizeof(thread_name), "busy-test-%d", cpu);
     thread = thread_create(thread_name, busy_test_busy_func, NULL, LOW_PRIORITY,
                            DEFAULT_STACK_SIZE);
+#if WITH_SMP
     thread->pinned_cpu = cpu;
+#endif
     thread_resume(thread);
 }
 
