@@ -25,18 +25,45 @@ OUTPUT_ARCH(aarch64)
 
 PHDRS
 {
-  text PT_LOAD;
-  rodata PT_LOAD;
-  data PT_LOAD;
+  headers PT_PHDR PHDRS ;
+  text PT_LOAD FILEHDR PHDRS ;
+  rodata PT_LOAD ;
+  data PT_LOAD ;
 }
+
 
 ENTRY(_start)
 SECTIONS
 {
   /* Read-only sections, merged into text segment: */
-  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x8000)); . = SEGMENT_START("text-segment", 0x8000);
-  .text_start   : {} : text
-  .interp         : { *(.interp) }
+  PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x8000)); . = SEGMENT_START("text-segment", 0x8000) + SIZEOF_HEADERS;
+  .text_start : {} : text
+  .init           :
+  {
+    KEEP (*(.init))
+  } =0
+  .plt            : { *(.plt) }
+  .iplt           : { *(.iplt) }
+  .text           :
+  {
+    *(.text.unlikely .text.*_unlikely)
+    *(.text.exit .text.exit.*)
+    *(.text.startup .text.startup.*)
+    *(.text.hot .text.hot.*)
+    *(.text .stub .text.* .gnu.linkonce.t.*)
+    /* .gnu.warning sections are handled specially by elf32.em.  */
+    *(.gnu.warning)
+    *(.glue_7t) *(.glue_7) *(.vfp11_veneer) *(.v4_bx)
+  } =0
+  .fini           :
+  {
+    KEEP (*(.fini))
+  } =0
+  PROVIDE (__etext = .);
+  PROVIDE (_etext = .);
+  PROVIDE (etext = .);
+  . = ALIGN(0x1000);
+  .rodata_start   : {} : rodata
   .note.gnu.build-id : { *(.note.gnu.build-id) }
   .hash           : { *(.hash) }
   .gnu.hash       : { *(.gnu.hash) }
@@ -92,32 +119,7 @@ SECTIONS
     {
       *(.rela.plt)
     }
-  .init           :
-  {
-    KEEP (*(.init))
-  } =0
-  .plt            : { *(.plt) }
-  .iplt           : { *(.iplt) }
-  .text           :
-  {
-    *(.text.unlikely .text.*_unlikely)
-    *(.text.exit .text.exit.*)
-    *(.text.startup .text.startup.*)
-    *(.text.hot .text.hot.*)
-    *(.text .stub .text.* .gnu.linkonce.t.*)
-    /* .gnu.warning sections are handled specially by elf32.em.  */
-    *(.gnu.warning)
-    *(.glue_7t) *(.glue_7) *(.vfp11_veneer) *(.v4_bx)
-  } =0
-  .fini           :
-  {
-    KEEP (*(.fini))
-  } =0
-  PROVIDE (__etext = .);
-  PROVIDE (_etext = .);
-  PROVIDE (etext = .);
-  . = ALIGN(0x1000);
-  .rodata_start   : {} : rodata
+
   .rodata         : { *(.rodata .rodata.* .gnu.linkonce.r.*) }
   .rodata1        : { *(.rodata1) }
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) }

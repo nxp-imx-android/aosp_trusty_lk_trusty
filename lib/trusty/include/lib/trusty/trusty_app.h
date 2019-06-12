@@ -85,10 +85,10 @@ typedef struct trusty_app {
     enum app_state state;
     vmm_aspace_t* aspace;
     uint32_t flags;
-    vaddr_t end_bss;
     vaddr_t start_brk;
     vaddr_t cur_brk;
     vaddr_t end_brk;
+    vaddr_t load_bias;
     trusty_app_props_t props;
     struct trusty_app_img* app_img;
     struct trusty_thread* thread;

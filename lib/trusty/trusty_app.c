@@ -43,6 +43,7 @@
 #include <sys/types.h>
 #include <trace.h>
 #include <uapi/trusty_app_manifest_types.h>
+
 #include "elf.h"
 
 #define LOCAL_TRACE 0
@@ -51,17 +52,9 @@
 
 #define TRUSTY_APP_START_ADDR 0x8000
 
-#ifndef TRUSTY_APP_STACK_TOP
-#define TRUSTY_APP_STACK_TOP 0x1000000 /* 16MB */
+#ifdef TRUSTY_APP_STACK_TOP
+#error "TRUSTY_APP_STACK_TOP is no longer respected"
 #endif
-
-/*
- * An arbitrary gap to put between the data segment and the heap.
- * This should be large enough to catch small memory safety issues, but small
- * enough that we don't add another page to the page table.
- * TODO: rethink app memory layout.
- */
-#define TRUSTY_APP_HEAP_GAP (16 * PAGE_SIZE)
 
 #ifndef DEFAULT_HEAP_SIZE
 #define DEFAULT_HEAP_SIZE (4 * PAGE_SIZE)
@@ -80,6 +73,7 @@
 #define ELF_SHDR Elf64_Shdr
 #define ELF_EHDR Elf64_Ehdr
 #define ELF_PHDR Elf64_Phdr
+#define Elf_Addr Elf64_Addr
 
 #define PRIxELF_Off "llx"
 #define PRIuELF_Size "llu"
@@ -90,6 +84,7 @@
 #define ELF_SHDR Elf32_Shdr
 #define ELF_EHDR Elf32_Ehdr
 #define ELF_PHDR Elf32_Phdr
+#define Elf_Addr Elf32_Addr
 
 #define PRIxELF_Off "x"
 #define PRIuELF_Size "u"
@@ -266,6 +261,7 @@ static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
 
 /* TODO share a common header file. */
 #define AT_PAGESZ 6
+#define AT_BASE 7
 
 /*
  * Pass data to libc on the user stack.
@@ -274,14 +270,13 @@ static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
  */
 static __NO_INLINE user_addr_t
 trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
-                               user_addr_t* stack_ptr) {
+                               user_addr_t* stack_ptr,
+                               vaddr_t load_bias) {
     /* Construct the elf tables in reverse order - the stack grows down. */
 
     /* auxv */
     user_addr_t auxv[] = {
-            AT_PAGESZ,
-            PAGE_SIZE,
-            0,
+            AT_PAGESZ, PAGE_SIZE, AT_BASE, load_bias, 0,
     };
     add_to_user_stack(trusty_thread, auxv, sizeof(auxv), sizeof(user_addr_t),
                       stack_ptr);
@@ -314,8 +309,8 @@ static int trusty_thread_startup(void* arg) {
     vmm_set_active_aspace(trusty_thread->app->aspace);
 
     user_addr_t stack_ptr = trusty_thread->stack_start;
-    user_addr_t elf_tables =
-            trusty_thread_write_elf_tables(trusty_thread, &stack_ptr);
+    user_addr_t elf_tables = trusty_thread_write_elf_tables(
+            trusty_thread, &stack_ptr, trusty_thread->app->load_bias);
 
     arch_enter_uspace(trusty_thread->entry, stack_ptr, ENTER_USPACE_FLAGS,
                       elf_tables);
@@ -345,19 +340,19 @@ void __NO_RETURN trusty_thread_exit(int retcode) {
 static struct trusty_thread* trusty_thread_create(const char* name,
                                                   vaddr_t entry,
                                                   int priority,
-                                                  vaddr_t stack_start,
                                                   size_t stack_size,
                                                   trusty_app_t* trusty_app) {
     struct trusty_thread* trusty_thread;
     status_t err;
-    vaddr_t stack_bot = stack_start - stack_size;
+    vaddr_t stack_bot = 0;
+    stack_size = round_up(stack_size, PAGE_SIZE);
 
     trusty_thread = calloc(1, sizeof(struct trusty_thread));
     if (!trusty_thread)
         return NULL;
 
     err = vmm_alloc(trusty_app->aspace, "stack", stack_size, (void**)&stack_bot,
-                    PAGE_SIZE_SHIFT, VMM_FLAG_VALLOC_SPECIFIC,
+                    PAGE_SIZE_SHIFT, 0,
                     ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
     if (err != NO_ERROR) {
@@ -367,8 +362,6 @@ static struct trusty_thread* trusty_thread_create(const char* name,
         goto err_stack;
     }
 
-    ASSERT(stack_bot == stack_start - stack_size);
-
     trusty_thread->thread = thread_create(name, trusty_thread_startup, NULL,
                                           priority, DEFAULT_STACK_SIZE);
     if (!trusty_thread->thread)
@@ -376,7 +369,7 @@ static struct trusty_thread* trusty_thread_create(const char* name,
 
     trusty_thread->app = trusty_app;
     trusty_thread->entry = entry;
-    trusty_thread->stack_start = stack_start;
+    trusty_thread->stack_start = stack_bot + stack_size;
     trusty_thread->stack_size = stack_size;
     trusty_thread->thread->tls[TLS_ENTRY_TRUSTY] = (uintptr_t)trusty_thread;
 
@@ -611,7 +604,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
     return NO_ERROR;
 }
 
-static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
+static status_t init_brk(trusty_app_t* trusty_app) {
     status_t status;
     vaddr_t start_brk;
     vaddr_t brk_size;
@@ -624,14 +617,14 @@ static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
      * ways.
      * TODO: ensure address space gaps around the heap.
      */
-    start_brk = round_up(hint, PAGE_SIZE);
+    start_brk = 0;
     brk_size = round_up(trusty_app->props.min_heap_size, PAGE_SIZE);
 
     /* Allocate if needed. */
     if (brk_size > 0) {
         status = vmm_alloc(
                 trusty_app->aspace, "heap", brk_size, (void**)&start_brk,
-                PAGE_SIZE_SHIFT, VMM_FLAG_VALLOC_SPECIFIC,
+                PAGE_SIZE_SHIFT, 0,
                 ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
         if (status != NO_ERROR) {
@@ -649,17 +642,77 @@ static status_t init_brk(trusty_app_t* trusty_app, vaddr_t hint) {
     return NO_ERROR;
 }
 
+/**
+ * select_load_bias() - Pick a a load bias for an ELF
+ * @phdr:      Pre-validated program header array base
+ * @num_phdrs: Number of program headers
+ * @aspace:    The address space the bias needs to be valid in
+ * @out:       Out pointer to write the selected bias to. Only valid if the
+ *             function returned 0.
+ *
+ * This function calculates an offset that can be added to every loadable ELF
+ * segment in the image and still result in a legal load address.
+ *
+ * Return: A status code indicating whether a bias was located. If nonzero,
+ *         the bias output may be invalid.
+ */
+static status_t select_load_bias(ELF_PHDR* phdr,
+                                 size_t num_phdrs,
+                                 vmm_aspace_t* aspace,
+                                 vaddr_t* out) {
+    DEBUG_ASSERT(out);
+#if ASLR
+    vaddr_t low = VADDR_MAX;
+    vaddr_t high = 0;
+    for (size_t i = 0; i < num_phdrs; i++, phdr++) {
+        if ((phdr->p_vaddr < TRUSTY_APP_START_ADDR) ||
+            (phdr->p_type != PT_LOAD)) {
+            continue;
+        }
+        low = MIN(low, phdr->p_vaddr);
+        vaddr_t candidate_high;
+        if (!__builtin_add_overflow(phdr->p_vaddr, phdr->p_memsz,
+                                    &candidate_high)) {
+            high = MAX(high, candidate_high);
+        } else {
+            dprintf(CRITICAL, "Segment %zu overflows virtual address space\n",
+                    i);
+            return ERR_NOT_VALID;
+        }
+    }
+    LTRACEF("ELF Segment range: %lx->%lx\n", low, high);
+
+    DEBUG_ASSERT(high >= low);
+    size_t size = round_up(high - low, PAGE_SIZE);
+    LTRACEF("Spot size: %zu\n", size);
+
+    vaddr_t spot;
+    if (!vmm_find_spot(aspace, size, &spot)) {
+        return ERR_NO_MEMORY;
+    }
+    LTRACEF("Load target: %lx\n", spot);
+
+    /*
+     * Overflow is acceptable here, since adding the delta to the lowest
+     * ELF load address will still return to spot, which was the goal.
+     */
+    __builtin_sub_overflow(spot, low, out);
+#else
+    /* If ASLR is disabled, the app is not PIE, use a load bias of 0 */
+    *out = 0;
+#endif
+
+    LTRACEF("Load bias: %lx\n", *out);
+
+    return NO_ERROR;
+}
+
 static status_t alloc_address_map(trusty_app_t* trusty_app) {
     ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
     void* trusty_app_image;
     ELF_PHDR* prg_hdr;
     u_int i;
     status_t ret;
-    vaddr_t start_code = ~0U;
-    vaddr_t start_data = 0;
-    vaddr_t end_code = 0;
-    vaddr_t end_data = 0;
-    vaddr_t last_mem = 0;
     trusty_app_image = (void*)trusty_app->app_img->img_start;
 
     prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
@@ -670,38 +723,35 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
         return ERR_NOT_VALID;
     }
 
+    status_t bias_result =
+            select_load_bias(prg_hdr, elf_hdr->e_phnum, trusty_app->aspace,
+                             &trusty_app->load_bias);
+    if (bias_result) {
+        return bias_result;
+    }
+
     /* create mappings for PT_LOAD sections */
     for (i = 0; i < elf_hdr->e_phnum; i++, prg_hdr++) {
-        vaddr_t first, last;
+        /* load_bias uses overflow to lower vaddr if needed */
+        Elf_Addr p_vaddr;
+        __builtin_add_overflow(prg_hdr->p_vaddr, trusty_app->load_bias,
+                               &p_vaddr);
 
         LTRACEF("trusty_app %d: ELF type 0x%x"
                 ", vaddr 0x%08" PRIxELF_Addr ", paddr 0x%08" PRIxELF_Addr
                 ", rsize 0x%08" PRIxELF_Size ", msize 0x%08" PRIxELF_Size
                 ", flags 0x%08x\n",
-                trusty_app->app_id, prg_hdr->p_type, prg_hdr->p_vaddr,
-                prg_hdr->p_paddr, prg_hdr->p_filesz, prg_hdr->p_memsz,
-                prg_hdr->p_flags);
+                trusty_app->app_id, prg_hdr->p_type, p_vaddr, prg_hdr->p_paddr,
+                prg_hdr->p_filesz, prg_hdr->p_memsz, prg_hdr->p_flags);
 
         if (prg_hdr->p_type != PT_LOAD)
             continue;
 
-        /* skip PT_LOAD if it's below trusty_app start or above .bss */
-        if ((prg_hdr->p_vaddr < TRUSTY_APP_START_ADDR) ||
-            (prg_hdr->p_vaddr >= trusty_app->end_bss))
+        /* skip PT_LOAD if it's below trusty_app start */
+        if (p_vaddr < TRUSTY_APP_START_ADDR)
             continue;
 
-        /* check for overlap into user stack range */
-        vaddr_t stack_bot =
-                TRUSTY_APP_STACK_TOP - trusty_app->props.min_stack_size;
-
-        if (stack_bot < prg_hdr->p_vaddr + prg_hdr->p_memsz) {
-            dprintf(CRITICAL,
-                    "failed to load trusty_app: (overlaps user stack 0x%lx)\n",
-                    stack_bot);
-            return ERR_TOO_BIG;
-        }
-
-        vaddr_t vaddr = prg_hdr->p_vaddr;
+        vaddr_t vaddr = p_vaddr;
         vaddr_t img_kvaddr = (vaddr_t)(trusty_app_image + prg_hdr->p_offset);
         size_t mapping_size;
 
@@ -748,7 +798,7 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
                 return ret;
             }
 
-            ASSERT(vaddr == prg_hdr->p_vaddr);
+            ASSERT(vaddr == p_vaddr);
 
             file_size = prg_hdr->p_filesz;
             while (file_size > 0) {
@@ -804,7 +854,7 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
                 return ret;
             }
 
-            ASSERT(vaddr == prg_hdr->p_vaddr);
+            ASSERT(vaddr == p_vaddr);
             free(paddr_arr);
         }
 
@@ -816,39 +866,15 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO ? '-' : 'w',
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE ? '-' : 'x',
                 arch_mmu_flags);
-
-        /* start of code/data */
-        first = prg_hdr->p_vaddr;
-        if (first < start_code)
-            start_code = first;
-        if (start_data < first)
-            start_data = first;
-
-        /* end of code/data */
-        last = prg_hdr->p_vaddr + prg_hdr->p_filesz;
-        if ((prg_hdr->p_flags & PF_X) && end_code < last)
-            end_code = last;
-        if (end_data < last)
-            end_data = last;
-
-        /* hint for start of brk */
-        last_mem = MAX(last_mem, prg_hdr->p_vaddr + prg_hdr->p_memsz);
     }
 
-    ret = init_brk(trusty_app,
-                   round_up(last_mem, PAGE_SIZE) + TRUSTY_APP_HEAP_GAP);
+    ret = init_brk(trusty_app);
     if (ret != NO_ERROR) {
         dprintf(CRITICAL,
                 "failed to load trusty_app: trusty_app heap creation error\n");
         return ret;
     }
 
-    dprintf(SPEW, "trusty_app %d: code: start 0x%08lx end 0x%08lx\n",
-            trusty_app->app_id, start_code, end_code);
-    dprintf(SPEW, "trusty_app %d: data: start 0x%08lx end 0x%08lx\n",
-            trusty_app->app_id, start_data, end_data);
-    dprintf(SPEW, "trusty_app %d: bss:                end 0x%08lx\n",
-            trusty_app->app_id, trusty_app->end_bss);
     dprintf(SPEW, "trusty_app %d: brk:  start 0x%08lx end 0x%08lx\n",
             trusty_app->app_id, trusty_app->start_brk, trusty_app->end_brk);
     dprintf(SPEW, "trusty_app %d: entry 0x%08" PRIxELF_Addr "\n",
@@ -927,7 +953,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
                                   uint32_t flags) {
     ELF_EHDR* ehdr;
     ELF_SHDR* shdr;
-    ELF_SHDR *bss_shdr, *manifest_shdr;
+    ELF_SHDR* manifest_shdr;
     char* shstbl;
     uint32_t shstbl_size;
     trusty_app_t* trusty_app;
@@ -994,7 +1020,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
         goto err_hdr;
     }
 
-    bss_shdr = manifest_shdr = NULL;
+    manifest_shdr = NULL;
 
     for (i = 0; i < ehdr->e_shnum; i++) {
         if (shdr[i].sh_type == SHT_NULL)
@@ -1005,21 +1031,10 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
                 i, shdr[i].sh_offset, shdr[i].sh_size, shdr[i].sh_flags,
                 shstbl + shdr[i].sh_name);
 
-        /* track bss and manifest sections */
-        if (compare_section_name(shdr + i, ".bss", shstbl, shstbl_size)) {
-            bss_shdr = shdr + i;
-            trusty_app->end_bss = bss_shdr->sh_addr + bss_shdr->sh_size;
-        } else if (compare_section_name(shdr + i, ".trusty_app.manifest",
-                                        shstbl, shstbl_size)) {
+        if (compare_section_name(shdr + i, ".trusty_app.manifest", shstbl,
+                                 shstbl_size)) {
             manifest_shdr = shdr + i;
         }
-    }
-
-    /* we need these sections */
-    if (!bss_shdr) {
-        dprintf(CRITICAL, "bss section header not found\n");
-        ret = ERR_NOT_VALID;
-        goto err_hdr;
     }
 
     if (!manifest_shdr) {
@@ -1188,9 +1203,11 @@ static status_t trusty_app_start(trusty_app_t* trusty_app) {
     }
 
     elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
-    trusty_thread = trusty_thread_create(
-            name, elf_hdr->e_entry, DEFAULT_PRIORITY, TRUSTY_APP_STACK_TOP,
-            trusty_app->props.min_stack_size, trusty_app);
+    vaddr_t entry;
+    __builtin_add_overflow(elf_hdr->e_entry, trusty_app->load_bias, &entry);
+    trusty_thread =
+            trusty_thread_create(name, entry, DEFAULT_PRIORITY,
+                                 trusty_app->props.min_stack_size, trusty_app);
     if (!trusty_thread) {
         dprintf(CRITICAL, "failed to allocate trusty thread for %s\n", name);
         ret = ERR_NO_MEMORY;

@@ -43,6 +43,7 @@ $(eval XBIN_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
 $(eval XBIN_LINKER_SCRIPT := $(BASE_USER_TASK_LINKER_SCRIPT))\
 $(eval XBIN_LDFLAGS := $(BASE_XBIN_LDFLAGS))\
 $(eval XBIN_ALIGNMENT := 4096)\
+$(eval XBIN_APP := true)\
 $(eval include make/xbin.mk)
 endef
 

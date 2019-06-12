@@ -139,6 +139,15 @@ XBIN_SYMS_ELF := $(BUILDDIR)/$(XBIN_NAME).syms.elf
 XBIN_ALL_OBJS := $(ALLMODULE_OBJS)
 XBIN_CONFIGHEADER := $(BUILDDIR)/config.h
 
+# If ASLR is disabled, don't make PIEs, it burns space
+ifneq ($(ASLR), false)
+    # Generate PIE code to allow ASLR to be applied
+    ifeq ($(XBIN_APP),true)
+        GLOBAL_COMPILEFLAGS += -fPIC
+        XBIN_LDFLAGS += -static -pie --no-dynamic-linker -z text -Bsymbolic
+    endif
+endif
+
 # Set appropriate globals for all targets under $(BUILDDIR)
 $(BUILDDIR)/%: CC := $(XBIN_CC)
 $(BUILDDIR)/%: LD := $(XBIN_LD)
@@ -242,3 +251,4 @@ XBIN_OBJCOPY :=
 XBIN_STRIP :=
 
 XBIN_LDFLAGS :=
+XBIN_APP :=

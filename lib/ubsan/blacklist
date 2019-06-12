@@ -37,6 +37,12 @@ src:*/system/keymaster/key_blob_utils/ocb.c
 # and is not a actual product, just testing infrastructure.
 src:external/trusty/bootloader/*
 
+# If we are inside Musl's ldso or crt components, we're too early in process
+# start for a lot of information to be correct, and our error reporting
+# facilities won't work yet.
+src:external/trusty/musl/crt/*
+src:external/trusty/musl/ldso/*
+
 # Musl is fond of negating unsigned integers to round values up.
 # There are also a few not-quite-buggy unsigned overflows and signed constants
 # being coerced to unsigned values.
