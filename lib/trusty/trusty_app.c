@@ -355,6 +355,16 @@ static struct trusty_thread* trusty_thread_create(const char* name,
                     PAGE_SIZE_SHIFT, 0,
                     ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
+    /*
+     * Allocate guard pages around the application's stack.
+     * See the comment on the heap guard pages for why error codes are not
+     * checked.
+     */
+    vmm_reserve_space(trusty_app->aspace, "stack-guard-low",
+                      stack_bot - PAGE_SIZE, PAGE_SIZE);
+    vmm_reserve_space(trusty_app->aspace, "stack-guard-high",
+                      stack_bot + stack_size, PAGE_SIZE);
+
     if (err != NO_ERROR) {
         dprintf(CRITICAL,
                 "failed(%d) to create thread stack(0x%lx) for app %u\n", err,
@@ -615,7 +625,6 @@ static status_t init_brk(trusty_app_t* trusty_app) {
      * scavange space at the end of .bss for the heap but this misaligned the
      * heap and caused userspace allocators to behave is subtly unpredictable
      * ways.
-     * TODO: ensure address space gaps around the heap.
      */
     start_brk = 0;
     brk_size = round_up(trusty_app->props.min_heap_size, PAGE_SIZE);
@@ -632,6 +641,25 @@ static status_t init_brk(trusty_app_t* trusty_app) {
                     status, start_brk, trusty_app->app_id);
             return ERR_NO_MEMORY;
         }
+
+        vaddr_t end_brk = start_brk + brk_size;
+
+        /*
+         * Attempt to map guard pages. Since everything we mapped so far is
+         * surrounded by guard pages, that means that if this mapping fails,
+         * it is because we already have a guard page in that location, or it
+         * goes outside the aspace, which should fault.
+         *
+         * It is also possible that the allocation can fail due to an OOM
+         * condition under memory pressure, but we can't distinguish that from
+         * vmm_reserve_space()'s return code (ERR_NO_MEMORY is used for both).
+         *
+         * In an OOM condition, the guard page will fail to exist.
+         */
+        vmm_reserve_space(trusty_app->aspace, "heap-guard-low",
+                          start_brk - PAGE_SIZE, PAGE_SIZE);
+        vmm_reserve_space(trusty_app->aspace, "heap-guard-high", end_brk,
+                          PAGE_SIZE);
     }
 
     /* Record the location. */
@@ -866,6 +894,35 @@ static status_t alloc_address_map(trusty_app_t* trusty_app) {
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO ? '-' : 'w',
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE ? '-' : 'x',
                 arch_mmu_flags);
+    }
+
+    /*
+     * Allocate guard pages around the application.
+     * See the comment on the heap guard pages for why error codes are not
+     * checked.
+     */
+
+    /* Reset segment iteration */
+    prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
+    for (i = 0; i < elf_hdr->e_phnum; i++, prg_hdr++) {
+        /*
+         * If it is a loadable segment above the low address, we already
+         * validated and mapped it previously, additional validation is not
+         * needed.
+         */
+        if ((prg_hdr->p_type != PT_LOAD) ||
+            (prg_hdr->p_vaddr < TRUSTY_APP_START_ADDR)) {
+            continue;
+        }
+        vaddr_t low_addr, high_addr;
+        __builtin_add_overflow(prg_hdr->p_vaddr, trusty_app->load_bias,
+                               &low_addr);
+        high_addr = low_addr + prg_hdr->p_memsz;
+        vmm_reserve_space(trusty_app->aspace, "elf-guard-low",
+                          round_down(low_addr, PAGE_SIZE) - PAGE_SIZE,
+                          PAGE_SIZE);
+        vmm_reserve_space(trusty_app->aspace, "elf-guard-high",
+                          round_up(high_addr, PAGE_SIZE), PAGE_SIZE);
     }
 
     ret = init_brk(trusty_app);
