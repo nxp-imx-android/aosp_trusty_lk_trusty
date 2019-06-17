@@ -1,8 +1,7 @@
-#include <malloc.h>
-
 #include <err.h>
 #include <kernel/thread.h>
 #include <lib/unittest/unittest.h>
+#include <malloc.h>
 #include <stdatomic.h>
 
 static uintptr_t expected_malloc_alignment(size) {
@@ -39,9 +38,13 @@ TEST(memorytest, malloc_alignment) {
 test_abort:;
 }
 
+#define MEMORYTEST_CONCURRENT_ALLOCATION_THREADS 64
+
 struct memorytest_alloc_thread_arg {
     size_t alloc_size;
     int count;
+    atomic_int threads_done;
+    atomic_int chunks_allocated;
     atomic_bool go;
 };
 
@@ -66,10 +69,17 @@ int memorytest_alloc_thread(void* _arg) {
             ret = ERR_NO_MEMORY;
             goto err_malloc;
         }
+        atomic_fetch_add(&arg->chunks_allocated, 1);
     }
     ret = 0;
 
 err_malloc:
+    atomic_fetch_add(&arg->threads_done, 1);
+    while (atomic_load(&arg->threads_done) !=
+           MEMORYTEST_CONCURRENT_ALLOCATION_THREADS) {
+        thread_sleep(10);
+    }
+
     while (i-- > 0) {
         free(ptrs[i]);
     }
@@ -87,9 +97,11 @@ TEST(memorytest, concurrent_allocation) {
     struct memorytest_alloc_thread_arg thread_arg = {
             .alloc_size = PAGE_SIZE / 4 * 3, /* ~1 page after heap overhead */
             .count = 8,
+            .threads_done = 0,
+            .chunks_allocated = 0,
             .go = false,
     };
-    struct thread* thread[128];
+    struct thread* thread[MEMORYTEST_CONCURRENT_ALLOCATION_THREADS];
     for (size_t i = 0; i < countof(thread); i++) {
         thread[i] = thread_create("memorytest", memorytest_alloc_thread,
                                   &thread_arg, HIGH_PRIORITY - 1,
@@ -107,7 +119,8 @@ TEST(memorytest, concurrent_allocation) {
     for (size_t i = 0; i < countof(thread); i++) {
         int retcode;
         ASSERT_EQ(0, thread_join(thread[i], &retcode, INFINITE_TIME));
-        EXPECT_EQ(0, retcode);
+        EXPECT_EQ(0, retcode, "Chunks allocated: %d\n",
+                  atomic_load(&thread_arg.chunks_allocated));
     }
 test_abort:;
 }
