@@ -29,5 +29,6 @@ MODULE_STATIC_LIB := true
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/scnprintf.c \
+	$(LOCAL_DIR)/uuid.c \
 
 include make/module.mk
