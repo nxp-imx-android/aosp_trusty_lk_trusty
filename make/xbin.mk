@@ -158,7 +158,7 @@ $(XBIN_SYMS_ELF): XBIN_LINKER_SCRIPT := $(XBIN_LINKER_SCRIPT)
 $(XBIN_SYMS_ELF): $(XBIN_ALL_OBJS) $(XBIN_LINKER_SCRIPT)
 	@$(MKDIR)
 	@echo linking $@
-	$(NOECHO)$(XBIN_LD) $(XBIN_LDFLAGS) -T $(XBIN_LINKER_SCRIPT) --start-group $(XBIN_ALL_OBJS) --end-group $(XBIN_LIBGCC) -o $@
+	$(NOECHO)$(XBIN_LD) $(XBIN_LDFLAGS) -T $(XBIN_LINKER_SCRIPT) --start-group $(XBIN_ALL_OBJS) $(XBIN_LIBGCC) --end-group -o $@
 
 # And strip it and pad with zeros to be page aligned
 $(XBIN_ELF): XBIN_STRIP := $(XBIN_STRIP)

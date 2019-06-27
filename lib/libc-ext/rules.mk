@@ -25,6 +25,8 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+MODULE_STATIC_LIB := true
+
 MODULE_SRCS := \
 	$(LOCAL_DIR)/scnprintf.c \
 
