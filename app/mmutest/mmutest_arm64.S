@@ -28,7 +28,7 @@
 /**
  * int mmutest_arch_rodata_pnx(void) - Test that rodata section is mapped pnx
  *
- * Returns ERR_FAULT is rodata is not executable.
+ * Returns ERR_FAULT if rodata is not executable.
  * Return 0 if rodata is executable.
  */
 .section .rodata
@@ -42,7 +42,7 @@ FUNCTION(mmutest_arch_rodata_pnx)
 /**
  * int mmutest_arch_data_pnx(void) - Test that data section is mapped pnx
  *
- * Returns ERR_FAULT is data is not executable.
+ * Returns ERR_FAULT if data is not executable.
  * Return 0 if data is executable.
  */
 .section .data
@@ -57,7 +57,7 @@ FUNCTION(mmutest_arch_data_pnx)
 /**
  * int mmutest_arch_rodata_ro(void) - Test that rodata section is mapped read-only
  *
- * Returns ERR_FAULT is rodata is not writeable
+ * Returns ERR_FAULT if rodata is not writable
  * Returns 1 if write to rodata is silently dropped
  * Returns 0 if rodata is writable
  */
@@ -77,11 +77,11 @@ FUNCTION(mmutest_arch_rodata_ro)
 .section .text
 
 /**
- * int mmutest_arch_store_uint32(uint32_t *ptr, bool user) - Test if ptr is writeable
+ * int mmutest_arch_store_uint32(uint32_t *ptr, bool user) - Test if ptr is writable
  * @ptr:  Memory location to test
- * @user: Use unpriviledged store
+ * @user: Use unprivileged store
  *
- * Returns ERR_FAULT if ptr is not writeable
+ * Returns ERR_FAULT if ptr is not writable
  * Returns ERR_GENERIC if ptr is not readable
  * Returns 2 if write does not fault, but data is lost on readback from memory
  * Returns 1 if write does not fault, but data is lost on readback from cache

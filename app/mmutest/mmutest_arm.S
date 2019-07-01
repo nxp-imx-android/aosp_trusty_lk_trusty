@@ -30,7 +30,7 @@
 /**
  * int mmutest_arch_rodata_pnx(void) - Test that rodata section is mapped pnx
  *
- * Returns ERR_FAULT is rodata is not executable.
+ * Returns ERR_FAULT if rodata is not executable.
  * Return 0 if rodata is executable.
  */
 .section .rodata
@@ -44,7 +44,7 @@ FUNCTION(mmutest_arch_rodata_pnx)
 /**
  * int mmutest_arch_data_pnx(void) - Test that data section is mapped pnx
  *
- * Returns ERR_FAULT is data is not executable.
+ * Returns ERR_FAULT if data is not executable.
  * Return 0 if data is executable.
  */
 .section .data
@@ -59,7 +59,7 @@ FUNCTION(mmutest_arch_data_pnx)
 /**
  * int mmutest_arch_rodata_ro(void) - Test that rodata section is mapped read-only
  *
- * Returns ERR_FAULT is rodata is not writeable
+ * Returns ERR_FAULT if rodata is not writeable
  * Returns 1 if write to rodata is silently dropped
  * Returns 0 if rodata is writable
  */
