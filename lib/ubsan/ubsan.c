@@ -274,6 +274,23 @@ UBSAN_HANDLER(implicit_conversion,
     UBSAN_FINISH;
 }
 
+UBSAN_HANDLER(invalid_builtin, struct invalid_builtin_data* data) {
+    UBSAN_START;
+    const char* details;
+    switch (data->check_kind) {
+        case BCK_CTZ_PASSED_ZERO:
+            details = "zero passed to ctz";
+            break;
+        case BCK_CLZ_PASSED_ZERO:
+            details = "zero passed to clz";
+            break;
+        default:
+            details = "unknown builtin misuse kind";
+    }
+    log(&data->loc, "invalid builtin usage", details);
+    UBSAN_FINISH;
+}
+
 UBSAN_HANDLER(type_mismatch_v1,
               struct type_mismatch_data* data,
               value_handle_t ptr) {
