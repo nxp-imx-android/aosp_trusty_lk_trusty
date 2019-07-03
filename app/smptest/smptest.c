@@ -170,7 +170,7 @@ static void smptest_init(uint level) {
         smptest_thread[i] =
                 thread_create(thread_name, smptest, (void*)(uintptr_t)i,
                               HIGH_PRIORITY, DEFAULT_STACK_SIZE);
-        smptest_thread[i]->pinned_cpu = i;
+        thread_set_pinned_cpu(smptest_thread[i], i);
     }
     for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
         thread_resume(smptest_thread[i]);
