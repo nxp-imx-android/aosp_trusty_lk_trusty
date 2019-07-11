@@ -100,7 +100,18 @@ XBIN_CC := $(CCACHE) $(CLANG_BINDIR)/clang
 else
 XBIN_CC := $(CCACHE) $(XBIN_TOOLCHAIN_PREFIX)gcc
 endif
-XBIN_LIBGCC := $(shell $(XBIN_CC) $(GLOBAL_COMPILEFLAGS) $(ARCH_$(ARCH)_COMPILEFLAGS) $(THUMBCFLAGS) -print-libgcc-file-name)
+
+# TODO: we could find the runtime like this.
+# XBIN_LIBGCC := $(shell $(XBIN_CC) $(GLOBAL_COMPILEFLAGS) $(ARCH_$(ARCH)_COMPILEFLAGS) $(THUMBCFLAGS) --rtlib=compiler-rt -print-libgcc-file-name)
+# However the compiler currently does not contain non-x86 prebuilts for the
+# linux-gnu ABI. We could either get those prebuilts added to the toolchain or
+# switch to the android ABI.
+# Note there are two copies of compiler-rt in the toolchain - framework and NDK.
+# We're using the NDK version because the path is more stable and the difference
+# should not matter for this library. (The main difference is which version of
+# libcxx they link against, and the builtins do not use C++.)
+XBIN_LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_ARCH_NAME)-android.a
+
 XBIN_LD := $(XBIN_TOOLCHAIN_PREFIX)ld.bfd
 XBIN_OBJCOPY := $(XBIN_TOOLCHAIN_PREFIX)objcopy
 XBIN_OBJDUMP := $(XBIN_TOOLCHAIN_PREFIX)objdump
