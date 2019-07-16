@@ -48,3 +48,9 @@ src:external/trusty/musl/ldso/*
 # being coerced to unsigned values.
 [unsigned-integer-overflow|implicit-integer-sign-change]
 src:external/trusty/musl/src/*
+
+# Allow unsigned overflow in keymaster until keymaster's checks are reworked.
+# The cases we know can overflow *are* overflow checks.
+[unsigned-integer-overflow|pointer-overflow]
+src:*/system/keymaster/android_keymaster/authorization_set.cpp
+src:*/system/keymaster/android_keymaster/serializable.cpp
