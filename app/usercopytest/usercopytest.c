@@ -326,6 +326,7 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
     char* src_kbuf1;
     char* src_kbuf2;
     size_t dest_len;
+    int copy_len = copy_size ? copy_size - 1 : 0;
 
     memset(dest_buf, DEST_DATA, sizeof(dest_buf));
     src_kbuf1 = paddr_to_kvaddr(vaddr_to_paddr((void*)(uintptr_t)addr));
@@ -342,11 +343,20 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
                             addr + TEST_BUF_COPY_START, copy_size);
 
     dest_len = strnlen(dest_buf + TEST_BUF_COPY_START, TEST_BUF_COPY_SIZE);
-    /*
-     * Kernel buffer should always be null terminated.
-     */
-    EXPECT_NE(TEST_BUF_COPY_SIZE, dest_len, "  null_off=%d, copy_size=%d\n",
-              null_off, copy_size);
+    if (copy_size) {
+        /*
+         * Kernel buffer should always be null terminated.
+         */
+        EXPECT_NE(TEST_BUF_COPY_SIZE, dest_len, "  null_off=%d, copy_size=%d\n",
+                  null_off, copy_size);
+    } else {
+        /*
+         * If copy_size is 0, then kernel buffer will not be null terminated.
+         */
+        EXPECT_EQ(TEST_BUF_COPY_SIZE, dest_len, "  null_off=%d, copy_size=%d\n",
+                  null_off, copy_size);
+        dest_len = 0;
+    }
 
     /*
      * If the string in dest_buf is not empty it should only contain data from
@@ -367,7 +377,7 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
         EXPECT_EQ(null_off - TEST_BUF_COPY_START, ret,
                   "  wrong strlen returned, null_off=%d, copy_size=%d\n",
                   null_off, copy_size);
-        EXPECT_EQ(MIN(null_off - TEST_BUF_COPY_START, copy_size - 1), dest_len,
+        EXPECT_EQ(MIN(null_off - TEST_BUF_COPY_START, copy_len), dest_len,
                   "  null_off=%d, copy_size=%d\n", null_off, copy_size);
     } else {
         /*
@@ -381,7 +391,7 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
             EXPECT_EQ(0, dest_len, "  null_off=%d, copy_size=%d\n", null_off,
                       copy_size);
         } else if (dest_len) {
-            EXPECT_EQ(MIN(TEST_BUF1_COPY_SIZE, copy_size - 1), dest_len,
+            EXPECT_EQ(MIN(TEST_BUF1_COPY_SIZE, copy_len), dest_len,
                       "  null_off=%d, copy_size=%d\n", null_off, copy_size);
         }
     }
@@ -411,6 +421,7 @@ static void usercopy_test_strlcpy_from_user_inner(user_addr_t addr,
 
     /* Dest bytes before and after copied region should be untouched */
     EXPECT_EQ(DEST_DATA, dest_buf[0]);
+    EXPECT_EQ(DEST_DATA, dest_buf[TEST_BUF_COPY_START + copy_size]);
     EXPECT_EQ(DEST_DATA, dest_buf[TEST_BUF_SIZE - 1]);
 }
 
@@ -418,7 +429,7 @@ TEST_P(usercopytest, strlcpy_from_user) {
     user_addr_t addr = get_addr_param();
     uint32_t arch_mmu_flags_start = get_start_flags_param();
     uint32_t arch_mmu_flags_end = get_end_flags_param();
-    size_t copy_sizes[] = {TEST_BUF1_COPY_SIZE, TEST_BUF_COPY_SIZE};
+    size_t copy_sizes[] = {0, TEST_BUF1_COPY_SIZE, TEST_BUF_COPY_SIZE};
     size_t copy_sizes_index;
     int null_off;
     int copy_size;
