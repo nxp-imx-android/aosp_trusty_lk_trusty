@@ -181,23 +181,27 @@ err:
     return ret;
 }
 
+static void sm_sched_nonsecure_fiq_loop(long ret, smc32_args_t* args) {
+    while (true) {
+        sm_sched_nonsecure(ret, args);
+        if (SMC_IS_SMC64(args->smc_nr)) {
+            ret = SM_ERR_NOT_SUPPORTED;
+            continue;
+        }
+        if (!SMC_IS_FASTCALL(args->smc_nr)) {
+            break;
+        }
+        ret = sm_fastcall_table[SMC_ENTITY(args->smc_nr)](args);
+    }
+}
+
 /* must be called with irqs disabled */
 static void sm_return_and_wait_for_next_stdcall(long ret, int cpu) {
     smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
 
     do {
         arch_disable_fiqs();
-        while (true) {
-            sm_sched_nonsecure(ret, &args);
-            if (SMC_IS_SMC64(args.smc_nr)) {
-                ret = SM_ERR_NOT_SUPPORTED;
-                continue;
-            }
-            if (!SMC_IS_FASTCALL(args.smc_nr)) {
-                break;
-            }
-            ret = sm_fastcall_table[SMC_ENTITY(args.smc_nr)](&args);
-        }
+        sm_sched_nonsecure_fiq_loop(ret, &args);
         arch_enable_fiqs();
 
         /* Allow concurrent SMC_SC_NOP calls on multiple cpus */
@@ -434,17 +438,17 @@ void sm_handle_fiq(void) {
     uint32_t expected_return;
     smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
     if (sm_get_api_version() >= TRUSTY_API_VERSION_RESTART_FIQ) {
-        sm_sched_nonsecure(SM_ERR_FIQ_INTERRUPTED, &args);
+        sm_sched_nonsecure_fiq_loop(SM_ERR_FIQ_INTERRUPTED, &args);
         expected_return = SMC_SC_RESTART_FIQ;
     } else {
-        sm_sched_nonsecure(SM_ERR_INTERRUPTED, &args);
+        sm_sched_nonsecure_fiq_loop(SM_ERR_INTERRUPTED, &args);
         expected_return = SMC_SC_RESTART_LAST;
     }
     if (args.smc_nr != expected_return) {
         TRACEF("got bad restart smc %x, expected %x\n", args.smc_nr,
                expected_return);
         while (args.smc_nr != expected_return)
-            sm_sched_nonsecure(SM_ERR_INTERLEAVED_SMC, &args);
+            sm_sched_nonsecure_fiq_loop(SM_ERR_INTERLEAVED_SMC, &args);
     }
 }
 
