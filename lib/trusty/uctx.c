@@ -96,7 +96,10 @@ static status_t _uctx_shutdown(trusty_app_t* app) {
     LTRACEF("Destroying uctx for app:%d\n", app->app_id);
     uctx_t* uctx;
     uctx = trusty_als_get(app, _uctx_slot_id);
-    uctx_destroy(uctx);
+
+    if (uctx)
+        uctx_destroy(uctx);
+
     return NO_ERROR;
 }
 
