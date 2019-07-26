@@ -31,6 +31,8 @@
 #include <lib/sm/sm_err.h>
 #include <lib/sm/smcall.h>
 #include <lk/init.h>
+#include <platform.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
@@ -58,6 +60,7 @@ static mutex_t boot_args_lock = MUTEX_INITIAL_VALUE(boot_args_lock);
 static uint32_t sm_api_version;
 static bool sm_api_version_locked;
 static spin_lock_t sm_api_version_lock;
+static atomic_bool platform_halted;
 
 static event_t nsirqevent[SMP_MAX_CPUS];
 static thread_t* nsirqthreads[SMP_MAX_CPUS];
@@ -183,7 +186,13 @@ err:
 
 static void sm_sched_nonsecure_fiq_loop(long ret, smc32_args_t* args) {
     while (true) {
+        if (atomic_load(&platform_halted)) {
+            ret = SM_ERR_PANIC;
+        }
         sm_sched_nonsecure(ret, args);
+        if (atomic_load(&platform_halted)) {
+            continue;
+        }
         if (SMC_IS_SMC64(args->smc_nr)) {
             ret = SM_ERR_NOT_SUPPORTED;
             continue;
@@ -450,6 +459,28 @@ void sm_handle_fiq(void) {
         while (args.smc_nr != expected_return)
             sm_sched_nonsecure_fiq_loop(SM_ERR_INTERLEAVED_SMC, &args);
     }
+}
+
+void platform_halt(platform_halt_action suggested_action,
+                   platform_halt_reason reason) {
+    bool already_halted;
+    smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
+
+    arch_disable_ints();
+    already_halted = atomic_exchange(&platform_halted, true);
+    if (!already_halted) {
+        for (int cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
+            if (nsirqthreads[cpu]) {
+                event_signal(&nsirqevent[cpu], false);
+            }
+        }
+
+        dprintf(ALWAYS, "HALT: (reason = %d)\n", reason);
+    }
+
+    arch_disable_fiqs();
+    while (true)
+        sm_sched_nonsecure(SM_ERR_PANIC, &args);
 }
 
 status_t sm_get_boot_args(void** boot_argsp, size_t* args_sizep) {
