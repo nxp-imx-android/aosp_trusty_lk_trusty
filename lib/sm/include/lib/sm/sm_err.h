@@ -26,7 +26,7 @@
 /* Errors from the secure monitor */
 
 /* Unknown SMC (defined by ARM DEN 0028A(0.9.0) */
-#define SM_ERR_UNDEFINED_SMC 0xFFFFFFFF
+#define SM_ERR_UNDEFINED_SMC ((long)0xFFFFFFFF)
 #define SM_ERR_INVALID_PARAMETERS -2
 /* Got interrupted. Call back with restart SMC */
 #define SM_ERR_INTERRUPTED -3
