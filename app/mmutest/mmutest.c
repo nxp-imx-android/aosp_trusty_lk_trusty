@@ -116,6 +116,68 @@ static int mmu_test_nx(bool execute) {
 #define DISABLED_ON_ARM_NAME(name) name
 #endif
 
+TEST(mmutest, alloc_last_kernel_page) {
+    int ret;
+    void* ptr1;
+    void* ptr2;
+    void* ptr3;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+
+    /*
+     * Perform allocations at a specific address and at a vmm chosen address
+     * with and without the last page allocated. There are different code paths
+     * in the vmm allocator where the virtual address can overflow for the
+     * region that is being allocated and for regions already allocated.
+     */
+
+    /* Allocate last kernel aspace page. */
+    ptr1 = (void*)(aspace->base + (aspace->size - PAGE_SIZE));
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    /* TODO: allow this to fail as page could already be in use */
+    ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
+
+    /* Allocate page anywhere, while the last page is allocated. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0, 0, 0);
+    ASSERT_EQ(0, ret, "vmm_alloc failed anywhere page\n");
+
+    /* Try to allocate last kernel aspace page again, should fail */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    EXPECT_EQ(ERR_NO_MEMORY, ret, "vmm_alloc last page\n");
+
+    /* Allocate 2nd last kernel aspace page, while last page is allocated. */
+    ptr3 = (void*)(aspace->base + (aspace->size - 2 * PAGE_SIZE));
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    /* TODO: allow this to fail as page could already be in use */
+    ASSERT_EQ(0, ret, "vmm_alloc failed 2nd last page\n");
+
+    /* Free allocated pages */
+    ret = vmm_free_region(aspace, (vaddr_t)ptr1);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    ret = vmm_free_region(aspace, (vaddr_t)ptr2);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    ret = vmm_free_region(aspace, (vaddr_t)ptr3);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+
+    /* Allocate and free last page */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    /* TODO: allow this to fail as page could be in use */
+    ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
+    ret = vmm_free_region(aspace, (vaddr_t)ptr1);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+
+    /* Allocate and free page anywhere, while last page is free */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0, 0, 0);
+    ASSERT_EQ(0, ret, "vmm_alloc failed anywhere page\n");
+    ret = vmm_free_region(aspace, (vaddr_t)ptr2);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+
+test_abort:;
+}
+
 TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_pnx)) {
     EXPECT_EQ(ERR_FAULT, mmutest_arch_rodata_pnx());
 }
