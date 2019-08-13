@@ -230,7 +230,8 @@ int vqueue_map_iovs(struct vqueue_iovs* vqiovs, u_int flags) {
     return NO_ERROR;
 
 err:
-    while (i--) {
+    while (i) {
+        i--;
         vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)vqiovs->iovs[i].base);
         vqiovs->iovs[i].base = NULL;
     }

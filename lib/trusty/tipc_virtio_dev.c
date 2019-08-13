@@ -555,7 +555,7 @@ static int tipc_rx_thread_func(void* arg) {
             ret = handle_rx_msg(dev, &buf);
         }
 
-        ret = vqueue_add_buf(vq, &buf, ret);
+        ret = vqueue_add_buf(vq, &buf, (uint32_t)ret);
         if (ret == ERR_CHANNEL_CLOSED)
             break; /* need to terminate */
 
