@@ -26,6 +26,7 @@
 #include <kernel/vm.h>
 #include <lib/unittest/unittest.h>
 #include <lk/init.h>
+#include <pow2.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -115,6 +116,53 @@ static int mmu_test_nx(bool execute) {
 #else
 #define DISABLED_ON_ARM_NAME(name) name
 #endif
+
+typedef struct {
+    vmm_aspace_t* aspace;
+    size_t allocation_size;
+} mmutestvmm_t;
+
+TEST_F_SETUP(mmutestvmm) {
+    const size_t* allocation_size_p = GetParam();
+    _state->allocation_size = *allocation_size_p;
+    _state->aspace = vmm_get_kernel_aspace();
+
+    ASSERT_GE(_state->allocation_size, PAGE_SIZE);
+    ASSERT_LT(_state->allocation_size, _state->aspace->size);
+test_abort:;
+}
+
+static size_t mmutestvmm_allocation_sizes[] = {
+        PAGE_SIZE,
+        2 * 1024 * 1024, /* large enough to use section/block mapping on arm */
+};
+
+TEST_F_TEARDOWN(mmutestvmm) {}
+
+/* Smoke test for vmm_alloc */
+TEST_P(mmutestvmm, vmm_alloc) {
+    int ret;
+    void* ptr = NULL;
+    ret = vmm_alloc(_state->aspace, "mmutest", _state->allocation_size, &ptr, 0,
+                    0, 0);
+    EXPECT_EQ(0, ret);
+    EXPECT_NE(NULL, ptr);
+    ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+}
+
+/* Smoke test for vmm_alloc_contiguous */
+TEST_P(mmutestvmm, vmm_alloc_contiguous) {
+    int ret;
+    void* ptr = NULL;
+    ret = vmm_alloc_contiguous(_state->aspace, "mmutest",
+                               _state->allocation_size, &ptr,
+                               log2_uint(_state->allocation_size), 0, 0);
+    EXPECT_EQ(0, ret);
+    EXPECT_NE(NULL, ptr);
+    ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
+    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+}
 
 TEST(mmutest, alloc_last_kernel_page) {
     int ret;
@@ -250,5 +298,9 @@ TEST(mmutest, check_nx) {
 TEST(mmutest, DISABLED_run_nx) {
     EXPECT_EQ(ERR_FAULT, mmu_test_nx(true));
 }
+
+INSTANTIATE_TEST_SUITE_P(allocation_size,
+                         mmutestvmm,
+                         testing_ValuesIn(mmutestvmm_allocation_sizes));
 
 PORT_TEST(mmutest, "com.android.kernel.mmutest");
