@@ -29,3 +29,4 @@ MODULES += \
 	trusty/kernel/app/smptest \
 	trusty/kernel/app/usercopytest \
 
+include external/lk/kerneltests-inc.mk

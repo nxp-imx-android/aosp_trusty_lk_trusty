@@ -15,6 +15,7 @@
 # This file lists kernel tests
 
 [
+    include("external/lk/build-config-kerneltests"),
     porttest("com.android.kernel.console-unittest"),
     porttest("com.android.kernel.iovectest"),
     porttest("com.android.kernel.memorytest"),
