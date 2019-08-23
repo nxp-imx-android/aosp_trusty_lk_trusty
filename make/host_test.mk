@@ -37,6 +37,13 @@ ifeq ($(HOST_SRCS), )
 $(error HOST_SRCS must be specified)
 endif
 
+# Select same builddir when included form user-space or kernel
+ifeq ($(SAVED_BUILDDIR), )
+HOST_TEST_BUILDDIR := $(BUILDDIR)
+else
+HOST_TEST_BUILDDIR := $(SAVED_BUILDDIR)
+endif
+
 ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
@@ -57,14 +64,14 @@ HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_
 # Compile test sources.
 GENERIC_CC := $(HOST_CC)
 GENERIC_SRCS := $(HOST_SRCS)
-GENERIC_OBJ_DIR := $(SAVED_BUILDDIR)/host_tests/obj/$(HOST_TEST)
+GENERIC_OBJ_DIR := $(HOST_TEST_BUILDDIR)/host_tests/obj/$(HOST_TEST)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
 GENERIC_CPPFLAGS := -std=c++11
 include make/generic_compile.mk
 
 # Link
-HOST_TEST_BIN := $(SAVED_BUILDDIR)/host_tests/$(HOST_TEST)
+HOST_TEST_BIN := $(HOST_TEST_BUILDDIR)/host_tests/$(HOST_TEST)
 $(HOST_TEST_BIN): CC := $(HOST_CC)
 $(HOST_TEST_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(addprefix -l, $(HOST_LIBS))
 $(HOST_TEST_BIN): $(GENERIC_OBJS)
@@ -88,6 +95,7 @@ run_host_tests: run_$(HOST_TEST) .PHONY
 
 # Cleanup inputs
 HOST_TEST :=
+HOST_TEST_BUILDDIR :=
 HOST_SRCS :=
 HOST_INCLUDE_DIRS :=
 HOST_FLAGS :=
