@@ -23,6 +23,7 @@
 #ifndef __SM_H
 #define __SM_H
 
+#include <lib/extmem/extmem.h>
 #include <lib/sm/smcall.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -38,12 +39,11 @@ struct ns_page_info {
 struct smc32_args {
     uint32_t smc_nr;
     uint32_t params[SMC_NUM_PARAMS];
+    ext_mem_obj_id_t client_id;
 };
 
 #define SMC32_ARGS_INITIAL_VALUE(args) \
-    {                                  \
-        0, { 0 }                       \
-    }
+    { 0, {0}, 0 }
 
 typedef long (*smc32_handler_t)(struct smc32_args* args);
 
@@ -52,6 +52,9 @@ struct smc32_entity {
     smc32_handler_t nopcall_handler;
     smc32_handler_t stdcall_handler;
 };
+
+/* Get selected api version. Prevent further changes if needed */
+uint32_t sm_get_api_version(bool lock);
 
 /* Schedule Secure OS */
 long sm_sched_secure(struct smc32_args* args);
@@ -87,10 +90,5 @@ status_t sm_register_entity(uint entity_nr, struct smc32_entity* entity);
 status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
                                   ns_addr_t* ppa,
                                   uint* pmmu);
-/* Helper function to get NS memory buffer info out of smc32 call params */
-status_t smc32_decode_mem_buf_info(struct smc32_args* args,
-                                   ns_addr_t* ppa,
-                                   ns_size_t* psz,
-                                   uint* pmmu);
 
 #endif /* __SM_H */

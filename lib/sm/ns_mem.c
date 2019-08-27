@@ -31,7 +31,9 @@
 #define LOCAL_TRACE 0
 
 /* 48-bit physical address 47:12 */
-#define NS_PTE_PHYSADDR(pte) ((pte)&0xFFFFFFFFF000ULL)
+#define NS_PTE_PHYSADDR_MASK (0xFFFFFFFFF000ULL)
+#define NS_PTE_PHYSADDR(pte) ((pte) & (NS_PTE_PHYSADDR_MASK))
+#define NS_PTE_ATTR(pte) ((pte) & ~(NS_PTE_PHYSADDR_MASK))
 
 /* Access permissions AP[2:1]
  *	EL0	EL1
@@ -80,6 +82,9 @@
 #define NS_OUTER_SHAREABLE 0x2
 #define NS_INNER_SHAREABLE 0x3
 
+#define NS_PTE_ATTR_DEFAULT_CACHED \
+    ((uint64_t)NS_MAIR_NORMAL_CACHED_WB_RWA << 48 | NS_INNER_SHAREABLE << 8)
+
 /* helper function to decode ns memory attrubutes  */
 status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
                                   ns_addr_t* ppa,
@@ -97,8 +102,21 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
         *ppa = (ns_addr_t)NS_PTE_PHYSADDR(pinf->attr);
 
     if (pmmu) {
+        uint64_t attr = NS_PTE_ATTR(pinf->attr);
+        if (attr == 0) {
+            if (sm_get_api_version(false) >= TRUSTY_API_VERSION_PHYS_MEM_OBJ) {
+                LTRACEF("Unsupported 0 memory attr\n");
+                return ERR_NOT_SUPPORTED;
+            }
+            /*
+             * Some existing clients don't pass attibutes and assume cached
+             * write-able memory.
+             */
+            attr = NS_PTE_ATTR_DEFAULT_CACHED;
+        }
+
         /* match settings to mmu flags */
-        switch ((uint)NS_PTE_ATTR_MAIR(pinf->attr)) {
+        switch ((uint)NS_PTE_ATTR_MAIR(attr)) {
         case NS_MAIR_NORMAL_CACHED_WB_RWA:
             mmu_flags |= ARCH_MMU_FLAG_CACHED;
             break;
@@ -107,48 +125,26 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
             break;
         default:
             LTRACEF("Unsupported memory attr 0x%x\n",
-                    (uint)NS_PTE_ATTR_MAIR(pinf->attr));
+                    (uint)NS_PTE_ATTR_MAIR(attr));
             return ERR_NOT_SUPPORTED;
         }
 #if WITH_SMP | WITH_SHAREABLE_CACHE
         if (mmu_flags == ARCH_MMU_FLAG_CACHED) {
-            if (NS_PTE_ATTR_SHAREABLE(pinf->attr) != NS_INNER_SHAREABLE) {
+            if (NS_PTE_ATTR_SHAREABLE(attr) != NS_INNER_SHAREABLE) {
                 LTRACEF("Unsupported sharable attr 0x%x\n",
-                        (uint)NS_PTE_ATTR_SHAREABLE(pinf->attr));
+                        (uint)NS_PTE_ATTR_SHAREABLE(attr));
                 return ERR_NOT_SUPPORTED;
             }
         }
 #endif
-        if (NS_PTE_AP_U(pinf->attr))
+        if (NS_PTE_AP_U(attr))
             mmu_flags |= ARCH_MMU_FLAG_PERM_USER;
 
-        if (NS_PTE_AP_RO(pinf->attr))
+        if (NS_PTE_AP_RO(attr))
             mmu_flags |= ARCH_MMU_FLAG_PERM_RO;
 
         *pmmu = mmu_flags | ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE;
     }
-
-    return NO_ERROR;
-}
-
-/* Helper function to get NS memory buffer info out of smc32 call params */
-status_t smc32_decode_mem_buf_info(struct smc32_args* args,
-                                   ns_addr_t* ppa,
-                                   ns_size_t* psz,
-                                   uint* pmmu) {
-    status_t res;
-    struct ns_page_info pi;
-
-    DEBUG_ASSERT(args);
-
-    pi.attr = ((uint64_t)args->params[1] << 32) | args->params[0];
-
-    res = sm_decode_ns_memory_attr(&pi, ppa, pmmu);
-    if (res != NO_ERROR)
-        return res;
-
-    if (psz)
-        *psz = (ns_size_t)args->params[2];
 
     return NO_ERROR;
 }

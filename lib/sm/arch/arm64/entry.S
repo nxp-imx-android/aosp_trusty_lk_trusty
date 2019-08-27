@@ -41,4 +41,5 @@ FUNCTION(sm_sched_nonsecure)
 	pop	x9, x30
 	stp	w0, w1, [x9], #8
 	stp	w2, w3, [x9], #8
+	str	x7, [x9], #8
 	ret

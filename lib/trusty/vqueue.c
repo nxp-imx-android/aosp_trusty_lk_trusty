@@ -44,7 +44,8 @@
 
 int vqueue_init(struct vqueue* vq,
                 uint32_t id,
-                paddr_t paddr,
+                ext_mem_client_id_t client_id,
+                ext_mem_obj_id_t shared_mem_id,
                 uint num,
                 ulong align,
                 void* priv,
@@ -56,11 +57,10 @@ int vqueue_init(struct vqueue* vq,
     DEBUG_ASSERT(vq);
 
     vq->vring_sz = vring_size(num, align);
-    ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "vqueue",
+    ret = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "vqueue", client_id,
+                             shared_mem_id, 0,
                              round_up(vq->vring_sz, PAGE_SIZE), &vptr,
-                             PAGE_SIZE_SHIFT, paddr, 0,
-                             ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                                     ARCH_MMU_FLAG_CACHED);
+                             PAGE_SIZE_SHIFT, 0, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (ret != NO_ERROR) {
         LTRACEF("cannot map vring (%d)\n", ret);
         return (int)ret;
@@ -186,8 +186,9 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
         if (iovlist->used < iovlist->cnt) {
             /* .base will be set when we map this iov */
             iovlist->iovs[iovlist->used].len = desc->len;
-            iovlist->phys[iovlist->used] = (paddr_t)desc->addr;
-            assert(iovlist->phys[iovlist->used] == desc->addr);
+            iovlist->shared_mem_id[iovlist->used] =
+                    (ext_mem_obj_id_t)desc->addr;
+            assert(iovlist->shared_mem_id[iovlist->used] == desc->addr);
             iovlist->used++;
             iovlist->len += desc->len;
         } else {
@@ -210,21 +211,24 @@ int vqueue_get_avail_buf(struct vqueue* vq, struct vqueue_buf* iovbuf) {
     return ret;
 }
 
-int vqueue_map_iovs(struct vqueue_iovs* vqiovs, u_int flags) {
+int vqueue_map_iovs(ext_mem_client_id_t client_id,
+                    struct vqueue_iovs* vqiovs,
+                    u_int flags) {
     uint i;
     int ret;
 
     DEBUG_ASSERT(vqiovs);
-    DEBUG_ASSERT(vqiovs->phys);
+    DEBUG_ASSERT(vqiovs->shared_mem_id);
     DEBUG_ASSERT(vqiovs->iovs);
     DEBUG_ASSERT(vqiovs->used <= vqiovs->cnt);
 
     for (i = 0; i < vqiovs->used; i++) {
         vqiovs->iovs[i].base = NULL;
-        ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "vqueue",
+        ret = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "vqueue-buf",
+                                 client_id, vqiovs->shared_mem_id[i], 0,
                                  round_up(vqiovs->iovs[i].len, PAGE_SIZE),
-                                 &vqiovs->iovs[i].base, PAGE_SIZE_SHIFT,
-                                 vqiovs->phys[i], 0, flags);
+                                 &vqiovs->iovs[i].base, PAGE_SIZE_SHIFT, 0,
+                                 flags);
         if (ret)
             goto err;
     }
@@ -242,7 +246,7 @@ err:
 
 void vqueue_unmap_iovs(struct vqueue_iovs* vqiovs) {
     DEBUG_ASSERT(vqiovs);
-    DEBUG_ASSERT(vqiovs->phys);
+    DEBUG_ASSERT(vqiovs->shared_mem_id);
     DEBUG_ASSERT(vqiovs->iovs);
     DEBUG_ASSERT(vqiovs->used <= vqiovs->cnt);
 

@@ -74,7 +74,8 @@ struct ql_tipc_dev {
 
     uint ns_mmu_flags;
     ns_size_t ns_sz;
-    ns_addr_t ns_pa;
+    ext_mem_client_id_t client_id;
+    ext_mem_obj_id_t buf_id;
     void* ns_va;
     const uuid_t* uuid;
 
@@ -167,26 +168,28 @@ static void free_local_addr(struct ql_tipc_dev* dev, uint32_t local) {
     }
 }
 
-static struct ql_tipc_dev* dev_lookup(ns_addr_t buf_pa) {
+static struct ql_tipc_dev* dev_lookup(ext_mem_client_id_t client_id,
+                                      ext_mem_obj_id_t buf_id) {
     struct ql_tipc_dev* dev;
 
     list_for_every_entry(&_dev_list, dev, struct ql_tipc_dev, node) {
-        if (dev->ns_pa == buf_pa) {
+        if (dev->client_id == client_id && dev->buf_id == buf_id) {
             return dev;
         }
     }
     return NULL;
 }
 
-static struct ql_tipc_dev* dev_acquire(ns_addr_t buf_pa) {
+static struct ql_tipc_dev* dev_acquire(ext_mem_client_id_t client_id,
+                                       ext_mem_obj_id_t buf_id) {
     struct ql_tipc_dev* dev;
     spin_lock_saved_state_t state;
 
     spin_lock_save(&_dev_list_lock, &state, SLOCK_FLAGS);
-    dev = dev_lookup(buf_pa);
+    dev = dev_lookup(client_id, buf_id);
     if (dev) {
         if (dev->in_use) {
-            TRACEF("0x%llx: device in use by another cpu\n", buf_pa);
+            TRACEF("0x%llx: device in use by another cpu\n", buf_id);
             dev = NULL;
         } else {
             dev->in_use = true;
@@ -206,19 +209,17 @@ static void dev_release(struct ql_tipc_dev* dev) {
     spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
 }
 
-static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
+static long dev_create(ext_mem_client_id_t client_id,
+                       ext_mem_obj_id_t buf_id,
+                       ns_size_t buf_sz,
+                       uint buf_mmu_flags) {
     status_t res;
     struct ql_tipc_dev* dev;
     spin_lock_saved_state_t state;
 
-    dev = dev_lookup(buf_pa);
+    dev = dev_lookup(client_id, buf_id);
     if (dev) {
-        LTRACEF("0x%llx: device already exists\n", buf_pa);
-        return SM_ERR_INVALID_PARAMETERS;
-    }
-
-    if (buf_pa & (PAGE_SIZE - 1)) {
-        LTRACEF("shared buffer addr is not page aligned: 0x%llx\n", buf_pa);
+        LTRACEF("0x%llx: device already exists\n", buf_id);
         return SM_ERR_INVALID_PARAMETERS;
     }
 
@@ -254,12 +255,13 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
     }
 
     /* map shared buffer into address space */
-    dev->ns_pa = buf_pa;
+    dev->client_id = client_id;
+    dev->buf_id = buf_id;
     dev->ns_sz = buf_sz;
     dev->ns_mmu_flags = buf_mmu_flags;
-    res = vmm_alloc_physical(
-            vmm_get_kernel_aspace(), "tipc", round_up(buf_sz, PAGE_SIZE),
-            &dev->ns_va, PAGE_SIZE_SHIFT, (paddr_t)buf_pa, 0, buf_mmu_flags);
+    res = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "tipc", client_id, buf_id,
+                             0, round_up(buf_sz, PAGE_SIZE), &dev->ns_va,
+                             PAGE_SIZE_SHIFT, 0, buf_mmu_flags);
     if (res != NO_ERROR) {
         LTRACEF("failed (%d) to map shared buffer\n", res);
         free(dev);
@@ -271,8 +273,9 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
     spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
     _dev_cnt++;
 
-    LTRACEF("tipc dev: %u bytes @ 0x%llx (%p) (flags=0x%x)\n", dev->ns_sz,
-            dev->ns_pa, dev->ns_va, dev->ns_mmu_flags);
+    LTRACEF("tipc dev: %u bytes @ 0x%llx:0x%llx (%p) (flags=0x%x)\n",
+            dev->ns_sz, dev->client_id, dev->buf_id, dev->ns_va,
+            dev->ns_mmu_flags);
 
     return 0;
 }
@@ -603,30 +606,35 @@ static long dev_handle_cmd(struct ql_tipc_dev* dev,
     }
 }
 
-long ql_tipc_create_device(ns_addr_t buf_pa,
+long ql_tipc_create_device(ext_mem_client_id_t client_id,
+                           ext_mem_obj_id_t buf_id,
                            ns_size_t buf_sz,
                            uint buf_mmu_flags) {
-    return dev_create(buf_pa, buf_sz, buf_mmu_flags);
+    return dev_create(client_id, buf_id, buf_sz, buf_mmu_flags);
 }
 
-long ql_tipc_shutdown_device(ns_addr_t buf_pa) {
-    struct ql_tipc_dev* dev = dev_acquire(buf_pa);
+long ql_tipc_shutdown_device(ext_mem_client_id_t client_id,
+                             ext_mem_obj_id_t buf_id) {
+    struct ql_tipc_dev* dev = dev_acquire(client_id, buf_id);
     if (!dev) {
-        LTRACEF("0x%llx: device not found\n", buf_pa);
+        LTRACEF("0x%llx: device not found\n", buf_id);
         return SM_ERR_INVALID_PARAMETERS;
     }
     dev_shutdown(dev);
     return 0;
 }
 
-long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz, bool is_fc) {
+long ql_tipc_handle_cmd(ext_mem_client_id_t client_id,
+                        ext_mem_obj_id_t buf_id,
+                        ns_size_t cmd_sz,
+                        bool is_fc) {
     long ret = SM_ERR_INVALID_PARAMETERS;
     struct tipc_cmd_hdr cmd_hdr;
 
     /* lookup device */
-    struct ql_tipc_dev* dev = dev_acquire(buf_pa);
+    struct ql_tipc_dev* dev = dev_acquire(client_id, buf_id);
     if (!dev) {
-        LTRACEF("0x%llx: device not found\n", buf_pa);
+        LTRACEF("0x%llx: device not found\n", buf_id);
         goto err_not_found;
     }
 

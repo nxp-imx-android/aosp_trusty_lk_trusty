@@ -45,7 +45,8 @@ struct memlog {
     struct log_rb* rb;
     size_t rb_sz;
 
-    paddr_t buf_pa;
+    ext_mem_client_id_t client_id;
+    ext_mem_obj_id_t buf_id;
     size_t buf_sz;
 
     print_callback_t cb;
@@ -55,27 +56,16 @@ struct memlog {
 static spin_lock_t log_lock;
 static struct list_node log_list = LIST_INITIAL_VALUE(log_list);
 
-static struct memlog* memlog_get_by_pa(paddr_t pa) {
+static struct memlog* memlog_get_by_id(ext_mem_client_id_t client_id,
+                                       ext_mem_obj_id_t buf_id) {
     struct memlog* log;
     list_for_every_entry(&log_list, log, struct memlog, entry) {
-        if (log->buf_pa == pa) {
+        if (log->client_id == client_id && log->buf_id == buf_id) {
             return log;
         }
     }
 
     return NULL;
-}
-
-static bool memlog_is_mem_registered(paddr_t pa, size_t sz) {
-    struct memlog* log;
-    list_for_every_entry(&log_list, log, struct memlog, entry) {
-        if (pa + sz <= log->buf_pa)
-            continue;
-        if (pa >= log->buf_pa + log->buf_sz)
-            continue;
-        return true;
-    }
-    return false;
 }
 
 static uint32_t lower_pow2(uint32_t v) {
@@ -136,23 +126,16 @@ static void memlog_commit(struct memlog* log) {
     spin_unlock_restore(&log_lock, state, LOG_LOCK_FLAGS);
 }
 
-static status_t map_rb(paddr_t pa, size_t sz, vaddr_t* va) {
-    status_t err;
-    unsigned flags = ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS |
-                     ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-
-    DEBUG_ASSERT(IS_PAGE_ALIGNED(pa));
-    DEBUG_ASSERT(IS_PAGE_ALIGNED(sz));
-
-    err = vmm_alloc_physical(vmm_get_kernel_aspace(), "logmem", sz, (void**)va,
-                             PAGE_SIZE_SHIFT, pa, 0, flags);
-    if (err) {
-        return err;
-    }
-    return err;
+static status_t map_rb(ext_mem_client_id_t client_id,
+                       ext_mem_obj_id_t mem_obj_id,
+                       size_t sz,
+                       vaddr_t* va) {
+    return ext_mem_map_obj_id(vmm_get_kernel_aspace(), "logmem", client_id,
+                              mem_obj_id, 0, sz, (void**)va, PAGE_SIZE_SHIFT, 0,
+                              ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 }
 
-static uint64_t args_get_pa(struct smc32_args* args) {
+static ext_mem_obj_id_t args_get_id(struct smc32_args* args) {
     return (((uint64_t)args->params[1] << 32) | args->params[0]);
 }
 
@@ -170,17 +153,16 @@ void memlog_commit_callback(print_callback_t* cb) {
     memlog_commit(log);
 }
 
-long memlog_add(paddr_t pa, size_t sz) {
+static long memlog_add(ext_mem_client_id_t client_id,
+                       ext_mem_obj_id_t buf_id,
+                       size_t sz) {
     struct memlog* log;
     vaddr_t va;
     long status;
     status_t result;
     struct log_rb* rb;
 
-    if (memlog_is_mem_registered(pa, sz))
-        return SM_ERR_INVALID_PARAMETERS;
-
-    if (!IS_PAGE_ALIGNED(pa) || !IS_PAGE_ALIGNED(sz)) {
+    if (!IS_PAGE_ALIGNED(sz)) {
         return SM_ERR_INVALID_PARAMETERS;
     }
 
@@ -189,10 +171,11 @@ long memlog_add(paddr_t pa, size_t sz) {
         return SM_ERR_INTERNAL_FAILURE;
     }
     memset(log, 0, sizeof(*log));
-    log->buf_pa = pa;
+    log->client_id = client_id;
+    log->buf_id = buf_id;
     log->buf_sz = sz;
 
-    result = map_rb(pa, sz, &va);
+    result = map_rb(client_id, buf_id, sz, &va);
     if (result != NO_ERROR) {
         status = SM_ERR_INTERNAL_FAILURE;
         goto error_failed_to_map;
@@ -217,11 +200,11 @@ error_failed_to_map:
     return status;
 }
 
-long memlog_rm(paddr_t pa) {
+static long memlog_rm(ext_mem_client_id_t client_id, ext_mem_obj_id_t buf_id) {
     struct memlog* log;
     status_t result;
 
-    log = memlog_get_by_pa(pa);
+    log = memlog_get_by_id(client_id, buf_id);
     if (!log) {
         return SM_ERR_INVALID_PARAMETERS;
     }
@@ -240,9 +223,10 @@ static long memlog_stdcall(struct smc32_args* args) {
     case SMC_SC_SHARED_LOG_VERSION:
         return TRUSTY_LOG_API_VERSION;
     case SMC_SC_SHARED_LOG_ADD:
-        return memlog_add(args_get_pa(args), args_get_sz(args));
+        return memlog_add(args->client_id, args_get_id(args),
+                          args_get_sz(args));
     case SMC_SC_SHARED_LOG_RM:
-        return memlog_rm(args_get_pa(args));
+        return memlog_rm(args->client_id, args_get_id(args));
     default:
         return SM_ERR_UNDEFINED_SMC;
     }

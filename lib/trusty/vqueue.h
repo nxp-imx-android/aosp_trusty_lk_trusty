@@ -26,6 +26,7 @@
 
 #include <arch/ops.h>
 #include <kernel/event.h>
+#include <lib/extmem/extmem.h>
 #include <lib/trusty/uio.h>
 #include <stdint.h>
 #include <string.h>
@@ -62,7 +63,7 @@ struct vqueue_iovs {
     uint cnt;   /* max number of iovs available */
     uint used;  /* number of iovs currently in use */
     size_t len; /* total length of all used iovs */
-    paddr_t* phys;
+    ext_mem_obj_id_t* shared_mem_id;
     struct iovec_kern* iovs;
 };
 
@@ -75,7 +76,8 @@ struct vqueue_buf {
 
 int vqueue_init(struct vqueue* vq,
                 uint32_t id,
-                paddr_t addr,
+                ext_mem_client_id_t client_id,
+                ext_mem_obj_id_t shared_mem_id,
                 uint num,
                 ulong align,
                 void* priv,
@@ -86,7 +88,9 @@ void vqueue_destroy(struct vqueue* vq);
 
 int vqueue_get_avail_buf(struct vqueue* vq, struct vqueue_buf* iovbuf);
 
-int vqueue_map_iovs(struct vqueue_iovs* vqiovs, u_int flags);
+int vqueue_map_iovs(ext_mem_client_id_t client_id,
+                    struct vqueue_iovs* vqiovs,
+                    u_int flags);
 void vqueue_unmap_iovs(struct vqueue_iovs* vqiovs);
 
 int vqueue_add_buf(struct vqueue* vq, struct vqueue_buf* buf, uint32_t len);

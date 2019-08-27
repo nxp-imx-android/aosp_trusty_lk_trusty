@@ -68,34 +68,17 @@ static struct trusty_virtio_bus _virtio_bus = {
         .vdev_list = LIST_INITIAL_VALUE(_virtio_bus.vdev_list),
 };
 
-static status_t map_descr(ns_paddr_t buf_pa,
+static status_t map_descr(ext_mem_client_id_t client_id,
+                          ext_mem_obj_id_t buf_id,
                           void** buf_va,
                           ns_size_t sz,
                           uint buf_mmu_flags) {
-    if (!buf_pa) {
-        LTRACEF("invalid descr addr 0x%llx\n", buf_pa);
-        return ERR_INVALID_ARGS;
-    }
-
-    if (buf_pa & (PAGE_SIZE - 1)) {
-        LTRACEF("unexpected alignment 0x%llx\n", buf_pa);
-        return ERR_INVALID_ARGS;
-    }
-
-#if !IS_64BIT
-    if (buf_pa >> 32) {
-        LTRACEF("unsuported addr range 0x%llx\n", buf_pa);
-        return ERR_INVALID_ARGS;
-    }
-#endif
-
-    /* map resource table into our address space */
-    return vmm_alloc_physical(vmm_get_kernel_aspace(), "virtio",
-                              round_up(sz, PAGE_SIZE), buf_va, PAGE_SIZE_SHIFT,
-                              (paddr_t)buf_pa, 0, buf_mmu_flags);
+    return ext_mem_map_obj_id(vmm_get_kernel_aspace(), "virtio", client_id,
+                              buf_id, 0, round_up(sz, PAGE_SIZE), buf_va,
+                              PAGE_SIZE_SHIFT, 0, buf_mmu_flags);
 }
 
-static status_t unmap_descr(ns_paddr_t pa, void* va, size_t sz) {
+static status_t unmap_descr(void* va, size_t sz) {
     return vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)va);
 }
 
@@ -169,14 +152,15 @@ static void finalize_vdev_registery(void) {
 /*
  * Retrieve device description to be shared with NS side
  */
-ssize_t virtio_get_description(ns_paddr_t buf_pa,
+ssize_t virtio_get_description(ext_mem_client_id_t client_id,
+                               ext_mem_obj_id_t buf_id,
                                ns_size_t buf_sz,
                                uint buf_mmu_flags) {
     status_t ret;
     struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("descr_buf: %u bytes @ 0x%llx\n", buf_sz, buf_pa);
+    LTRACEF("descr_buf: %u bytes @ 0x%llx\n", buf_sz, buf_id);
 
     finalize_vdev_registery();
 
@@ -188,7 +172,7 @@ ssize_t virtio_get_description(ns_paddr_t buf_pa,
 
     /* map in NS memory */
     void* va = NULL;
-    ret = map_descr(buf_pa, &va, vb->descr_size, buf_mmu_flags);
+    ret = map_descr(client_id, buf_id, &va, vb->descr_size, buf_mmu_flags);
     if (ret != NO_ERROR) {
         LTRACEF("failed (%d) to map in descriptor buffer\n", (int)ret);
         return ret;
@@ -209,10 +193,11 @@ ssize_t virtio_get_description(ns_paddr_t buf_pa,
         DEBUG_ASSERT(vdev_idx < vb->vdev_cnt);
 
         descr->offset[vdev_idx++] = vd->descr_offset;
+        vd->client_id = client_id;
         vd->ops->get_descr(vd, (uint8_t*)descr + vd->descr_offset);
     }
 
-    unmap_descr(buf_pa, va, vb->descr_size);
+    unmap_descr(va, vb->descr_size);
 
     return vb->descr_size;
 }
@@ -220,16 +205,26 @@ ssize_t virtio_get_description(ns_paddr_t buf_pa,
 /*
  * Called by NS side to finalize device initialization
  */
-status_t virtio_start(ns_paddr_t ns_descr_pa,
+status_t virtio_start(ext_mem_client_id_t client_id,
+                      ext_mem_obj_id_t ns_descr_id,
                       ns_size_t descr_sz,
                       uint descr_mmu_flags) {
     status_t ret;
     int oldstate;
     void* descr_va;
     void* ns_descr_va = NULL;
+    struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, ns_descr_pa);
+    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, ns_descr_id);
+
+    list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
+        if (client_id != vd->client_id) {
+            LTRACEF("mismatched client id 0x%llx != 0x%llx\n", client_id,
+                    vd->client_id);
+            return ERR_INVALID_ARGS;
+        }
+    }
 
     oldstate = atomic_cmpxchg(&vb->state, VIRTIO_BUS_STATE_IDLE,
                               VIRTIO_BUS_STATE_ACTIVATING);
@@ -254,7 +249,9 @@ status_t virtio_start(ns_paddr_t ns_descr_pa,
         goto err_alloc_descr;
     }
 
-    ret = map_descr(ns_descr_pa, &ns_descr_va, vb->descr_size, descr_mmu_flags);
+    /* TODO: map read-only */
+    ret = map_descr(client_id, ns_descr_id, &ns_descr_va, vb->descr_size,
+                    descr_mmu_flags);
     if (ret != NO_ERROR) {
         LTRACEF("failed (%d) to map in descriptor buffer\n", ret);
         goto err_map_in;
@@ -264,12 +261,11 @@ status_t virtio_start(ns_paddr_t ns_descr_pa,
     memcpy(descr_va, ns_descr_va, descr_sz);
 
     /* handle it */
-    struct vdev* vd;
     list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
         vd->ops->probe(vd, (void*)((uint8_t*)descr_va + vd->descr_offset));
     }
 
-    unmap_descr(ns_descr_pa, ns_descr_va, vb->descr_size);
+    unmap_descr(ns_descr_va, vb->descr_size);
     free(descr_va);
 
     vb->state = VIRTIO_BUS_STATE_ACTIVE;
@@ -284,14 +280,23 @@ err_bad_params:
     return ret;
 }
 
-status_t virtio_stop(ns_paddr_t descr_pa,
+status_t virtio_stop(ext_mem_client_id_t client_id,
+                     ext_mem_obj_id_t descr_id,
                      ns_size_t descr_sz,
                      uint descr_mmu_flags) {
     int oldstate;
     struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, descr_pa);
+    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, descr_id);
+
+    list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
+        if (client_id != vd->client_id) {
+            LTRACEF("mismatched client id 0x%llx != 0x%llx\n", client_id,
+                    vd->client_id);
+            return ERR_INVALID_ARGS;
+        }
+    }
 
     oldstate = atomic_cmpxchg(&vb->state, VIRTIO_BUS_STATE_ACTIVE,
                               VIRTIO_BUS_STATE_DEACTIVATING);

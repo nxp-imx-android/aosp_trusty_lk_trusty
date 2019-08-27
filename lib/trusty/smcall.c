@@ -42,35 +42,14 @@
  * NS buffer helper function
  */
 static status_t get_ns_mem_buf(struct smc32_args* args,
-                               ns_addr_t* ppa,
-                               ns_size_t* psz,
-                               uint* pflags) {
-    DEBUG_ASSERT(ppa);
+                               ext_mem_obj_id_t* pbuf_id,
+                               ns_size_t* psz) {
+    DEBUG_ASSERT(pbuf_id);
     DEBUG_ASSERT(psz);
-    DEBUG_ASSERT(pflags);
 
-    status_t rc = smc32_decode_mem_buf_info(args, ppa, psz, pflags);
-    if (rc != NO_ERROR) {
-        LTRACEF("Failed (%d) to decode mem buf info\n", rc);
-        return rc;
-    }
-
-    /* We expect NORMAL CACHED or UNCHACHED RW EL1 memory */
-    uint mem_type = *pflags & ARCH_MMU_FLAG_CACHE_MASK;
-
-    if (mem_type != ARCH_MMU_FLAG_CACHED &&
-        mem_type != ARCH_MMU_FLAG_UNCACHED) {
-        LTRACEF("Unexpected memory type: 0x%x\n", *pflags);
-        return ERR_INVALID_ARGS;
-    }
-
-    if ((*pflags & ARCH_MMU_FLAG_PERM_RO) ||
-        (*pflags & ARCH_MMU_FLAG_PERM_USER)) {
-        LTRACEF("Unexpected access attr: 0x%x\n", *pflags);
-        return ERR_INVALID_ARGS;
-    }
-
-    return NO_ERROR;
+    *pbuf_id = ((uint64_t)args->params[1] << 32) | args->params[0];
+    *psz = (ns_size_t)args->params[2];
+    return 0;
 }
 
 /*
@@ -101,17 +80,16 @@ static long to_smc_error(long err) {
 static long trusty_sm_fastcall(struct smc32_args* args) {
     long res;
     ns_size_t ns_sz;
-    ns_paddr_t ns_pa;
-    uint ns_mmu_flags;
+    ext_mem_obj_id_t ns_buf_id;
 
     LTRACEF("Trusty SM service func %u args 0x%x 0x%x 0x%x\n",
             SMC_FUNCTION(args->smc_nr), args->params[0], args->params[1],
             args->params[2]);
     switch (args->smc_nr) {
     case SMC_FC_HANDLE_QL_TIPC_DEV_CMD:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = ql_tipc_handle_cmd(ns_pa, ns_sz, true);
+            res = ql_tipc_handle_cmd(args->client_id, ns_buf_id, ns_sz, true);
         break;
 
     default:
@@ -129,8 +107,8 @@ static long trusty_sm_fastcall(struct smc32_args* args) {
 static long trusty_sm_stdcall(struct smc32_args* args) {
     long res;
     ns_size_t ns_sz;
-    ns_paddr_t ns_pa;
-    uint ns_mmu_flags;
+    ext_mem_obj_id_t ns_buf_id;
+    uint ns_mmu_flags = ARCH_MMU_FLAG_PERM_NO_EXECUTE;
 
     LTRACEF("Trusty SM service func %u args 0x%x 0x%x 0x%x\n",
             SMC_FUNCTION(args->smc_nr), args->params[0], args->params[1],
@@ -138,21 +116,22 @@ static long trusty_sm_stdcall(struct smc32_args* args) {
 
     switch (args->smc_nr) {
     case SMC_SC_VIRTIO_GET_DESCR:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = virtio_get_description(ns_pa, ns_sz, ns_mmu_flags);
+            res = virtio_get_description(args->client_id, ns_buf_id, ns_sz,
+                                         ns_mmu_flags);
         break;
 
     case SMC_SC_VIRTIO_START:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = virtio_start(ns_pa, ns_sz, ns_mmu_flags);
+            res = virtio_start(args->client_id, ns_buf_id, ns_sz, ns_mmu_flags);
         break;
 
     case SMC_SC_VIRTIO_STOP:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = virtio_stop(ns_pa, ns_sz, ns_mmu_flags);
+            res = virtio_stop(args->client_id, ns_buf_id, ns_sz, ns_mmu_flags);
         break;
 
     case SMC_SC_VDEV_RESET:
@@ -164,21 +143,22 @@ static long trusty_sm_stdcall(struct smc32_args* args) {
         break;
 
     case SMC_SC_CREATE_QL_TIPC_DEV:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = ql_tipc_create_device(ns_pa, ns_sz, ns_mmu_flags);
+            res = ql_tipc_create_device(args->client_id, ns_buf_id, ns_sz,
+                                        ns_mmu_flags);
         break;
 
     case SMC_SC_SHUTDOWN_QL_TIPC_DEV:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = ql_tipc_shutdown_device(ns_pa);
+            res = ql_tipc_shutdown_device(args->client_id, ns_buf_id);
         break;
 
     case SMC_SC_HANDLE_QL_TIPC_DEV_CMD:
-        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        res = get_ns_mem_buf(args, &ns_buf_id, &ns_sz);
         if (res == NO_ERROR)
-            res = ql_tipc_handle_cmd(ns_pa, ns_sz, false);
+            res = ql_tipc_handle_cmd(args->client_id, ns_buf_id, ns_sz, false);
         break;
 
     default:

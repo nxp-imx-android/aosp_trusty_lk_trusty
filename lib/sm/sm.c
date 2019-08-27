@@ -100,12 +100,14 @@ long smc_sm_api_version(struct smc32_args* args) {
     return api_version;
 }
 
-static uint32_t sm_get_api_version(void) {
+uint32_t sm_get_api_version(bool lock) {
     if (!sm_api_version_locked) {
         spin_lock_saved_state_t state;
         spin_lock_save(&sm_api_version_lock, &state, SPIN_LOCK_FLAG_IRQ_FIQ);
-        sm_api_version_locked = true;
-        TRACEF("lock api version %d\n", sm_api_version);
+        if (lock) {
+            sm_api_version_locked = true;
+            TRACEF("lock api version %d\n", sm_api_version);
+        }
         spin_unlock_restore(&sm_api_version_lock, state,
                             SPIN_LOCK_FLAG_IRQ_FIQ);
     }
@@ -289,7 +291,7 @@ static long sm_get_stdcall_ret(void) {
         LTRACEF("cpu %d, return stdcall result, %ld, initial cpu %d\n", cpu,
                 stdcallstate.ret, stdcallstate.initial_cpu);
     } else {
-        if (sm_get_api_version() >=
+        if (sm_get_api_version(true) >=
             TRUSTY_API_VERSION_SMP) /* ns using new api */
             ret = SM_ERR_CPU_IDLE;
         else if (stdcallstate.restart_count)
@@ -447,7 +449,7 @@ enum handler_return sm_handle_irq(void) {
 void sm_handle_fiq(void) {
     uint32_t expected_return;
     struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
-    if (sm_get_api_version() >= TRUSTY_API_VERSION_RESTART_FIQ) {
+    if (sm_get_api_version(true) >= TRUSTY_API_VERSION_RESTART_FIQ) {
         sm_sched_nonsecure_fiq_loop(SM_ERR_FIQ_INTERRUPTED, &args);
         expected_return = SMC_SC_RESTART_FIQ;
     } else {

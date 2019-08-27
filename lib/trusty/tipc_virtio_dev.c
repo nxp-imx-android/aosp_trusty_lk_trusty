@@ -488,9 +488,8 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
     }
 
     /* map in_iovs, Non-secure, no-execute, cached, read-only */
-    uint map_flags = ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                     ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_RO;
-    int ret = vqueue_map_iovs(&buf->in_iovs, map_flags);
+    uint map_flags = ARCH_MMU_FLAG_PERM_NO_EXECUTE | ARCH_MMU_FLAG_PERM_RO;
+    int ret = vqueue_map_iovs(dev->vd.client_id, &buf->in_iovs, map_flags);
     if (ret) {
         TRACEF("failed to map iovs %d\n", ret);
         return ret;
@@ -529,7 +528,7 @@ done:
 
 static int tipc_rx_thread_func(void* arg) {
     struct tipc_dev* dev = arg;
-    paddr_t in_phys[MAX_RX_IOVS];
+    ext_mem_obj_id_t in_shared_mem_id[MAX_RX_IOVS];
     struct iovec_kern in_iovs[MAX_RX_IOVS];
     struct vqueue* vq = &dev->vqs[TIPC_VQ_RX];
     struct vqueue_buf buf;
@@ -540,7 +539,7 @@ static int tipc_rx_thread_func(void* arg) {
     memset(&buf, 0, sizeof(buf));
 
     buf.in_iovs.cnt = MAX_RX_IOVS;
-    buf.in_iovs.phys = in_phys;
+    buf.in_iovs.shared_mem_id = in_shared_mem_id;
     buf.in_iovs.iovs = in_iovs;
 
     while (!dev->rx_stop) {
@@ -904,24 +903,19 @@ static status_t tipc_dev_probe(struct tipc_dev* dev,
     for (vring_cnt = 0; vring_cnt < dscr->vdev.num_of_vrings; vring_cnt++) {
         struct fw_rsc_vdev_vring* vring = &dscr->vrings[vring_cnt];
 
-        /* on archs with 64 bits phys addresses we store top 32 bits of
-         * vring phys address in 'reserved' field of vring desriptor structure,
-         * otherwise it set to 0.
+        /*
+         * We store top 32 bits of vring 64 bit shared memory id in 'reserved'
+         * field of vring descriptor structure.
          */
-        uint64_t pa64 = ((uint64_t)vring->reserved << 32) | vring->da;
+        ext_mem_obj_id_t smem_id =
+                ((uint64_t)vring->reserved << 32) | vring->da;
 
-        LTRACEF("vring%d: pa 0x%llx align %u num %u nid %u\n", vring_cnt, pa64,
-                vring->align, vring->num, vring->notifyid);
+        LTRACEF("vring%d: mem-id 0x%llx align %u num %u nid %u\n", vring_cnt,
+                smem_id, vring->align, vring->num, vring->notifyid);
 
-        if (pa64 != (paddr_t)pa64) {
-            ret = ERR_INVALID_ARGS;
-            LTRACEF("unsupported phys address range\n");
-            goto err_vq_init;
-        }
-
-        ret = vqueue_init(&dev->vqs[vring_cnt], vring->notifyid, (paddr_t)pa64,
-                          vring->num, vring->align, dev, notify_cbs[vring_cnt],
-                          NULL);
+        ret = vqueue_init(&dev->vqs[vring_cnt], vring->notifyid,
+                          dev->vd.client_id, smem_id, vring->num, vring->align,
+                          dev, notify_cbs[vring_cnt], NULL);
         if (ret)
             goto err_vq_init;
     }
@@ -999,7 +993,7 @@ static int tipc_send_data(struct tipc_dev* dev,
                           void* cb_ctx,
                           uint16_t data_len,
                           bool wait) {
-    paddr_t out_phys[MAX_TX_IOVS];
+    ext_mem_obj_id_t out_shared_mem_id[MAX_TX_IOVS];
     struct iovec_kern out_iovs[MAX_TX_IOVS];
     struct vqueue* vq = &dev->vqs[TIPC_VQ_TX];
     struct vqueue_buf buf;
@@ -1015,7 +1009,7 @@ static int tipc_send_data(struct tipc_dev* dev,
 
     memset(&buf, 0, sizeof(buf));
     buf.out_iovs.cnt = MAX_TX_IOVS;
-    buf.out_iovs.phys = out_phys;
+    buf.out_iovs.shared_mem_id = out_shared_mem_id;
     buf.out_iovs.iovs = out_iovs;
 
     /* get buffer or wait if needed */
@@ -1061,10 +1055,9 @@ static int tipc_send_data(struct tipc_dev* dev,
         goto done;
     }
 
-    /* map in provided buffers (Non-secure, no-execute, cached, read-write) */
-    uint map_flags = ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                     ARCH_MMU_FLAG_CACHED;
-    ret = vqueue_map_iovs(&buf.out_iovs, map_flags);
+    /* map in provided buffers (no-execute, read-write) */
+    uint map_flags = ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+    ret = vqueue_map_iovs(dev->vd.client_id, &buf.out_iovs, map_flags);
     if (ret == NO_ERROR) {
         struct tipc_hdr* hdr = buf.out_iovs.iovs[0].base;
 
@@ -1093,7 +1086,7 @@ static int tipc_send_data(struct tipc_dev* dev,
     }
 
 done:
-    ret = vqueue_add_buf(vq, &buf, ret);
+    ret = vqueue_add_buf(vq, &buf, (uint32_t)ret);
 err:
     return ret;
 }

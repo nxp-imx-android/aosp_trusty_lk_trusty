@@ -31,6 +31,7 @@
 #if !LIB_SM_CUSTOM_SCHED_NONSECURE
 /* sm_sched_nonsecure(uint32_t retval, struct smc32_args *args) */
 FUNCTION(sm_sched_nonsecure)
+	push	{r4-r7}
 	push	{r1, lr}
 	mov	r1, r0
 
@@ -38,13 +39,16 @@ FUNCTION(sm_sched_nonsecure)
 	bl	platform_ns_return
 #else
 	ldr	r0, =SMC_SC_NS_RETURN
-	push	{r4-r7}
 	smc	#0
-	pop	{r4-r7}
 #endif
 
 	pop	{r12, lr}
-	stmia	r12, {r0-r3}
+
+	/* Write struct smc32_args (top bits of client_id are left unchanged */
+	stmia	r12, {r0-r3, r7}
+
+	pop	{r4-r7}
+
 	bx	lr
 #endif
 

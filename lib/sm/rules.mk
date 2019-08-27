@@ -35,6 +35,10 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/sm.c \
 	$(LOCAL_DIR)/smcall.c \
 	$(LOCAL_DIR)/ns_mem.c \
+	$(LOCAL_DIR)/shared_mem.c \
+
+MODULE_DEPS += \
+	lib/extmem \
 
 include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 

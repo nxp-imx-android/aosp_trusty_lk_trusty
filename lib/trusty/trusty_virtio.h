@@ -49,6 +49,7 @@ struct vdev {
     volatile int state;
     uint devid;
     uint descr_offset;
+    ext_mem_client_id_t client_id;
     struct list_node node;
     const struct vdev_ops* ops;
 };
@@ -63,19 +64,26 @@ status_t virtio_register_device(struct vdev* vd);
 /*
  * Retrieve device description to be shared with NS side
  */
-ssize_t virtio_get_description(ns_paddr_t descr_pa,
+ssize_t virtio_get_description(ext_mem_client_id_t client_id,
+                               ext_mem_obj_id_t descr_id,
                                ns_size_t sz,
                                uint mmu_flags);
 
 /*
  * Called by NS side to finilize initialization
  */
-status_t virtio_start(ns_paddr_t descr_pa, ns_size_t sz, uint mmu_flags);
+status_t virtio_start(ext_mem_client_id_t client_id,
+                      ext_mem_obj_id_t descr_id,
+                      ns_size_t sz,
+                      uint mmu_flags);
 
 /*
  * Called by NS side to deinitialize virtio subsystem
  */
-status_t virtio_stop(ns_paddr_t descr_pa, ns_size_t sz, uint mmu_flags);
+status_t virtio_stop(ext_mem_client_id_t client_id,
+                     ext_mem_obj_id_t descr_id,
+                     ns_size_t sz,
+                     uint mmu_flags);
 
 /*
  *  Reset virtio device with specified device id
