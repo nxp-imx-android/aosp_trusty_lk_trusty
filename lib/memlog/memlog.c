@@ -137,22 +137,18 @@ static void memlog_commit(struct memlog* log) {
 }
 
 static status_t map_rb(paddr_t pa, size_t sz, vaddr_t* va) {
-    size_t mb = 1 << 20;
-    size_t offset;
     status_t err;
     unsigned flags = ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_NS |
                      ARCH_MMU_FLAG_PERM_NO_EXECUTE;
 
-    offset = pa & (mb - 1);
-    pa = round_down(pa, mb);
-    sz = round_up((sz + offset), mb);
+    DEBUG_ASSERT(IS_PAGE_ALIGNED(pa));
+    DEBUG_ASSERT(IS_PAGE_ALIGNED(sz));
 
     err = vmm_alloc_physical(vmm_get_kernel_aspace(), "logmem", sz, (void**)va,
                              PAGE_SIZE_SHIFT, pa, 0, flags);
     if (err) {
         return err;
     }
-    *va += offset;
     return err;
 }
 
@@ -183,6 +179,10 @@ long memlog_add(paddr_t pa, size_t sz) {
 
     if (memlog_is_mem_registered(pa, sz))
         return SM_ERR_INVALID_PARAMETERS;
+
+    if (!IS_PAGE_ALIGNED(pa) || !IS_PAGE_ALIGNED(sz)) {
+        return SM_ERR_INVALID_PARAMETERS;
+    }
 
     log = malloc(sizeof(*log));
     if (!log) {
