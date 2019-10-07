@@ -167,6 +167,10 @@ static int tipc_send_buf(struct tipc_dev* dev,
 #define vdev_to_dev(v) containerof((v), struct tipc_dev, vd)
 
 static inline uint addr_to_slot(uint32_t addr) {
+    if (addr < TIPC_ADDR_BASE) {
+        LTRACEF("bad addr %d\n", addr);
+        return TIPC_ADDR_MAX_NUM; /* return invalid slot number */
+    }
     return (uint)(addr - TIPC_ADDR_BASE);
 }
 
