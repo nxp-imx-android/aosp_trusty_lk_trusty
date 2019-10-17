@@ -96,6 +96,34 @@ static long to_smc_error(long err) {
 }
 
 /*
+ *  Handle fastcall Trusted OS SMC call function
+ */
+static long trusty_sm_fastcall(smc32_args_t* args) {
+    long res;
+    ns_size_t ns_sz;
+    ns_paddr_t ns_pa;
+    uint ns_mmu_flags;
+
+    LTRACEF("Trusty SM service func %u args 0x%x 0x%x 0x%x\n",
+            SMC_FUNCTION(args->smc_nr), args->params[0], args->params[1],
+            args->params[2]);
+    switch (args->smc_nr) {
+    case SMC_FC_HANDLE_QL_TIPC_DEV_CMD:
+        res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
+        if (res == NO_ERROR)
+            res = ql_tipc_handle_cmd(ns_pa, ns_sz, true);
+        break;
+
+    default:
+        LTRACEF("unknown func 0x%x\n", SMC_FUNCTION(args->smc_nr));
+        res = ERR_NOT_SUPPORTED;
+        break;
+    }
+
+    return to_smc_error(res);
+}
+
+/*
  *  Handle standard Trusted OS SMC call function
  */
 static long trusty_sm_stdcall(smc32_args_t* args) {
@@ -150,7 +178,7 @@ static long trusty_sm_stdcall(smc32_args_t* args) {
     case SMC_SC_HANDLE_QL_TIPC_DEV_CMD:
         res = get_ns_mem_buf(args, &ns_pa, &ns_sz, &ns_mmu_flags);
         if (res == NO_ERROR)
-            res = ql_tipc_handle_cmd(ns_pa, ns_sz);
+            res = ql_tipc_handle_cmd(ns_pa, ns_sz, false);
         break;
 
     default:
@@ -186,8 +214,11 @@ static long trusty_sm_nopcall(smc32_args_t* args) {
     return to_smc_error(res);
 }
 
-static smc32_entity_t trusty_sm_entity = {.stdcall_handler = trusty_sm_stdcall,
-                                          .nopcall_handler = trusty_sm_nopcall};
+static smc32_entity_t trusty_sm_entity = {
+        .fastcall_handler = trusty_sm_fastcall,
+        .stdcall_handler = trusty_sm_stdcall,
+        .nopcall_handler = trusty_sm_nopcall,
+};
 
 static void trusty_sm_init(uint level) {
     int err;

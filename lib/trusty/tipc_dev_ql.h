@@ -33,7 +33,9 @@
 #define QL_TIPC_DEV_RECV 0x4
 #define QL_TIPC_DEV_DISCONNECT 0x5
 
+#define QL_TIPC_DEV_FC_HAS_EVENT 0x100
+
 long ql_tipc_create_device(ns_addr_t buf_pa, ns_size_t buf_sz, uint mmu_flags);
 long ql_tipc_shutdown_device(ns_addr_t buf_pa);
 
-long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz);
+long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz, bool is_fc);

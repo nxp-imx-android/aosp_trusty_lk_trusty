@@ -70,6 +70,7 @@ struct tipc_ept {
 struct ql_tipc_dev {
     struct list_node node;
     struct handle* handle_set;
+    bool in_use; /* protected by @_dev_list_lock */
 
     uint ns_mmu_flags;
     ns_size_t ns_sz;
@@ -105,8 +106,21 @@ struct tipc_connect_req {
     uint8_t name[0];
 };
 
+#ifdef SPIN_LOCK_FLAG_IRQ_FIQ
+#define SLOCK_FLAGS SPIN_LOCK_FLAG_IRQ_FIQ
+#else
+#define SLOCK_FLAGS SPIN_LOCK_FLAG_INTERRUPTS
+#endif
+
 static uint _dev_cnt;
+/*
+ * @_dev_list is only modified from stdcalls with _dev_list_lock held. It can
+ * be read from any context with @_dev_list_lock held and from stdcalls without
+ * the @_dev_list_lock held.
+ */
 static struct list_node _dev_list = LIST_INITIAL_VALUE(_dev_list);
+/* @_dev_list_lock protects @_dev_list and @struct ql_tipc_dev->in_use */
+static spin_lock_t _dev_list_lock = SPIN_LOCK_INITIAL_VALUE;
 
 static inline uint addr_to_slot(uint32_t addr) {
     return (uint)(addr - QL_TIPC_ADDR_BASE);
@@ -164,9 +178,38 @@ static struct ql_tipc_dev* dev_lookup(ns_addr_t buf_pa) {
     return NULL;
 }
 
+static struct ql_tipc_dev* dev_acquire(ns_addr_t buf_pa) {
+    struct ql_tipc_dev* dev;
+    spin_lock_saved_state_t state;
+
+    spin_lock_save(&_dev_list_lock, &state, SLOCK_FLAGS);
+    dev = dev_lookup(buf_pa);
+    if (dev) {
+        if (dev->in_use) {
+            TRACEF("0x%llx: device in use by another cpu\n", buf_pa);
+            dev = NULL;
+        } else {
+            dev->in_use = true;
+        }
+    }
+    spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
+
+    return dev;
+}
+
+static void dev_release(struct ql_tipc_dev* dev) {
+    spin_lock_saved_state_t state;
+
+    spin_lock_save(&_dev_list_lock, &state, SLOCK_FLAGS);
+    DEBUG_ASSERT(dev->in_use);
+    dev->in_use = false;
+    spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
+}
+
 static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
     status_t res;
     struct ql_tipc_dev* dev;
+    spin_lock_saved_state_t state;
 
     dev = dev_lookup(buf_pa);
     if (dev) {
@@ -223,7 +266,9 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
         return SM_ERR_INTERNAL_FAILURE;
     }
 
+    spin_lock_save(&_dev_list_lock, &state, SLOCK_FLAGS);
     list_add_head(&_dev_list, &dev->node);
+    spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
     _dev_cnt++;
 
     LTRACEF("tipc dev: %u bytes @ 0x%llx (%p) (flags=0x%x)\n", dev->ns_sz,
@@ -233,11 +278,16 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
 }
 
 static void dev_shutdown(struct ql_tipc_dev* dev) {
+    spin_lock_saved_state_t state;
+
     DEBUG_ASSERT(dev);
     DEBUG_ASSERT(dev->ns_va);
+    DEBUG_ASSERT(dev->in_use);
 
     /* remove from list */
+    spin_lock_save(&_dev_list_lock, &state, SLOCK_FLAGS);
     list_delete(&dev->node);
+    spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
     _dev_cnt--;
 
     /* unmap shared region */
@@ -423,6 +473,15 @@ static long dev_recv(struct ql_tipc_dev* dev, uint32_t target) {
     return set_status(dev, opcode, rc, mi.len);
 }
 
+static long dev_has_event(struct ql_tipc_dev* dev,
+                          void* ns_data,
+                          size_t ns_sz,
+                          uint32_t target) {
+    bool* ready = (bool*)((uint8_t*)dev->ns_va + sizeof(struct tipc_cmd_hdr));
+    *ready = handle_set_ready(dev->handle_set);
+    return set_status(dev, QL_TIPC_DEV_FC_HAS_EVENT, 0, sizeof(*ready));
+}
+
 static long dev_get_event(struct ql_tipc_dev* dev,
                           void* ns_data,
                           size_t ns_sz,
@@ -502,6 +561,20 @@ static long dev_get_event(struct ql_tipc_dev* dev,
     return set_status(dev, opcode, 0, sizeof(*evt));
 }
 
+static long dev_handle_fc_cmd(struct ql_tipc_dev* dev,
+                              const struct tipc_cmd_hdr* cmd,
+                              void* ns_payload) {
+    DEBUG_ASSERT(dev);
+    switch (cmd->opcode) {
+    case QL_TIPC_DEV_FC_HAS_EVENT:
+        return dev_has_event(dev, ns_payload, cmd->payload_len, cmd->handle);
+
+    default:
+        LTRACEF("0x%x: unhandled cmd\n", cmd->opcode);
+        return set_status(dev, cmd->opcode, ERR_NOT_SUPPORTED, 0);
+    }
+}
+
 static long dev_handle_cmd(struct ql_tipc_dev* dev,
                            const struct tipc_cmd_hdr* cmd,
                            void* ns_payload) {
@@ -536,7 +609,7 @@ long ql_tipc_create_device(ns_addr_t buf_pa,
 }
 
 long ql_tipc_shutdown_device(ns_addr_t buf_pa) {
-    struct ql_tipc_dev* dev = dev_lookup(buf_pa);
+    struct ql_tipc_dev* dev = dev_acquire(buf_pa);
     if (!dev) {
         LTRACEF("0x%llx: device not found\n", buf_pa);
         return SM_ERR_INVALID_PARAMETERS;
@@ -545,20 +618,21 @@ long ql_tipc_shutdown_device(ns_addr_t buf_pa) {
     return 0;
 }
 
-long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz) {
+long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz, bool is_fc) {
+    long ret = SM_ERR_INVALID_PARAMETERS;
     struct tipc_cmd_hdr cmd_hdr;
 
     /* lookup device */
-    struct ql_tipc_dev* dev = dev_lookup(buf_pa);
+    struct ql_tipc_dev* dev = dev_acquire(buf_pa);
     if (!dev) {
         LTRACEF("0x%llx: device not found\n", buf_pa);
-        return SM_ERR_INVALID_PARAMETERS;
+        goto err_not_found;
     }
 
     /* check for minimum size */
     if (cmd_sz < sizeof(cmd_hdr)) {
         LTRACEF("message is too short (%zd)\n", (size_t)cmd_sz);
-        return SM_ERR_INVALID_PARAMETERS;
+        goto err_invalid;
     }
 
     /* copy out command header */
@@ -567,8 +641,16 @@ long ql_tipc_handle_cmd(ns_addr_t buf_pa, ns_size_t cmd_sz) {
     /* check for consistency */
     if (cmd_hdr.payload_len != (cmd_sz - sizeof(cmd_hdr))) {
         LTRACEF("malformed command\n");
-        return SM_ERR_INVALID_PARAMETERS;
+        goto err_invalid;
     }
 
-    return dev_handle_cmd(dev, &cmd_hdr, dev->ns_va + sizeof(cmd_hdr));
+    if (is_fc) {
+        ret = dev_handle_fc_cmd(dev, &cmd_hdr, dev->ns_va + sizeof(cmd_hdr));
+    } else {
+        ret = dev_handle_cmd(dev, &cmd_hdr, dev->ns_va + sizeof(cmd_hdr));
+    }
+err_invalid:
+    dev_release(dev);
+err_not_found:
+    return ret;
 }
