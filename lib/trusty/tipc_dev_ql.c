@@ -30,6 +30,7 @@
 #include <kernel/vm.h>
 #include <lib/sm/sm_err.h>
 #include <lib/trusty/handle.h>
+#include <lib/trusty/handle_set.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/ipc_msg.h>
 #include <list.h>
@@ -62,12 +63,13 @@
 
 struct tipc_ept {
     handle_t* chan;
+    struct handle_ref* ref;
     uint64_t cookie;
 };
 
 struct ql_tipc_dev {
     struct list_node node;
-    handle_list_t handle_list;
+    struct handle* handle_set;
 
     uint ns_mmu_flags;
     ns_size_t ns_sz;
@@ -201,7 +203,12 @@ static long dev_create(ns_addr_t buf_pa, ns_size_t buf_sz, uint buf_mmu_flags) {
     dev->uuid = &zero_uuid;
 
     list_clear_node(&dev->node);
-    handle_list_init(&dev->handle_list);
+    dev->handle_set = handle_set_create();
+    if (!dev->handle_set) {
+        LTRACEF("out of memory creating handle_set\n");
+        free(dev);
+        return SM_ERR_INTERNAL_FAILURE;
+    }
 
     /* map shared buffer into address space */
     dev->ns_pa = buf_pa;
@@ -247,7 +254,10 @@ static void dev_shutdown(struct ql_tipc_dev* dev) {
         if (!ept->chan)
             continue;
 
-        handle_list_del(&dev->handle_list, ept->chan);
+        handle_set_detach_ref(ept->ref);
+        handle_decref(ept->chan);
+        free(ept->ref);
+        ept->ref = NULL;
         handle_set_cookie(ept->chan, NULL);
         handle_close(ept->chan);
     }
@@ -272,6 +282,7 @@ static int dev_connect(struct ql_tipc_dev* dev,
     uint32_t local = 0;
     handle_t* chan = NULL;
     int opcode = QL_TIPC_DEV_CONNECT;
+    struct handle_ref* ref;
     struct tipc_cmd_hdr* ns_hdr = dev->ns_va;
     struct {
         struct tipc_connect_req hdr;
@@ -307,10 +318,37 @@ static int dev_connect(struct ql_tipc_dev* dev,
 
     LTRACEF("new handle: 0x%x\n", local);
     handle_set_cookie(chan, ept_lookup(dev, local));
-    handle_list_add(&dev->handle_list, chan);
+
+    ref = calloc(1, sizeof(*ref));
+    if (!ref) {
+        rc = ERR_NO_MEMORY;
+        goto err_alloc_ref;
+    }
+
+    handle_incref(chan);
+    ref->handle = chan;
+    ref->emask = ~0U;
+    ref->cookie = ept_lookup(dev, local);
+    ref->id = local;
+
+    rc = handle_set_attach(dev->handle_set, ref);
+    if (rc) {
+        goto err_handle_set_attach;
+    }
+    ept_lookup(dev, local)->ref = ref;
+
     ns_hdr->handle = local;
 
     return set_status(dev, opcode, 0, 0);
+
+err_handle_set_attach:
+    handle_decref(chan);
+    free(ref);
+err_alloc_ref:
+    free_local_addr(dev, local);
+    handle_close(chan);
+    chan = NULL;
+    return set_status(dev, opcode, rc, 0);
 }
 
 static long dev_disconnect(struct ql_tipc_dev* dev, uint32_t target) {
@@ -321,7 +359,10 @@ static long dev_disconnect(struct ql_tipc_dev* dev, uint32_t target) {
     if (!ept || !ept->chan)
         return SM_ERR_INVALID_PARAMETERS;
 
-    handle_list_del(&dev->handle_list, ept->chan);
+    handle_set_detach_ref(ept->ref);
+    handle_decref(ept->chan);
+    free(ept->ref);
+    ept->ref = NULL;
     handle_set_cookie(ept->chan, NULL);
     handle_close(ept->chan);
     free_local_addr(dev, target);
@@ -425,8 +466,9 @@ static long dev_get_event(struct ql_tipc_dev* dev,
             evt->cookie = ept->cookie;
         }
     } else {
+        struct handle_ref hsevt;
         /* wait for event with 0-timeout */
-        rc = handle_list_wait(&dev->handle_list, &chan, &chan_event, 0);
+        rc = handle_set_wait(dev->handle_set, &hsevt, 0);
         if (rc == ERR_NOT_FOUND) {
             /* no handles left */
             return set_status(dev, opcode, rc, 0);
@@ -446,14 +488,14 @@ static long dev_get_event(struct ql_tipc_dev* dev,
             }
         } else {
             /* got an event: return it */
-            ept = handle_get_cookie(chan);
+            ept = hsevt.cookie;
 
             evt->handle = ept_to_addr(dev, ept);
-            evt->event = chan_event;
+            evt->event = hsevt.emask;
             evt->cookie = ept->cookie;
 
-            /* drop ref obtained by handle_list_wait */
-            handle_decref(chan);
+            /* drop ref obtained by handle_set_wait */
+            handle_decref(hsevt.handle);
         }
     }
 
