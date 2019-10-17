@@ -43,3 +43,5 @@ void handle_set_update_ref(struct handle_ref* ref,
 int handle_set_wait(struct handle* h,
                     struct handle_ref* out,
                     lk_time_t timeout);
+
+bool handle_set_ready(struct handle* h);

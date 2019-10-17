@@ -44,7 +44,11 @@
 
 #define LOCAL_TRACE 0
 
+#ifdef SPIN_LOCK_FLAG_IRQ_FIQ
+#define SLOCK_FLAGS SPIN_LOCK_FLAG_IRQ_FIQ
+#else
 #define SLOCK_FLAGS SPIN_LOCK_FLAG_INTERRUPTS
+#endif
 
 struct handle_set {
     struct mutex mlock;
@@ -341,6 +345,20 @@ int handle_set_wait(struct handle* h,
     DEBUG_ASSERT(h && is_handle_set(h));
     struct handle_set* hset = containerof(h, struct handle_set, handle);
     return hset_wait(hset, out, timeout);
+}
+
+bool handle_set_ready(struct handle* h) {
+    bool ret;
+    spin_lock_saved_state_t state;
+
+    DEBUG_ASSERT(h && is_handle_set(h));
+    struct handle_set* hset = containerof(h, struct handle_set, handle);
+
+    spin_lock_save(&hset->handle.slock, &state, SLOCK_FLAGS);
+    ret = !list_is_empty(&hset->ready_list);
+    spin_unlock_restore(&hset->handle.slock, state, SLOCK_FLAGS);
+
+    return ret;
 }
 
 int handle_ref_wait(const struct handle_ref* in,
