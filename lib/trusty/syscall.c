@@ -201,7 +201,7 @@ long sys_nanosleep(uint32_t clock_id, uint32_t flags, uint64_t sleep_time) {
 
 long sys_gettime(uint32_t clock_id, uint32_t flags, user_addr_t time) {
     // return time in nanoseconds
-    lk_bigtime_t t = current_time_hires() * 1000;
+    lk_time_ns_t t = current_time_ns();
 
     return copy_to_user(time, &t, sizeof(int64_t));
 }
