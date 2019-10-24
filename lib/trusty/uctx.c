@@ -250,7 +250,7 @@ static int rebuild_hset_all(struct uctx* ctx) {
         goto err_already_exists;
     }
 
-    TRACEF("Rebuilding all handles set\n");
+    LTRACEF("Rebuilding all handles set\n");
 
     /* create all handle set */
     hset_all = handle_set_create();
