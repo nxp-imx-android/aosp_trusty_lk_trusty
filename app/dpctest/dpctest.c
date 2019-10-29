@@ -39,7 +39,7 @@ struct dpc_test_ctx {
 };
 
 static enum handler_return dpc_test_timer_callback(struct timer* t,
-                                                   lk_time_t now,
+                                                   lk_time_ns_t now,
                                                    void* arg) {
     struct dpc_test_ctx* ctx = arg;
 
@@ -54,7 +54,8 @@ static void dpc_test_callback(struct dpc* work) {
     if (ctx->count > TEST_REQUEUE_CNT / 2) {
         /* requeue work from irq context */
         ctx->count--;
-        timer_set_oneshot(&ctx->tmr, 10, dpc_test_timer_callback, ctx);
+        timer_set_oneshot_ns(&ctx->tmr, 10 * 1000 * 1000,
+                             dpc_test_timer_callback, ctx);
     } else if (ctx->count) {
         /* requeue work from thread context */
         ctx->count--;

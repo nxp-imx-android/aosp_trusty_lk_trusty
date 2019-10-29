@@ -187,13 +187,13 @@ long sys_nanosleep(uint32_t clock_id,
                    uint32_t sleep_time_l,
                    uint32_t sleep_time_h) {
     uint64_t sleep_time = sleep_time_l + ((uint64_t)sleep_time_h << 32);
-    thread_sleep((lk_time_t)(DIV_ROUND_UP(sleep_time, 1000 * 1000)));
+    thread_sleep_ns(sleep_time);
 
     return NO_ERROR;
 }
 #else
 long sys_nanosleep(uint32_t clock_id, uint32_t flags, uint64_t sleep_time) {
-    thread_sleep((lk_time_t)(DIV_ROUND_UP(sleep_time, 1000 * 1000)));
+    thread_sleep_ns(sleep_time);
 
     return NO_ERROR;
 }
