@@ -73,7 +73,7 @@
 
 struct tipc_ept {
     uint32_t remote;
-    handle_t* chan;
+    struct handle* chan;
 };
 
 struct tipc_dev {
@@ -87,7 +87,7 @@ struct tipc_dev {
     unsigned long inuse[BITMAP_NUM_WORDS(TIPC_ADDR_MAX_NUM)];
 
     event_t have_handles;
-    handle_list_t handle_list;
+    struct handle_list handle_list;
 
     mutex_t ept_lock;
 
@@ -180,7 +180,7 @@ static inline uint32_t slot_to_addr(uint slot) {
 
 static uint32_t alloc_local_addr(struct tipc_dev* dev,
                                  uint32_t remote,
-                                 handle_t* chan) {
+                                 struct handle* chan) {
     int slot = bitmap_ffz(dev->inuse, TIPC_ADDR_MAX_NUM);
     if (slot >= 0) {
         bitmap_set(dev->inuse, slot);
@@ -292,7 +292,7 @@ static int handle_conn_req(struct tipc_dev* dev,
                            const volatile struct tipc_conn_req_body* ns_req) {
     int err;
     uint32_t local = 0;
-    handle_t* chan = NULL;
+    struct handle* chan = NULL;
     struct tipc_conn_req_body req;
 
     LTRACEF("remote %u\n", remote);
@@ -359,7 +359,7 @@ static int handle_disc_req(struct tipc_dev* dev,
     }
 
     if (ept) {
-        handle_t* chan = ept->chan;
+        struct handle* chan = ept->chan;
 
         if (chan) {
             /* detach handle from handle list */
@@ -577,7 +577,7 @@ static int tipc_rx_thread_func(void* arg) {
 }
 
 typedef struct data_cb_ctx {
-    handle_t* chan;
+    struct handle* chan;
     ipc_msg_info_t msg_inf;
 } data_cb_ctx_t;
 
@@ -604,7 +604,7 @@ static int tx_data_cb(uint8_t* buf, size_t buf_len, void* ctx) {
     return rc;
 }
 
-static void handle_tx_msg(struct tipc_dev* dev, handle_t* chan) {
+static void handle_tx_msg(struct tipc_dev* dev, struct handle* chan) {
     int ret;
     uint32_t local = 0;
     uint32_t remote = 0;
@@ -647,7 +647,7 @@ static void handle_tx_msg(struct tipc_dev* dev, handle_t* chan) {
     }
 }
 
-static void handle_hup(struct tipc_dev* dev, handle_t* chan) {
+static void handle_hup(struct tipc_dev* dev, struct handle* chan) {
     uint32_t local = 0;
     uint32_t remote = 0;
     struct tipc_ept* ept;
@@ -681,7 +681,7 @@ static void handle_hup(struct tipc_dev* dev, handle_t* chan) {
     }
 }
 
-static void handle_ready(struct tipc_dev* dev, handle_t* chan) {
+static void handle_ready(struct tipc_dev* dev, struct handle* chan) {
     uint32_t local = 0;
     uint32_t remote = 0;
     struct tipc_ept* ept;
@@ -705,7 +705,7 @@ static void handle_ready(struct tipc_dev* dev, handle_t* chan) {
 
 static void handle_tx(struct tipc_dev* dev) {
     int ret;
-    handle_t* chan;
+    struct handle* chan;
     uint32_t chan_event;
 
     DEBUG_ASSERT(dev);

@@ -361,7 +361,7 @@ void* uctx_get_priv(uctx_t* ctx) {
  * Install specified handle into user handle table and increment installed
  * handle ref count accordinly.
  */
-int uctx_handle_install(uctx_t* ctx, handle_t* handle, handle_id_t* id) {
+int uctx_handle_install(uctx_t* ctx, struct handle* handle, handle_id_t* id) {
     int ret;
     int idx;
 
@@ -438,7 +438,9 @@ static int uctx_handle_get_tmp_ref(struct uctx* ctx,
  *   Retrieve handle from specified user context specified by
  *   given handle_id. Increment ref count for returned handle.
  */
-int uctx_handle_get(uctx_t* ctx, handle_id_t handle_id, handle_t** handle_ptr) {
+int uctx_handle_get(uctx_t* ctx,
+                    handle_id_t handle_id,
+                    struct handle** handle_ptr) {
     struct handle_ref tmp_ref;
 
     DEBUG_ASSERT(ctx);
@@ -459,7 +461,7 @@ int uctx_handle_get(uctx_t* ctx, handle_id_t handle_id, handle_t** handle_ptr) {
  */
 int uctx_handle_remove(uctx_t* ctx,
                        handle_id_t handle_id,
-                       handle_t** handle_ptr) {
+                       struct handle** handle_ptr) {
     int ret;
     struct handle* handle;
 
@@ -571,7 +573,7 @@ long __SYSCALL sys_wait_any(user_addr_t user_event, uint32_t timeout_msecs) {
 }
 
 long __SYSCALL sys_close(uint32_t handle_id) {
-    handle_t* handle;
+    struct handle* handle;
 
     LTRACEF("[%p][%d]\n", current_trusty_thread(), handle_id);
 

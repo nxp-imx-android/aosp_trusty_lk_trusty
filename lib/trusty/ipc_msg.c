@@ -171,7 +171,7 @@ static inline msg_item_t* msg_queue_get_item(ipc_msg_queue_t* mq, uint32_t id) {
     return id < mq->num_items ? &mq->items[id] : NULL;
 }
 
-static int check_channel(handle_t* chandle) {
+static int check_channel(struct handle* chandle) {
     if (unlikely(!chandle))
         return ERR_INVALID_ARGS;
 
@@ -504,7 +504,7 @@ static int msg_put_read_locked(ipc_chan_t* chan,
 }
 
 long __SYSCALL sys_send_msg(uint32_t handle_id, user_addr_t user_msg) {
-    handle_t* chandle;
+    struct handle* chandle;
     ipc_msg_user_t tmp_msg;
     int ret;
     struct uctx* uctx = current_uctx();
@@ -534,7 +534,7 @@ long __SYSCALL sys_send_msg(uint32_t handle_id, user_addr_t user_msg) {
     return (long)ret;
 }
 
-int ipc_send_msg(handle_t* chandle, ipc_msg_kern_t* msg) {
+int ipc_send_msg(struct handle* chandle, ipc_msg_kern_t* msg) {
     int ret;
 
     if (!msg)
@@ -554,7 +554,7 @@ int ipc_send_msg(handle_t* chandle, ipc_msg_kern_t* msg) {
 }
 
 long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
-    handle_t* chandle;
+    struct handle* chandle;
     ipc_msg_info_t mi_kern;
     int ret;
 
@@ -589,7 +589,7 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
     return (long)ret;
 }
 
-int ipc_get_msg(handle_t* chandle, ipc_msg_info_t* msg_info) {
+int ipc_get_msg(struct handle* chandle, ipc_msg_info_t* msg_info) {
     int ret;
 
     /* check if channel handle */
@@ -609,7 +609,7 @@ int ipc_get_msg(handle_t* chandle, ipc_msg_info_t* msg_info) {
 }
 
 long __SYSCALL sys_put_msg(uint32_t handle_id, uint32_t msg_id) {
-    handle_t* chandle;
+    struct handle* chandle;
 
     /* grab handle */
     int ret = uctx_handle_get(current_uctx(), handle_id, &chandle);
@@ -623,7 +623,7 @@ long __SYSCALL sys_put_msg(uint32_t handle_id, uint32_t msg_id) {
     return (long)ret;
 }
 
-int ipc_put_msg(handle_t* chandle, uint32_t msg_id) {
+int ipc_put_msg(struct handle* chandle, uint32_t msg_id) {
     int ret;
 
     /* check is channel handle is a valid one */
@@ -711,7 +711,7 @@ long __SYSCALL sys_read_msg(uint32_t handle_id,
                             uint32_t msg_id,
                             uint32_t offset,
                             user_addr_t user_msg) {
-    handle_t* chandle;
+    struct handle* chandle;
     ipc_msg_user_t msg;
     int ret;
     struct uctx* uctx = current_uctx();
@@ -755,7 +755,7 @@ long __SYSCALL sys_read_msg(uint32_t handle_id,
     return (long)ret;
 }
 
-int ipc_read_msg(handle_t* chandle,
+int ipc_read_msg(struct handle* chandle,
                  uint32_t msg_id,
                  uint32_t offset,
                  ipc_msg_kern_t* msg) {

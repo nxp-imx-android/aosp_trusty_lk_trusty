@@ -60,7 +60,7 @@ typedef struct ipc_port {
     uint num_recv_bufs;
     size_t recv_buf_size;
 
-    handle_t handle;
+    struct handle handle;
 
     struct list_node pending_list;
 
@@ -102,7 +102,7 @@ typedef struct ipc_chan {
      * when last handle ref goes away.
      */
     obj_ref_t handle_ref;
-    handle_t handle;
+    struct handle handle;
 
     /* used for port's pending list. node_ref field is a
      * self reference when node field is inserted in the list.
@@ -131,14 +131,14 @@ int ipc_port_create(const uuid_t* sid,
                     uint num_recv_bufs,
                     size_t recv_buf_size,
                     uint32_t flags,
-                    handle_t** phandle_ptr);
+                    struct handle** phandle_ptr);
 
 /* called by server to publish the port */
-int ipc_port_publish(handle_t* phandle);
+int ipc_port_publish(struct handle* phandle);
 
 /* server calls to accept a pending connection */
-int ipc_port_accept(handle_t* phandle,
-                    handle_t** chandle_ptr,
+int ipc_port_accept(struct handle* phandle,
+                    struct handle** chandle_ptr,
                     const uuid_t** uuid_ptr);
 
 /**
@@ -161,10 +161,10 @@ int ipc_port_connect_async(const uuid_t* cid,
                            const char* path,
                            size_t max_path,
                            uint flags,
-                           handle_t** chandle_ptr);
+                           struct handle** chandle_ptr);
 
-bool ipc_is_channel(handle_t* handle);
-bool ipc_is_port(handle_t* handle);
+bool ipc_is_channel(struct handle* handle);
+bool ipc_is_port(struct handle* handle);
 
 /**
  *  is_ns_client() - checks if specified uuid represents a non-secure client

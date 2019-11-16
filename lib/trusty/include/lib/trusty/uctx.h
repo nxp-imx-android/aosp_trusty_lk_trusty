@@ -40,10 +40,12 @@ void uctx_destroy(uctx_t* ctx);
 void* uctx_get_priv(uctx_t* ctx);
 uctx_t* current_uctx(void);
 
-int uctx_handle_install(uctx_t* ctx, handle_t* handle, handle_id_t* id);
+int uctx_handle_install(uctx_t* ctx, struct handle* handle, handle_id_t* id);
 int uctx_handle_remove(uctx_t* ctx,
                        handle_id_t handle_id,
-                       handle_t** handle_ptr);
-int uctx_handle_get(uctx_t* ctx, handle_id_t handle_id, handle_t** handle_ptr);
+                       struct handle** handle_ptr);
+int uctx_handle_get(uctx_t* ctx,
+                    handle_id_t handle_id,
+                    struct handle** handle_ptr);
 
 #endif

@@ -50,7 +50,7 @@ enum handle_flags {
 
 struct handle_ops;
 
-typedef struct handle {
+struct handle {
     refcount_t refcnt;
     uint32_t flags;
 
@@ -66,7 +66,7 @@ typedef struct handle {
     struct list_node waiter_list;
 
     void* cookie;
-} handle_t;
+};
 
 struct handle_waiter {
     struct list_node node;
@@ -117,16 +117,16 @@ struct handle_ref {
 };
 
 struct handle_ops {
-    uint32_t (*poll)(handle_t* handle, uint32_t emask, bool finalize);
-    void (*shutdown)(handle_t* handle);
-    void (*destroy)(handle_t* handle);
+    uint32_t (*poll)(struct handle* handle, uint32_t emask, bool finalize);
+    void (*shutdown)(struct handle* handle);
+    void (*destroy)(struct handle* handle);
 };
 
-typedef struct handle_list {
+struct handle_list {
     struct list_node handles;
     mutex_t lock;
     event_t* wait_event;
-} handle_list_t;
+};
 
 #define HANDLE_LIST_INITIAL_VALUE(hs)                \
     {                                                \
@@ -135,40 +135,44 @@ typedef struct handle_list {
     }
 
 /* handle management */
-void handle_init_etc(handle_t* handle, struct handle_ops* ops, uint32_t flags);
+void handle_init_etc(struct handle* handle,
+                     struct handle_ops* ops,
+                     uint32_t flags);
 
-static inline void handle_init(handle_t* handle, struct handle_ops* ops) {
+static inline void handle_init(struct handle* handle, struct handle_ops* ops) {
     handle_init_etc(handle, ops, 0);
 }
-void handle_close(handle_t* handle);
+void handle_close(struct handle* handle);
 
-void handle_incref(handle_t* handle);
-void handle_decref(handle_t* handle);
+void handle_incref(struct handle* handle);
+void handle_decref(struct handle* handle);
 
 void handle_add_waiter(struct handle* h, struct handle_waiter* w);
 void handle_del_waiter(struct handle* h, struct handle_waiter* w);
 
-int handle_wait(handle_t* handle, uint32_t* handle_event, lk_time_t timeout);
+int handle_wait(struct handle* handle,
+                uint32_t* handle_event,
+                lk_time_t timeout);
 int handle_ref_wait(const struct handle_ref* in,
                     struct handle_ref* out,
                     lk_time_t timeout);
-void handle_notify(handle_t* handle);
-void handle_notify_waiters_locked(handle_t* handle);
+void handle_notify(struct handle* handle);
+void handle_notify_waiters_locked(struct handle* handle);
 
-static inline void handle_set_cookie(handle_t* handle, void* cookie) {
+static inline void handle_set_cookie(struct handle* handle, void* cookie) {
     handle->cookie = cookie;
 }
 
-static inline void* handle_get_cookie(handle_t* handle) {
+static inline void* handle_get_cookie(struct handle* handle) {
     return handle->cookie;
 }
 
-void handle_list_init(handle_list_t* hlist);
-void handle_list_add(handle_list_t* hlist, handle_t* handle);
-void handle_list_del(handle_list_t* hlist, handle_t* handle);
-void handle_list_delete_all(handle_list_t* hlist);
-int handle_list_wait(handle_list_t* hlist,
-                     handle_t** handle_ptr,
+void handle_list_init(struct handle_list* hlist);
+void handle_list_add(struct handle_list* hlist, struct handle* handle);
+void handle_list_del(struct handle_list* hlist, struct handle* handle);
+void handle_list_delete_all(struct handle_list* hlist);
+int handle_list_wait(struct handle_list* hlist,
+                     struct handle** handle_ptr,
                      uint32_t* event_ptr,
                      lk_time_t timeout);
 

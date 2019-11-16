@@ -62,7 +62,7 @@
 #define TIPC_MAX_SRV_NAME_LEN (256)
 
 struct tipc_ept {
-    handle_t* chan;
+    struct handle* chan;
     struct handle_ref* ref;
     uint64_t cookie;
 };
@@ -131,7 +131,7 @@ static inline uint32_t slot_to_addr(uint slot) {
 }
 
 static uint32_t alloc_local_addr(struct ql_tipc_dev* dev,
-                                 handle_t* chan,
+                                 struct handle* chan,
                                  uint64_t cookie) {
     int slot = bitmap_ffz(dev->inuse, QL_TIPC_ADDR_MAX_NUM);
     if (slot >= 0) {
@@ -330,7 +330,7 @@ static int dev_connect(struct ql_tipc_dev* dev,
                        size_t ns_payload_len) {
     int rc;
     uint32_t local = 0;
-    handle_t* chan = NULL;
+    struct handle* chan = NULL;
     int opcode = QL_TIPC_DEV_CONNECT;
     struct handle_ref* ref;
     struct tipc_cmd_hdr* ns_hdr = dev->ns_va;
@@ -489,7 +489,7 @@ static long dev_get_event(struct ql_tipc_dev* dev,
 
 {
     int rc;
-    handle_t* chan;
+    struct handle* chan;
     struct tipc_wait_req req;
     uint32_t chan_event = 0;
     struct tipc_ept* ept = NULL;

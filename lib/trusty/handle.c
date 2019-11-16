@@ -40,7 +40,9 @@
 #include <lib/syscall.h>
 #include <lib/trusty/handle.h>
 
-void handle_init_etc(handle_t* handle, struct handle_ops* ops, uint32_t flags) {
+void handle_init_etc(struct handle* handle,
+                     struct handle_ops* ops,
+                     uint32_t flags) {
     DEBUG_ASSERT(handle);
     DEBUG_ASSERT(ops);
     DEBUG_ASSERT(ops->destroy);
@@ -58,21 +60,21 @@ void handle_init_etc(handle_t* handle, struct handle_ops* ops, uint32_t flags) {
 static void __handle_destroy_ref(refcount_t* ref) {
     DEBUG_ASSERT(ref);
 
-    handle_t* handle = containerof(ref, handle_t, refcnt);
+    struct handle* handle = containerof(ref, struct handle, refcnt);
     handle->ops->destroy(handle);
 }
 
-void handle_incref(handle_t* handle) {
+void handle_incref(struct handle* handle) {
     DEBUG_ASSERT(handle);
     refcount_inc(&handle->refcnt);
 }
 
-void handle_decref(handle_t* handle) {
+void handle_decref(struct handle* handle) {
     DEBUG_ASSERT(handle);
     refcount_dec(&handle->refcnt, __handle_destroy_ref);
 }
 
-void handle_close(handle_t* handle) {
+void handle_close(struct handle* handle) {
     DEBUG_ASSERT(handle);
     if (handle->ops->shutdown)
         handle->ops->shutdown(handle);
@@ -88,7 +90,7 @@ static int __do_wait(event_t* ev, lk_time_t timeout) {
     return ret;
 }
 
-static int _prepare_wait_handle(event_t* ev, handle_t* handle) {
+static int _prepare_wait_handle(event_t* ev, struct handle* handle) {
     int ret = 0;
     spin_lock_saved_state_t state;
 
@@ -103,7 +105,7 @@ static int _prepare_wait_handle(event_t* ev, handle_t* handle) {
     return ret;
 }
 
-static void _finish_wait_handle(handle_t* handle) {
+static void _finish_wait_handle(struct handle* handle) {
     spin_lock_saved_state_t state;
 
     /* clear out our event ptr */
@@ -128,7 +130,9 @@ void handle_del_waiter(struct handle* h, struct handle_waiter* w) {
     spin_unlock_restore(&h->slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
 }
 
-int handle_wait(handle_t* handle, uint32_t* handle_event, lk_time_t timeout) {
+int handle_wait(struct handle* handle,
+                uint32_t* handle_event,
+                lk_time_t timeout) {
     uint32_t event;
     int ret = 0;
     struct handle_event_waiter ew = HANDLE_EVENT_WAITER_INITIAL_VALUE(ew);
@@ -159,7 +163,7 @@ finish_wait:
     return ret;
 }
 
-void handle_notify_waiters_locked(handle_t* handle) {
+void handle_notify_waiters_locked(struct handle* handle) {
     struct handle_waiter* w;
 
     list_for_every_entry(&handle->waiter_list, w, struct handle_waiter, node) {
@@ -172,7 +176,7 @@ void handle_notify_waiters_locked(handle_t* handle) {
     }
 }
 
-void handle_notify(handle_t* handle) {
+void handle_notify(struct handle* handle) {
     DEBUG_ASSERT(handle);
 
     spin_lock_saved_state_t state;
@@ -181,13 +185,13 @@ void handle_notify(handle_t* handle) {
     spin_unlock_restore(&handle->slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
 }
 
-void handle_list_init(handle_list_t* hlist) {
+void handle_list_init(struct handle_list* hlist) {
     DEBUG_ASSERT(hlist);
 
-    *hlist = (handle_list_t)HANDLE_LIST_INITIAL_VALUE(*hlist);
+    *hlist = (struct handle_list)HANDLE_LIST_INITIAL_VALUE(*hlist);
 }
 
-void handle_list_add(handle_list_t* hlist, handle_t* handle) {
+void handle_list_add(struct handle_list* hlist, struct handle* handle) {
     DEBUG_ASSERT(hlist);
     DEBUG_ASSERT(handle);
     DEBUG_ASSERT(!list_in_list(&handle->hlist_node));
@@ -208,7 +212,8 @@ void handle_list_add(handle_list_t* hlist, handle_t* handle) {
     mutex_release(&hlist->lock);
 }
 
-static void _handle_list_del_locked(handle_list_t* hlist, handle_t* handle) {
+static void _handle_list_del_locked(struct handle_list* hlist,
+                                    struct handle* handle) {
     DEBUG_ASSERT(hlist);
     DEBUG_ASSERT(handle);
     DEBUG_ASSERT(list_in_list(&handle->hlist_node));
@@ -228,7 +233,7 @@ static void _handle_list_del_locked(handle_list_t* hlist, handle_t* handle) {
     handle_decref(handle);
 }
 
-void handle_list_del(handle_list_t* hlist, handle_t* handle) {
+void handle_list_del(struct handle_list* hlist, struct handle* handle) {
     DEBUG_ASSERT(hlist);
     DEBUG_ASSERT(handle);
 
@@ -237,14 +242,15 @@ void handle_list_del(handle_list_t* hlist, handle_t* handle) {
     mutex_release(&hlist->lock);
 }
 
-void handle_list_delete_all(handle_list_t* hlist) {
+void handle_list_delete_all(struct handle_list* hlist) {
     DEBUG_ASSERT(hlist);
 
     mutex_acquire(&hlist->lock);
     while (!list_is_empty(&hlist->handles)) {
-        handle_t* handle;
+        struct handle* handle;
 
-        handle = list_peek_head_type(&hlist->handles, handle_t, hlist_node);
+        handle =
+                list_peek_head_type(&hlist->handles, struct handle, hlist_node);
         _handle_list_del_locked(hlist, handle);
     }
     mutex_release(&hlist->lock);
@@ -255,9 +261,10 @@ void handle_list_delete_all(handle_list_t* hlist) {
  *  (inclusive) specified by corresponding function parameter. If the last item
  *  is not specified, iterate the whole list.
  */
-static void _hlist_finish_wait_locked(handle_list_t* hlist, handle_t* last) {
-    handle_t* handle;
-    list_for_every_entry(&hlist->handles, handle, handle_t, hlist_node) {
+static void _hlist_finish_wait_locked(struct handle_list* hlist,
+                                      struct handle* last) {
+    struct handle* handle;
+    list_for_every_entry(&hlist->handles, handle, struct handle, hlist_node) {
         _finish_wait_handle(handle);
         if (handle == last)
             break;
@@ -269,8 +276,8 @@ static void _hlist_finish_wait_locked(handle_list_t* hlist, handle_t* last) {
  *  handle until the ready one is found and return it to caller.
  *  Undo prepare op if ready handle is found or en error occured.
  */
-static int _hlist_do_poll_locked(handle_list_t* hlist,
-                                 handle_t** handle_ptr,
+static int _hlist_do_poll_locked(struct handle_list* hlist,
+                                 struct handle** handle_ptr,
                                  uint32_t* event_ptr,
                                  bool prepare) {
     int ret = 0;
@@ -280,9 +287,9 @@ static int _hlist_do_poll_locked(handle_list_t* hlist,
     if (list_is_empty(&hlist->handles))
         return ERR_NOT_FOUND; /* no handles in the list */
 
-    handle_t* next;
-    handle_t* last_prep = NULL;
-    list_for_every_entry(&hlist->handles, next, handle_t, hlist_node) {
+    struct handle* next;
+    struct handle* last_prep = NULL;
+    list_for_every_entry(&hlist->handles, next, struct handle, hlist_node) {
         if (prepare) {
             ret = _prepare_wait_handle(hlist->wait_event, next);
             if (ret)
@@ -309,8 +316,8 @@ static int _hlist_do_poll_locked(handle_list_t* hlist,
 /* fills in the handle that has a pending event. The reference taken by the list
  * is not dropped until the caller has had a chance to process the handle.
  */
-int handle_list_wait(handle_list_t* hlist,
-                     handle_t** handle_ptr,
+int handle_list_wait(struct handle_list* hlist,
+                     struct handle** handle_ptr,
                      uint32_t* event_ptr,
                      lk_time_t timeout) {
     int ret;
@@ -352,7 +359,7 @@ int handle_list_wait(handle_list_t* hlist,
     }
 
     if (ret == 1) {
-        handle_t* handle = *handle_ptr;
+        struct handle* handle = *handle_ptr;
 
         handle_incref(handle);
 

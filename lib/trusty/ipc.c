@@ -55,12 +55,12 @@ static struct list_node ipc_port_list = LIST_INITIAL_VALUE(ipc_port_list);
 
 static struct mutex ipc_port_lock = MUTEX_INITIAL_VALUE(ipc_port_lock);
 
-static uint32_t port_poll(handle_t* handle, uint32_t emask, bool finalize);
-static void port_shutdown(handle_t* handle);
-static void port_handle_destroy(handle_t* handle);
+static uint32_t port_poll(struct handle* handle, uint32_t emask, bool finalize);
+static void port_shutdown(struct handle* handle);
+static void port_handle_destroy(struct handle* handle);
 
-static uint32_t chan_poll(handle_t* handle, uint32_t emask, bool finalize);
-static void chan_handle_destroy(handle_t* handle);
+static uint32_t chan_poll(struct handle* handle, uint32_t emask, bool finalize);
+static void chan_handle_destroy(struct handle* handle);
 
 static ipc_port_t* port_find_locked(const char* path);
 static int port_attach_client(ipc_port_t* port, ipc_chan_t* client);
@@ -78,11 +78,11 @@ static struct handle_ops ipc_chan_handle_ops = {
         .destroy = chan_handle_destroy,
 };
 
-bool ipc_is_channel(handle_t* handle) {
+bool ipc_is_channel(struct handle* handle) {
     return likely(handle->ops == &ipc_chan_handle_ops);
 }
 
-bool ipc_is_port(handle_t* handle) {
+bool ipc_is_port(struct handle* handle) {
     return likely(handle->ops == &ipc_port_handle_ops);
 }
 
@@ -112,7 +112,7 @@ int ipc_port_create(const uuid_t* sid,
                     uint num_recv_bufs,
                     size_t recv_buf_size,
                     uint32_t flags,
-                    handle_t** phandle_ptr) {
+                    struct handle** phandle_ptr) {
     ipc_port_t* new_port;
     int ret = 0;
 
@@ -184,7 +184,7 @@ static void add_to_waiting_for_port_list_locked(ipc_chan_t* client) {
  *
  * Called by controlling handle gets closed.
  */
-static void port_shutdown(handle_t* phandle) {
+static void port_shutdown(struct handle* phandle) {
     bool is_startup_port = false;
     ipc_chan_t* client;
     ASSERT(phandle);
@@ -275,7 +275,7 @@ static void port_shutdown(handle_t* phandle) {
  *
  * Called when controlling handle refcount reaches 0.
  */
-static void port_handle_destroy(handle_t* phandle) {
+static void port_handle_destroy(struct handle* phandle) {
     ASSERT(phandle);
     ASSERT(ipc_is_port(phandle));
 
@@ -298,7 +298,7 @@ static void port_handle_destroy(handle_t* phandle) {
 /*
  *   Make specified port publically available for operation.
  */
-int ipc_port_publish(handle_t* phandle) {
+int ipc_port_publish(struct handle* phandle) {
     int ret = NO_ERROR;
 
     DEBUG_ASSERT(phandle);
@@ -360,7 +360,7 @@ long __SYSCALL sys_port_create(user_addr_t path,
                                uint32_t flags) {
     trusty_app_t* tapp = current_trusty_app();
     uctx_t* ctx = current_uctx();
-    handle_t* port_handle = NULL;
+    struct handle* port_handle = NULL;
     int ret;
     handle_id_t handle_id;
     char tmp_path[IPC_PORT_PATH_MAX];
@@ -416,7 +416,9 @@ static ipc_port_t* port_find_locked(const char* path) {
     return NULL;
 }
 
-static uint32_t port_poll(handle_t* phandle, uint32_t emask, bool finalize) {
+static uint32_t port_poll(struct handle* phandle,
+                          uint32_t emask,
+                          bool finalize) {
     DEBUG_ASSERT(phandle);
     DEBUG_ASSERT(ipc_is_port(phandle));
 
@@ -476,7 +478,7 @@ static inline void chan_del_ref(ipc_chan_t* chan, obj_ref_t* ref) {
 /*
  *   Initialize channel handle
  */
-static inline handle_t* chan_handle_init(ipc_chan_t* chan) {
+static inline struct handle* chan_handle_init(ipc_chan_t* chan) {
     handle_init(&chan->handle, &ipc_chan_handle_ops);
     chan_add_ref(chan, &chan->handle_ref);
     return &chan->handle;
@@ -556,7 +558,7 @@ static void chan_shutdown(ipc_chan_t* chan) {
     }
 }
 
-static void chan_handle_destroy(handle_t* chandle) {
+static void chan_handle_destroy(struct handle* chandle) {
     DEBUG_ASSERT(chandle);
     DEBUG_ASSERT(ipc_is_channel(chandle));
 
@@ -585,7 +587,9 @@ static void chan_handle_destroy(handle_t* chandle) {
 /*
  *  Poll channel state
  */
-static uint32_t chan_poll(handle_t* chandle, uint32_t emask, bool finalize) {
+static uint32_t chan_poll(struct handle* chandle,
+                          uint32_t emask,
+                          bool finalize) {
     DEBUG_ASSERT(chandle);
     DEBUG_ASSERT(ipc_is_channel(chandle));
 
@@ -723,7 +727,7 @@ int ipc_port_connect_async(const uuid_t* cid,
                            const char* path,
                            size_t max_path,
                            uint flags,
-                           handle_t** chandle_ptr) {
+                           struct handle** chandle_ptr) {
     ipc_port_t* port;
     ipc_chan_t* client;
     status_t start_request;
@@ -807,7 +811,7 @@ err_find_ports:
 long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
     trusty_app_t* tapp = current_trusty_app();
     uctx_t* ctx = current_uctx();
-    handle_t* chandle;
+    struct handle* chandle;
     char tmp_path[IPC_PORT_PATH_MAX];
     int ret;
     handle_id_t handle_id;
@@ -873,8 +877,8 @@ long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
 /*
  *  Called by user task to accept incomming connection
  */
-int ipc_port_accept(handle_t* phandle,
-                    handle_t** chandle_ptr,
+int ipc_port_accept(struct handle* phandle,
+                    struct handle** chandle_ptr,
                     const uuid_t** uuid_ptr) {
     ipc_port_t* port;
     ipc_chan_t* server = NULL;
@@ -947,8 +951,8 @@ int ipc_port_accept(handle_t* phandle,
 
 long __SYSCALL sys_accept(uint32_t handle_id, user_addr_t user_uuid) {
     uctx_t* ctx = current_uctx();
-    handle_t* phandle = NULL;
-    handle_t* chandle = NULL;
+    struct handle* phandle = NULL;
+    struct handle* chandle = NULL;
     int ret;
     handle_id_t new_id;
     const uuid_t* peer_uuid_ptr;

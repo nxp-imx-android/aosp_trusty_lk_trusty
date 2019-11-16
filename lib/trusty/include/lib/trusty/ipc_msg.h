@@ -52,7 +52,7 @@ typedef struct ipc_msg_kern {
     iovec_kern_t* iov;
 
     uint32_t num_handles;
-    handle_t** handles;
+    struct handle** handles;
 } ipc_msg_kern_t;
 
 typedef struct ipc_msg_user {
@@ -75,12 +75,12 @@ typedef struct ipc_msg_info_user {
     uint32_t num_handles;
 } ipc_msg_info_user_t;
 
-int ipc_get_msg(handle_t* chandle, ipc_msg_info_t* msg_info);
-int ipc_read_msg(handle_t* chandle,
+int ipc_get_msg(struct handle* chandle, ipc_msg_info_t* msg_info);
+int ipc_read_msg(struct handle* chandle,
                  uint32_t msg_id,
                  uint32_t offset,
                  ipc_msg_kern_t* msg);
-int ipc_put_msg(handle_t* chandle, uint32_t msg_id);
-int ipc_send_msg(handle_t* chandle, ipc_msg_kern_t* msg);
+int ipc_put_msg(struct handle* chandle, uint32_t msg_id);
+int ipc_send_msg(struct handle* chandle, ipc_msg_kern_t* msg);
 
 #endif

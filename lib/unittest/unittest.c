@@ -46,12 +46,12 @@ enum test_message_header {
     TEST_MESSAGE_HEADER_COUNT = 3,
 };
 
-static handle_t* ipc_printf_handle;
+static struct handle* ipc_printf_handle;
 static struct mutex unittest_lock = MUTEX_INITIAL_VALUE(unittest_lock);
-static handle_t* unittest_handle_set;
+static struct handle* unittest_handle_set;
 static thread_t* unittest_thread;
 
-static int send_msg_wait(handle_t* handle, struct ipc_msg_kern* msg) {
+static int send_msg_wait(struct handle* handle, struct ipc_msg_kern* msg) {
     int ret;
     uint32_t event;
 
@@ -141,7 +141,7 @@ int unittest_printf(const char* fmt, ...) {
  */
 static int unittest_loop(void* arg) {
     int ret;
-    handle_t* chandle;
+    struct handle* chandle;
     struct handle_ref evt;
     const uuid_t* dummy_uuid_p;
     struct unittest* test;
@@ -196,7 +196,7 @@ static int unittest_loop(void* arg) {
  */
 static int unittest_add_locked(struct unittest* test) {
     int ret;
-    handle_t* phandle;
+    struct handle* phandle;
 
     ASSERT(is_mutex_held(&unittest_lock));
 

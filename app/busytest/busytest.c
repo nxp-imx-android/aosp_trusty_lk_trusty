@@ -35,7 +35,7 @@
 static struct event busy_test_event =
         EVENT_INITIAL_VALUE(busy_test_event, false, 0);
 
-static void busy_test_connected(handle_t* chandle) {
+static void busy_test_connected(struct handle* chandle) {
     int ret;
     uint32_t event;
 
@@ -58,8 +58,8 @@ err:
 }
 
 static int busy_test_server(void* arg) {
-    handle_t* phandle = arg;
-    handle_t* chandle;
+    struct handle* phandle = arg;
+    struct handle* chandle;
     const uuid_t* dummy_uuid_p;
     uint32_t event;
     int ret;
@@ -86,7 +86,7 @@ static int busy_test_server(void* arg) {
 static void busy_test_init(uint level) {
     int ret;
     thread_t* thread;
-    handle_t* phandle;
+    struct handle* phandle;
 
     const uuid_t uuid = UUID_INITIAL_VALUE(uuid);
     ret = ipc_port_create(&uuid, "com.android.kernel.busy-test", 1, 1,
