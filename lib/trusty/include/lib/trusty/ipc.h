@@ -113,7 +113,7 @@ typedef struct ipc_chan {
     obj_ref_t node_ref;
     struct list_node node;
 
-    ipc_msg_queue_t* msg_queue;
+    struct ipc_msg_queue* msg_queue;
 
     /*
      * TODO: consider changing async connect to preallocate

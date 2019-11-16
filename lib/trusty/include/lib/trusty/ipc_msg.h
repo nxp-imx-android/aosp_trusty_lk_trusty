@@ -32,13 +32,14 @@
 #include <lib/trusty/uctx.h>
 #include <lib/trusty/uio.h>
 
-typedef struct ipc_msg_queue ipc_msg_queue_t;
+struct ipc_msg_queue;
+int ipc_msg_queue_create(uint num_items,
+                         size_t item_sz,
+                         struct ipc_msg_queue** mq);
+void ipc_msg_queue_destroy(struct ipc_msg_queue* mq);
 
-int ipc_msg_queue_create(uint num_items, size_t item_sz, ipc_msg_queue_t** mq);
-void ipc_msg_queue_destroy(ipc_msg_queue_t* mq);
-
-bool ipc_msg_queue_is_empty(ipc_msg_queue_t* mq);
-bool ipc_msg_queue_is_full(ipc_msg_queue_t* mq);
+bool ipc_msg_queue_is_empty(struct ipc_msg_queue* mq);
+bool ipc_msg_queue_is_full(struct ipc_msg_queue* mq);
 
 /********** these structure definitions shared with userspace **********/
 
@@ -47,40 +48,40 @@ bool ipc_msg_queue_is_full(ipc_msg_queue_t* mq);
  */
 #define MAX_MSG_HANDLES 8
 
-typedef struct ipc_msg_kern {
+struct ipc_msg_kern {
     uint32_t num_iov;
     iovec_kern_t* iov;
 
     uint32_t num_handles;
     struct handle** handles;
-} ipc_msg_kern_t;
+};
 
-typedef struct ipc_msg_user {
+struct ipc_msg_user {
     uint32_t num_iov;
     user_addr_t iov;
 
     uint32_t num_handles;
     user_addr_t handles; /* points to array of handle ids */
-} ipc_msg_user_t;
+};
 
-typedef struct ipc_msg_info {
+struct ipc_msg_info {
     size_t len;
     uint32_t id;
     uint32_t num_handles;
-} ipc_msg_info_t;
+};
 
-typedef struct ipc_msg_info_user {
+struct ipc_msg_info_user {
     user_size_t len;
     uint32_t id;
     uint32_t num_handles;
-} ipc_msg_info_user_t;
+};
 
-int ipc_get_msg(struct handle* chandle, ipc_msg_info_t* msg_info);
+int ipc_get_msg(struct handle* chandle, struct ipc_msg_info* msg_info);
 int ipc_read_msg(struct handle* chandle,
                  uint32_t msg_id,
                  uint32_t offset,
-                 ipc_msg_kern_t* msg);
+                 struct ipc_msg_kern* msg);
 int ipc_put_msg(struct handle* chandle, uint32_t msg_id);
-int ipc_send_msg(struct handle* chandle, ipc_msg_kern_t* msg);
+int ipc_send_msg(struct handle* chandle, struct ipc_msg_kern* msg);
 
 #endif

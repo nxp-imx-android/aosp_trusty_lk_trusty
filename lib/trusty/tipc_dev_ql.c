@@ -429,12 +429,13 @@ static long dev_send(struct ql_tipc_dev* dev,
     if (!ept || !ept->chan)
         return set_status(dev, opcode, ERR_INVALID_ARGS, 0);
 
-    ipc_msg_kern_t msg = {.iov =
-                                  (iovec_kern_t[]){
-                                          [0] = {.base = ns_data, .len = ns_sz},
-                                  },
-                          .num_iov = 1,
-                          .num_handles = 0};
+    struct ipc_msg_kern msg = {
+            .iov =
+                    (iovec_kern_t[]){
+                            [0] = {.base = ns_data, .len = ns_sz},
+                    },
+            .num_iov = 1,
+            .num_handles = 0};
 
     return set_status(dev, opcode, ipc_send_msg(ept->chan, &msg), 0);
 }
@@ -446,12 +447,12 @@ static long dev_recv(struct ql_tipc_dev* dev, uint32_t target) {
     if (!ept || !ept->chan)
         return set_status(dev, opcode, ERR_INVALID_ARGS, 0);
 
-    ipc_msg_info_t mi;
+    struct ipc_msg_info mi;
     rc = ipc_get_msg(ept->chan, &mi);
     if (rc < 0)
         return set_status(dev, opcode, rc, 0);
 
-    ipc_msg_kern_t msg = {
+    struct ipc_msg_kern msg = {
             .iov =
                     (iovec_kern_t[]){
                             [0] = {.base = dev->ns_va +

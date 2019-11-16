@@ -433,7 +433,7 @@ static int handle_chan_msg(struct tipc_dev* dev,
                            size_t len) {
     struct tipc_ept* ept;
     int ret = ERR_NOT_FOUND;
-    ipc_msg_kern_t msg = {
+    struct ipc_msg_kern msg = {
             .iov =
                     (iovec_kern_t[]){
                             [0] =
@@ -578,7 +578,7 @@ static int tipc_rx_thread_func(void* arg) {
 
 typedef struct data_cb_ctx {
     struct handle* chan;
-    ipc_msg_info_t msg_inf;
+    struct ipc_msg_info msg_inf;
 } data_cb_ctx_t;
 
 static int tx_data_cb(uint8_t* buf, size_t buf_len, void* ctx) {
@@ -589,7 +589,7 @@ static int tx_data_cb(uint8_t* buf, size_t buf_len, void* ctx) {
     DEBUG_ASSERT(cb_ctx);
 
     iovec_kern_t dst_iov = {buf, buf_len};
-    ipc_msg_kern_t dst_kern_msg = {
+    struct ipc_msg_kern dst_kern_msg = {
             .iov = &dst_iov,
             .num_iov = 1,
             .num_handles = 0,

@@ -64,14 +64,14 @@ enum {
     MSG_ITEM_STATE_READ = 2,
 };
 
-typedef struct msg_item {
+struct msg_item {
     uint8_t id;
     uint8_t state;
     uint num_handles;
     struct handle* handles[MAX_MSG_HANDLES];
     size_t len;
     struct list_node node;
-} msg_item_t;
+};
 
 struct ipc_msg_queue {
     struct list_node free_list;
@@ -88,7 +88,7 @@ struct ipc_msg_queue {
      * eventually move to a separate area that can
      * be mapped into the process directly.
      */
-    msg_item_t items[0];
+    struct msg_item items[0];
 };
 
 /**
@@ -104,12 +104,14 @@ struct ipc_msg_queue {
  *
  * @return  Returns NO_ERROR on success, ERR_NO_MEMORY on error.
  */
-int ipc_msg_queue_create(uint num_items, size_t item_sz, ipc_msg_queue_t** mq) {
-    ipc_msg_queue_t* tmp_mq;
+int ipc_msg_queue_create(uint num_items,
+                         size_t item_sz,
+                         struct ipc_msg_queue** mq) {
+    struct ipc_msg_queue* tmp_mq;
     int ret;
 
-    tmp_mq = calloc(1,
-                    (sizeof(ipc_msg_queue_t) + num_items * sizeof(msg_item_t)));
+    tmp_mq = calloc(1, (sizeof(struct ipc_msg_queue) +
+                        num_items * sizeof(struct msg_item)));
     if (!tmp_mq) {
         dprintf(CRITICAL, "cannot allocate memory for message queue\n");
         return ERR_NO_MEMORY;
@@ -140,7 +142,7 @@ err_alloc_buf:
     return ret;
 }
 
-void ipc_msg_queue_destroy(ipc_msg_queue_t* mq) {
+void ipc_msg_queue_destroy(struct ipc_msg_queue* mq) {
     /* release handles if any */
     for (uint i = 0; i < mq->num_items; i++) {
         struct msg_item* item = &mq->items[i];
@@ -154,20 +156,21 @@ void ipc_msg_queue_destroy(ipc_msg_queue_t* mq) {
     free(mq);
 }
 
-bool ipc_msg_queue_is_empty(ipc_msg_queue_t* mq) {
+bool ipc_msg_queue_is_empty(struct ipc_msg_queue* mq) {
     return list_is_empty(&mq->filled_list);
 }
 
-bool ipc_msg_queue_is_full(ipc_msg_queue_t* mq) {
+bool ipc_msg_queue_is_full(struct ipc_msg_queue* mq) {
     return list_is_empty(&mq->free_list);
 }
 
-static inline uint8_t* msg_queue_get_buf(ipc_msg_queue_t* mq,
-                                         msg_item_t* item) {
+static inline uint8_t* msg_queue_get_buf(struct ipc_msg_queue* mq,
+                                         struct msg_item* item) {
     return mq->buf + item->id * mq->item_sz;
 }
 
-static inline msg_item_t* msg_queue_get_item(ipc_msg_queue_t* mq, uint32_t id) {
+static inline struct msg_item* msg_queue_get_item(struct ipc_msg_queue* mq,
+                                                  uint32_t id) {
     return id < mq->num_items ? &mq->items[id] : NULL;
 }
 
@@ -298,7 +301,7 @@ static int msg_write_locked(ipc_chan_t* chan,
                             const void* msg,
                             struct uctx* uctx) {
     ssize_t ret;
-    msg_item_t* item;
+    struct msg_item* item;
     ipc_chan_t* peer = chan->peer;
 
     if (peer->state != IPC_CHAN_STATE_CONNECTED) {
@@ -308,9 +311,9 @@ static int msg_write_locked(ipc_chan_t* chan,
             return ERR_NOT_READY;
     }
 
-    ipc_msg_queue_t* mq = peer->msg_queue;
+    struct ipc_msg_queue* mq = peer->msg_queue;
 
-    item = list_peek_head_type(&mq->free_list, msg_item_t, node);
+    item = list_peek_head_type(&mq->free_list, struct msg_item, node);
     if (item == NULL) {
         peer->aux_state |= IPC_CHAN_AUX_STATE_PEER_SEND_BLOCKED;
         return ERR_NOT_ENOUGH_BUFFER;
@@ -341,10 +344,10 @@ static int msg_write_locked(ipc_chan_t* chan,
  * Check if specified message id is valid, message is in read state
  * and provided offset is within message bounds.
  */
-static msg_item_t* msg_check_read_item(ipc_msg_queue_t* mq,
-                                       uint32_t msg_id,
-                                       uint32_t offset) {
-    msg_item_t* item;
+static struct msg_item* msg_check_read_item(struct ipc_msg_queue* mq,
+                                            uint32_t msg_id,
+                                            uint32_t offset) {
+    struct msg_item* item;
 
     item = msg_queue_get_item(mq, msg_id);
     if (!item) {
@@ -372,12 +375,12 @@ static msg_item_t* msg_check_read_item(ipc_msg_queue_t* mq,
  * The message must have been previously moved to the read list (and thus
  * put into READ state).
  */
-static int kern_msg_read_locked(ipc_msg_queue_t* mq,
+static int kern_msg_read_locked(struct ipc_msg_queue* mq,
                                 int32_t msg_id,
                                 uint32_t offset,
-                                ipc_msg_kern_t* kmsg) {
+                                struct ipc_msg_kern* kmsg) {
     int ret;
-    msg_item_t* item;
+    struct msg_item* item;
 
     item = msg_check_read_item(mq, msg_id, offset);
     if (!item)
@@ -406,14 +409,14 @@ static int kern_msg_read_locked(ipc_msg_queue_t* mq,
  * provided by caller. The message must have been previously moved to the read
  * list (and thus put into READ state).
  */
-static int user_msg_read_locked(ipc_msg_queue_t* mq,
+static int user_msg_read_locked(struct ipc_msg_queue* mq,
                                 uint32_t msg_id,
                                 uint32_t offset,
-                                ipc_msg_user_t* umsg,
+                                struct ipc_msg_user* umsg,
                                 struct handle** ph,
                                 uint* phcnt) {
     int ret;
-    msg_item_t* item;
+    struct msg_item* item;
 
     item = msg_check_read_item(mq, msg_id, offset);
     if (!item)
@@ -442,11 +445,11 @@ static int user_msg_read_locked(ipc_msg_queue_t* mq,
  * followed by calling msg_get_filled_locked call to actually move message to
  * readable list.
  */
-static int msg_peek_next_filled_locked(ipc_msg_queue_t* mq,
-                                       ipc_msg_info_t* info) {
-    msg_item_t* item;
+static int msg_peek_next_filled_locked(struct ipc_msg_queue* mq,
+                                       struct ipc_msg_info* info) {
+    struct msg_item* item;
 
-    item = list_peek_head_type(&mq->filled_list, msg_item_t, node);
+    item = list_peek_head_type(&mq->filled_list, struct msg_item, node);
     if (!item)
         return ERR_NO_MSG;
 
@@ -460,10 +463,10 @@ static int msg_peek_next_filled_locked(ipc_msg_queue_t* mq,
 /*
  *  Is called to move top of the queue item to readable list.
  */
-static void msg_get_filled_locked(ipc_msg_queue_t* mq) {
-    msg_item_t* item;
+static void msg_get_filled_locked(struct ipc_msg_queue* mq) {
+    struct msg_item* item;
 
-    item = list_peek_head_type(&mq->filled_list, msg_item_t, node);
+    item = list_peek_head_type(&mq->filled_list, struct msg_item, node);
     DEBUG_ASSERT(item);
 
     list_delete(&item->node);
@@ -480,8 +483,8 @@ static int msg_put_read_locked(ipc_chan_t* chan,
     DEBUG_ASSERT(ph);
     DEBUG_ASSERT(phcnt);
 
-    ipc_msg_queue_t* mq = chan->msg_queue;
-    msg_item_t* item = msg_queue_get_item(mq, msg_id);
+    struct ipc_msg_queue* mq = chan->msg_queue;
+    struct msg_item* item = msg_queue_get_item(mq, msg_id);
 
     if (!item || item->state != MSG_ITEM_STATE_READ)
         return ERR_INVALID_ARGS;
@@ -505,12 +508,12 @@ static int msg_put_read_locked(ipc_chan_t* chan,
 
 long __SYSCALL sys_send_msg(uint32_t handle_id, user_addr_t user_msg) {
     struct handle* chandle;
-    ipc_msg_user_t tmp_msg;
+    struct ipc_msg_user tmp_msg;
     int ret;
     struct uctx* uctx = current_uctx();
 
     /* copy message descriptor from user space */
-    ret = copy_from_user(&tmp_msg, user_msg, sizeof(ipc_msg_user_t));
+    ret = copy_from_user(&tmp_msg, user_msg, sizeof(struct ipc_msg_user));
     if (unlikely(ret != NO_ERROR))
         return (long)ret;
 
@@ -534,7 +537,7 @@ long __SYSCALL sys_send_msg(uint32_t handle_id, user_addr_t user_msg) {
     return (long)ret;
 }
 
-int ipc_send_msg(struct handle* chandle, ipc_msg_kern_t* msg) {
+int ipc_send_msg(struct handle* chandle, struct ipc_msg_kern* msg) {
     int ret;
 
     if (!msg)
@@ -555,7 +558,7 @@ int ipc_send_msg(struct handle* chandle, ipc_msg_kern_t* msg) {
 
 long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
     struct handle* chandle;
-    ipc_msg_info_t mi_kern;
+    struct ipc_msg_info mi_kern;
     int ret;
 
     /* grab handle */
@@ -572,7 +575,7 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
         ret = msg_peek_next_filled_locked(chan->msg_queue, &mi_kern);
         if (likely(ret == NO_ERROR)) {
             /* copy it to user space */
-            ipc_msg_info_user_t mi_user;
+            struct ipc_msg_info_user mi_user;
 
             mi_user.len = (user_size_t)mi_kern.len;
             mi_user.id = mi_kern.id;
@@ -589,7 +592,7 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
     return (long)ret;
 }
 
-int ipc_get_msg(struct handle* chandle, ipc_msg_info_t* msg_info) {
+int ipc_get_msg(struct handle* chandle, struct ipc_msg_info* msg_info) {
     int ret;
 
     /* check if channel handle */
@@ -712,12 +715,12 @@ long __SYSCALL sys_read_msg(uint32_t handle_id,
                             uint32_t offset,
                             user_addr_t user_msg) {
     struct handle* chandle;
-    ipc_msg_user_t msg;
+    struct ipc_msg_user msg;
     int ret;
     struct uctx* uctx = current_uctx();
 
     /* get msg descriptor from user space */
-    ret = copy_from_user(&msg, user_msg, sizeof(ipc_msg_user_t));
+    ret = copy_from_user(&msg, user_msg, sizeof(struct ipc_msg_user));
     if (unlikely(ret != NO_ERROR))
         return (long)ret;
 
@@ -758,7 +761,7 @@ long __SYSCALL sys_read_msg(uint32_t handle_id,
 int ipc_read_msg(struct handle* chandle,
                  uint32_t msg_id,
                  uint32_t offset,
-                 ipc_msg_kern_t* msg) {
+                 struct ipc_msg_kern* msg) {
     int ret;
 
     if (!msg)

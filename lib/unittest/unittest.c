@@ -95,7 +95,7 @@ static int send_msg_wait(struct handle* handle, struct ipc_msg_kern* msg) {
 int unittest_printf(const char* fmt, ...) {
     char buf[256];
     iovec_kern_t tx_iov = {buf, 1};
-    ipc_msg_kern_t tx_msg = {1, &tx_iov, 0, NULL};
+    struct ipc_msg_kern tx_msg = {1, &tx_iov, 0, NULL};
     va_list ap;
     int ret;
     int slen;
@@ -166,7 +166,7 @@ static int unittest_loop(void* arg) {
                         tx_buffer,
                         sizeof(tx_buffer),
                 };
-                ipc_msg_kern_t tx_msg = {1, &tx_iov, 0, NULL};
+                struct ipc_msg_kern tx_msg = {1, &tx_iov, 0, NULL};
 
                 /* then run unittest test */
                 ipc_printf_handle = chandle;
