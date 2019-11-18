@@ -27,24 +27,24 @@
 #include <arch/ops.h>
 #include <compiler.h>
 
-typedef struct refcount {
+struct refcount {
     volatile int cnt;
-} refcount_t;
+};
 
-typedef void (*refcount_destroy_func)(refcount_t* ref);
+typedef void (*refcount_destroy_func)(struct refcount* ref);
 
-static inline __ALWAYS_INLINE void refcount_init(refcount_t* ref) {
+static inline __ALWAYS_INLINE void refcount_init(struct refcount* ref) {
     /* TODO: silly, but don't have atomic_set, or a clean
      * write barrier */
     atomic_and(&ref->cnt, 0);
     atomic_add(&ref->cnt, 1);
 }
 
-static inline __ALWAYS_INLINE void refcount_inc(refcount_t* ref) {
+static inline __ALWAYS_INLINE void refcount_inc(struct refcount* ref) {
     atomic_add(&ref->cnt, 1);
 }
 
-static inline __ALWAYS_INLINE void refcount_dec(refcount_t* ref,
+static inline __ALWAYS_INLINE void refcount_dec(struct refcount* ref,
                                                 refcount_destroy_func destroy) {
     /* decerementing from 1? destroy */
     if (atomic_add(&ref->cnt, -1) == 1)

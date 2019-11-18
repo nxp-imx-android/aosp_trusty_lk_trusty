@@ -32,7 +32,7 @@
 #include <kernel/event.h>
 #include <kernel/mutex.h>
 
-#include <refcount.h>
+#include <lib/trusty/refcount.h>
 
 /* bitmask */
 enum {
@@ -51,7 +51,7 @@ enum handle_flags {
 struct handle_ops;
 
 struct handle {
-    refcount_t refcnt;
+    struct refcount refcnt;
     uint32_t flags;
 
     struct handle_ops* ops;

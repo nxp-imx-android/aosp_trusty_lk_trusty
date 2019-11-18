@@ -57,7 +57,7 @@ void handle_init_etc(struct handle* handle,
     list_initialize(&handle->waiter_list);
 }
 
-static void __handle_destroy_ref(refcount_t* ref) {
+static void __handle_destroy_ref(struct refcount* ref) {
     DEBUG_ASSERT(ref);
 
     struct handle* handle = containerof(ref, struct handle, refcnt);
