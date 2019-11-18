@@ -221,6 +221,7 @@ static void sm_return_and_wait_for_next_stdcall(long ret, int cpu) {
             ret = sm_queue_stdcall(&args);
         }
     } while (ret);
+    sm_intc_enable_interrupts();
 }
 
 static void sm_irq_return_ns(void) {
