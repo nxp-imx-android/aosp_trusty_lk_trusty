@@ -33,11 +33,18 @@ endif
 ARM_CPU := armv8-a
 WITH_SMP := 1
 
+ifneq (2,$(GIC_VERSION))
+ARM_MERGE_FIQ_IRQ := true
+endif
+
 MEMBASE ?= $(KERNEL_BASE)
 MEMSIZE ?= 1
 
 GLOBAL_INCLUDES += \
 	$(LOCAL_DIR)/include
+
+MODULE_DEFINES += \
+	GIC_VERSION=$(GIC_VERSION) \
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/debug.c \

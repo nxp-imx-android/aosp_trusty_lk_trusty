@@ -25,19 +25,31 @@
 
 #define MAX_INT 1020
 #if ARCH_ARM64
-#define GIC_BASE_VIRT 0xffffffffffff0000
+#define GIC_BASE_VIRT 0xffffffffffe00000
 #else
-#define GIC_BASE_VIRT 0xffff0000
+#define GIC_BASE_VIRT 0xffe00000
 #endif
 #define GICBASE(b) (GIC_BASE_VIRT)
 
+#if GIC_VERSION <= 2
 #define GICC_SIZE (0x1000)
 #define GICD_SIZE (0x1000)
+#else
+#define GICC_SIZE (0x10000)
+#define GICD_SIZE (0x10000)
+#if GIC_VERSION < 4
+#define GICR_SIZE (0x20000 * 8)
+#else
+#define GICR_SIZE (0x30000 * 8)
+#endif
+#endif
 
 #define GICC_OFFSET (0x0000)
-#define GICD_OFFSET (GICC_SIZE)
+#define GICD_OFFSET (GICC_OFFSET + GICC_SIZE)
+#define GICR_OFFSET (GICD_OFFSET + GICD_SIZE)
 
 #define GICC_BASE_VIRT (GIC_BASE_VIRT + GICC_OFFSET)
 #define GICD_BASE_VIRT (GIC_BASE_VIRT + GICD_OFFSET)
+#define GICR_BASE_VIRT (GIC_BASE_VIRT + GICR_OFFSET)
 
 #endif

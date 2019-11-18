@@ -88,8 +88,8 @@ static void generic_arm64_map_regs(const char* name,
     status_t ret;
     void* vaddrp = (void*)vaddr;
 
-    ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "gic", GICC_SIZE, &vaddrp,
-                             0, paddr, VMM_FLAG_VALLOC_SPECIFIC,
+    ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "gic", size, &vaddrp, 0,
+                             paddr, VMM_FLAG_VALLOC_SPECIFIC,
                              ARCH_MMU_FLAG_UNCACHED_DEVICE);
     if (ret) {
         dprintf(CRITICAL, "%s: failed %d\n", __func__, ret);
@@ -107,11 +107,15 @@ static paddr_t generic_arm64_get_reg_base(int reg) {
 static void platform_after_vm_init(uint level) {
     paddr_t gicc = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICC);
     paddr_t gicd = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICD);
+    paddr_t gicr = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICR);
 
-    dprintf(INFO, "gicc 0x%lx, gicd 0x%lx\n", gicc, gicd);
+    dprintf(INFO, "gicc 0x%lx, gicd 0x%lx, gicr 0x%lx\n", gicc, gicd, gicr);
 
     generic_arm64_map_regs("gicc", GICC_BASE_VIRT, gicc, GICC_SIZE);
     generic_arm64_map_regs("gicd", GICD_BASE_VIRT, gicd, GICD_SIZE);
+#if GIC_VERSION > 2
+    generic_arm64_map_regs("gicr", GICR_BASE_VIRT, gicr, GICR_SIZE);
+#endif
 
     /* initialize the interrupt controller */
     arm_gic_init();
