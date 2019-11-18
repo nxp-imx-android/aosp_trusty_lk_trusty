@@ -181,7 +181,7 @@ static int check_channel(struct handle* chandle) {
     if (unlikely(!ipc_is_channel(chandle)))
         return ERR_INVALID_ARGS;
 
-    ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+    struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
 
     if (unlikely(!chan->peer))
         return ERR_NOT_READY;
@@ -297,12 +297,12 @@ err_get:
     return rc;
 }
 
-static int msg_write_locked(ipc_chan_t* chan,
+static int msg_write_locked(struct ipc_chan* chan,
                             const void* msg,
                             struct uctx* uctx) {
     ssize_t ret;
     struct msg_item* item;
-    ipc_chan_t* peer = chan->peer;
+    struct ipc_chan* peer = chan->peer;
 
     if (peer->state != IPC_CHAN_STATE_CONNECTED) {
         if (likely(peer->state == IPC_CHAN_STATE_DISCONNECTING))
@@ -474,7 +474,7 @@ static void msg_get_filled_locked(struct ipc_msg_queue* mq) {
     item->state = MSG_ITEM_STATE_READ;
 }
 
-static int msg_put_read_locked(ipc_chan_t* chan,
+static int msg_put_read_locked(struct ipc_chan* chan,
                                uint32_t msg_id,
                                struct handle** ph,
                                uint* phcnt) {
@@ -524,7 +524,7 @@ long __SYSCALL sys_send_msg(uint32_t handle_id, user_addr_t user_msg) {
 
     ret = check_channel(chandle);
     if (likely(ret == NO_ERROR)) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         mutex_acquire(&chan->peer->mlock);
         ret = msg_write_locked(chan, &tmp_msg, uctx);
         mutex_release(&chan->peer->mlock);
@@ -545,7 +545,7 @@ int ipc_send_msg(struct handle* chandle, struct ipc_msg_kern* msg) {
 
     ret = check_channel(chandle);
     if (likely(ret == NO_ERROR)) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         mutex_acquire(&chan->peer->mlock);
         ret = msg_write_locked(chan, msg, NULL);
         mutex_release(&chan->peer->mlock);
@@ -569,7 +569,7 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
     /* check if channel handle is a valid one */
     ret = check_channel(chandle);
     if (likely(ret == NO_ERROR)) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         mutex_acquire(&chan->mlock);
         /* peek next filled message */
         ret = msg_peek_next_filled_locked(chan->msg_queue, &mi_kern);
@@ -598,7 +598,7 @@ int ipc_get_msg(struct handle* chandle, struct ipc_msg_info* msg_info) {
     /* check if channel handle */
     ret = check_channel(chandle);
     if (likely(ret == NO_ERROR)) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         mutex_acquire(&chan->mlock);
         /* peek next filled message */
         ret = msg_peek_next_filled_locked(chan->msg_queue, msg_info);
@@ -637,7 +637,7 @@ int ipc_put_msg(struct handle* chandle, uint32_t msg_id) {
     struct handle* h[MAX_MSG_HANDLES];
     uint hcnt = 0;
     bool need_notify = false;
-    ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+    struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
     /* retire message */
     mutex_acquire(&chan->mlock);
     ret = msg_put_read_locked(chan, msg_id, h, &hcnt);
@@ -732,7 +732,7 @@ long __SYSCALL sys_read_msg(uint32_t handle_id,
     /* check if channel handle is a valid one */
     ret = check_channel(chandle);
     if (ret == NO_ERROR) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         struct handle* h[MAX_MSG_HANDLES];
         uint hcnt = 0;
 
@@ -769,7 +769,7 @@ int ipc_read_msg(struct handle* chandle,
 
     ret = check_channel(chandle);
     if (ret == NO_ERROR) {
-        ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+        struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
         mutex_acquire(&chan->mlock);
         ret = kern_msg_read_locked(chan->msg_queue, msg_id, offset, msg);
         mutex_release(&chan->mlock);

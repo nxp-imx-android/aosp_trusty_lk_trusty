@@ -49,7 +49,7 @@ enum {
 
 #define IPC_PORT_PATH_MAX 64
 
-typedef struct ipc_port {
+struct ipc_port {
     /* e.g. /service/sys/crypto, /service/usr/drm/widevine */
     char path[IPC_PORT_PATH_MAX];
     const struct uuid* uuid;
@@ -65,7 +65,7 @@ typedef struct ipc_port {
     struct list_node pending_list;
 
     struct list_node node;
-} ipc_port_t;
+};
 
 enum {
     IPC_CHAN_STATE_ACCEPTING = 1,
@@ -86,7 +86,7 @@ enum {
 #define IPC_CHAN_MAX_BUFS 32
 #define IPC_CHAN_MAX_BUF_SIZE 4096
 
-typedef struct ipc_chan {
+struct ipc_chan {
     obj_t refobj;
     spin_lock_t ref_slock;
     obj_ref_t peer_ref;
@@ -123,7 +123,7 @@ typedef struct ipc_chan {
     const char* path;
 
     struct mutex mlock;
-} ipc_chan_t;
+};
 
 /* called by server to create port */
 int ipc_port_create(const uuid_t* sid,

@@ -62,11 +62,11 @@ static void port_handle_destroy(struct handle* handle);
 static uint32_t chan_poll(struct handle* handle, uint32_t emask, bool finalize);
 static void chan_handle_destroy(struct handle* handle);
 
-static ipc_port_t* port_find_locked(const char* path);
-static int port_attach_client(ipc_port_t* port, ipc_chan_t* client);
-static void chan_shutdown(ipc_chan_t* chan);
-static void chan_add_ref(ipc_chan_t* conn, obj_ref_t* ref);
-static void chan_del_ref(ipc_chan_t* conn, obj_ref_t* ref);
+static struct ipc_port* port_find_locked(const char* path);
+static int port_attach_client(struct ipc_port* port, struct ipc_chan* client);
+static void chan_shutdown(struct ipc_chan* chan);
+static void chan_add_ref(struct ipc_chan* conn, obj_ref_t* ref);
+static void chan_del_ref(struct ipc_chan* conn, obj_ref_t* ref);
 
 static struct handle_ops ipc_port_handle_ops = {
         .poll = port_poll,
@@ -88,10 +88,11 @@ bool ipc_is_port(struct handle* handle) {
 
 bool ipc_connection_waiting_for_port(const char* path, uint32_t flags) {
     bool found = false;
-    ipc_chan_t* chan;
+    struct ipc_chan* chan;
 
     mutex_acquire(&ipc_port_lock);
-    list_for_every_entry(&waiting_for_port_chan_list, chan, ipc_chan_t, node) {
+    list_for_every_entry(&waiting_for_port_chan_list, chan, struct ipc_chan,
+                         node) {
         if (!strncmp(path, chan->path, IPC_PORT_PATH_MAX) &&
             ipc_port_check_access(flags, chan->uuid) == NO_ERROR) {
             found = true;
@@ -113,7 +114,7 @@ int ipc_port_create(const uuid_t* sid,
                     size_t recv_buf_size,
                     uint32_t flags,
                     struct handle** phandle_ptr) {
-    ipc_port_t* new_port;
+    struct ipc_port* new_port;
     int ret = 0;
 
     LTRACEF("creating port (%s)\n", path);
@@ -131,7 +132,7 @@ int ipc_port_create(const uuid_t* sid,
         return ERR_INVALID_ARGS;
     }
 
-    new_port = calloc(1, sizeof(ipc_port_t));
+    new_port = calloc(1, sizeof(struct ipc_port));
     if (!new_port) {
         LTRACEF("cannot allocate memory for port\n");
         return ERR_NO_MEMORY;
@@ -171,7 +172,7 @@ err_copy_path:
     return ret;
 }
 
-static void add_to_waiting_for_port_list_locked(ipc_chan_t* client) {
+static void add_to_waiting_for_port_list_locked(struct ipc_chan* client) {
     DEBUG_ASSERT(client);
     DEBUG_ASSERT(!list_in_list(&client->node));
 
@@ -186,11 +187,11 @@ static void add_to_waiting_for_port_list_locked(ipc_chan_t* client) {
  */
 static void port_shutdown(struct handle* phandle) {
     bool is_startup_port = false;
-    ipc_chan_t* client;
+    struct ipc_chan* client;
     ASSERT(phandle);
     ASSERT(ipc_is_port(phandle));
 
-    ipc_port_t* port = containerof(phandle, ipc_port_t, handle);
+    struct ipc_port* port = containerof(phandle, struct ipc_port, handle);
 
     LTRACEF("shutting down port %p\n", port);
 
@@ -204,9 +205,9 @@ static void port_shutdown(struct handle* phandle) {
     is_startup_port = trusty_app_is_startup_port(port->path);
 
     /* tear down pending connections */
-    ipc_chan_t *server, *temp;
-    list_for_every_entry_safe(&port->pending_list, server, temp, ipc_chan_t,
-                              node) {
+    struct ipc_chan *server, *temp;
+    list_for_every_entry_safe(&port->pending_list, server, temp,
+                              struct ipc_chan, node) {
         /* Check if the port being shutdown has been registered by an
          * application. If so, detach the client connection and put it
          * back in the waiting for port list
@@ -282,7 +283,7 @@ static void port_handle_destroy(struct handle* phandle) {
     /* invoke port shutdown first */
     port_shutdown(phandle);
 
-    ipc_port_t* port = containerof(phandle, ipc_port_t, handle);
+    struct ipc_port* port = containerof(phandle, struct ipc_port, handle);
 
     /* pending list should be empty and
        node should not be in the list
@@ -304,7 +305,7 @@ int ipc_port_publish(struct handle* phandle) {
     DEBUG_ASSERT(phandle);
     DEBUG_ASSERT(ipc_is_port(phandle));
 
-    ipc_port_t* port = containerof(phandle, ipc_port_t, handle);
+    struct ipc_port* port = containerof(phandle, struct ipc_port, handle);
     DEBUG_ASSERT(!list_in_list(&port->node));
 
     /* Check for duplicates */
@@ -317,10 +318,10 @@ int ipc_port_publish(struct handle* phandle) {
         list_add_tail(&ipc_port_list, &port->node);
 
         /* go through pending connection list and pick those we can handle */
-        ipc_chan_t *client, *temp;
+        struct ipc_chan *client, *temp;
         obj_ref_t tmp_client_ref = OBJ_REF_INITIAL_VALUE(tmp_client_ref);
         list_for_every_entry_safe(&waiting_for_port_chan_list, client, temp,
-                                  ipc_chan_t, node) {
+                                  struct ipc_chan, node) {
             if (strcmp(client->path, port->path))
                 continue;
 
@@ -405,11 +406,11 @@ err_port_create:
 /*
  *  Look up and port with given name (ipc_port_lock must be held)
  */
-static ipc_port_t* port_find_locked(const char* path) {
-    ipc_port_t* port;
+static struct ipc_port* port_find_locked(const char* path) {
+    struct ipc_port* port;
 
     DEBUG_ASSERT(is_mutex_held(&ipc_port_lock));
-    list_for_every_entry(&ipc_port_list, port, ipc_port_t, node) {
+    list_for_every_entry(&ipc_port_list, port, struct ipc_port, node) {
         if (!strcmp(path, port->path))
             return port;
     }
@@ -422,7 +423,7 @@ static uint32_t port_poll(struct handle* phandle,
     DEBUG_ASSERT(phandle);
     DEBUG_ASSERT(ipc_is_port(phandle));
 
-    ipc_port_t* port = containerof(phandle, ipc_port_t, handle);
+    struct ipc_port* port = containerof(phandle, struct ipc_port, handle);
     uint32_t events = 0;
 
     if (port->state != IPC_PORT_STATE_LISTENING)
@@ -438,7 +439,7 @@ static uint32_t port_poll(struct handle* phandle,
  *  Channel ref counting
  */
 static inline void __chan_destroy_refobj(obj_t* ref) {
-    ipc_chan_t* chan = containerof(ref, ipc_chan_t, refobj);
+    struct ipc_chan* chan = containerof(ref, struct ipc_chan, refobj);
 
     /* should not point to peer */
     ASSERT(chan->peer == NULL);
@@ -456,7 +457,7 @@ static inline void __chan_destroy_refobj(obj_t* ref) {
     free(chan);
 }
 
-static inline void chan_add_ref(ipc_chan_t* chan, obj_ref_t* ref) {
+static inline void chan_add_ref(struct ipc_chan* chan, obj_ref_t* ref) {
     spin_lock_saved_state_t state;
 
     spin_lock_save(&chan->ref_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
@@ -464,7 +465,7 @@ static inline void chan_add_ref(ipc_chan_t* chan, obj_ref_t* ref) {
     spin_unlock_restore(&chan->ref_slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
 }
 
-static inline void chan_del_ref(ipc_chan_t* chan, obj_ref_t* ref) {
+static inline void chan_del_ref(struct ipc_chan* chan, obj_ref_t* ref) {
     spin_lock_saved_state_t state;
 
     spin_lock_save(&chan->ref_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
@@ -478,7 +479,7 @@ static inline void chan_del_ref(ipc_chan_t* chan, obj_ref_t* ref) {
 /*
  *   Initialize channel handle
  */
-static inline struct handle* chan_handle_init(ipc_chan_t* chan) {
+static inline struct handle* chan_handle_init(struct ipc_chan* chan) {
     handle_init(&chan->handle, &ipc_chan_handle_ops);
     chan_add_ref(chan, &chan->handle_ref);
     return &chan->handle;
@@ -487,11 +488,11 @@ static inline struct handle* chan_handle_init(ipc_chan_t* chan) {
 /*
  *  Allocate and initialize new channel.
  */
-static ipc_chan_t* chan_alloc(uint32_t flags, const uuid_t* uuid) {
-    ipc_chan_t* chan;
+static struct ipc_chan* chan_alloc(uint32_t flags, const uuid_t* uuid) {
+    struct ipc_chan* chan;
     obj_ref_t tmp_ref = OBJ_REF_INITIAL_VALUE(tmp_ref);
 
-    chan = calloc(1, sizeof(ipc_chan_t));
+    chan = calloc(1, sizeof(struct ipc_chan));
     if (!chan)
         return NULL;
 
@@ -520,7 +521,7 @@ static ipc_chan_t* chan_alloc(uint32_t flags, const uuid_t* uuid) {
     return chan;
 }
 
-static void chan_shutdown_locked(ipc_chan_t* chan) {
+static void chan_shutdown_locked(struct ipc_chan* chan) {
     switch (chan->state) {
     case IPC_CHAN_STATE_CONNECTED:
     case IPC_CHAN_STATE_CONNECTING:
@@ -536,11 +537,11 @@ static void chan_shutdown_locked(ipc_chan_t* chan) {
     }
 }
 
-static void chan_shutdown(ipc_chan_t* chan) {
+static void chan_shutdown(struct ipc_chan* chan) {
     LTRACEF("chan %p: peer %p\n", chan, chan->peer);
 
     mutex_acquire(&chan->mlock);
-    ipc_chan_t* peer = chan->peer;
+    struct ipc_chan* peer = chan->peer;
     chan->peer = NULL;
     chan_shutdown_locked(chan);
     mutex_release(&chan->mlock);
@@ -562,7 +563,7 @@ static void chan_handle_destroy(struct handle* chandle) {
     DEBUG_ASSERT(chandle);
     DEBUG_ASSERT(ipc_is_channel(chandle));
 
-    ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+    struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
 
     chan_shutdown(chan);
 
@@ -593,7 +594,7 @@ static uint32_t chan_poll(struct handle* chandle,
     DEBUG_ASSERT(chandle);
     DEBUG_ASSERT(ipc_is_channel(chandle));
 
-    ipc_chan_t* chan = containerof(chandle, ipc_chan_t, handle);
+    struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
 
     uint32_t events = 0;
 
@@ -652,9 +653,9 @@ int ipc_port_check_access(uint32_t port_flags, const uuid_t* uuid) {
     return ERR_ACCESS_DENIED;
 }
 
-static int port_attach_client(ipc_port_t* port, ipc_chan_t* client) {
+static int port_attach_client(struct ipc_port* port, struct ipc_chan* client) {
     int ret;
-    ipc_chan_t* server;
+    struct ipc_chan* server;
 
     if (port->state != IPC_PORT_STATE_LISTENING) {
         LTRACEF("port %s is not in listening state (%d)\n", port->path,
@@ -728,8 +729,8 @@ int ipc_port_connect_async(const uuid_t* cid,
                            size_t max_path,
                            uint flags,
                            struct handle** chandle_ptr) {
-    ipc_port_t* port;
-    ipc_chan_t* client;
+    struct ipc_port* port;
+    struct ipc_chan* client;
     status_t start_request;
     int ret;
 
@@ -880,9 +881,9 @@ long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
 int ipc_port_accept(struct handle* phandle,
                     struct handle** chandle_ptr,
                     const uuid_t** uuid_ptr) {
-    ipc_port_t* port;
-    ipc_chan_t* server = NULL;
-    ipc_chan_t* client = NULL;
+    struct ipc_port* port;
+    struct ipc_chan* server = NULL;
+    struct ipc_chan* client = NULL;
 
     DEBUG_ASSERT(chandle_ptr);
     DEBUG_ASSERT(uuid_ptr);
@@ -892,7 +893,7 @@ int ipc_port_accept(struct handle* phandle,
         return ERR_INVALID_ARGS;
     }
 
-    port = containerof(phandle, ipc_port_t, handle);
+    port = containerof(phandle, struct ipc_port, handle);
 
     if (port->state != IPC_PORT_STATE_LISTENING) {
         /* Not in listening state: caller should close port.
@@ -903,7 +904,7 @@ int ipc_port_accept(struct handle* phandle,
 
     /* get next pending connection */
     mutex_acquire(&ipc_port_lock);
-    server = list_remove_head_type(&port->pending_list, ipc_chan_t, node);
+    server = list_remove_head_type(&port->pending_list, struct ipc_chan, node);
     mutex_release(&ipc_port_lock);
     if (!server) {
         /* TODO: should we block waiting for a new connection if one
