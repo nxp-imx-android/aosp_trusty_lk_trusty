@@ -46,7 +46,7 @@
 static mutex_t smc_table_lock = MUTEX_INITIAL_VALUE(smc_table_lock);
 
 /* Defined elsewhere */
-long smc_fiq_exit(smc32_args_t* args);
+long smc_fiq_exit(struct smc32_args* args);
 
 #define TRACE_SMC(msg, args)                                                \
     do {                                                                    \
@@ -59,13 +59,13 @@ long smc_fiq_exit(smc32_args_t* args);
             LTRACEF("param%d: 0x%x\n", _i, (args)->params[_i]);             \
     } while (0)
 
-long smc_undefined(smc32_args_t* args) {
+long smc_undefined(struct smc32_args* args) {
     TRACE_SMC("Undefined monitor call!", args);
     return SM_ERR_UNDEFINED_SMC;
 }
 
 /* Restarts should never be dispatched like this */
-static long smc_restart_stdcall(smc32_args_t* args) {
+static long smc_restart_stdcall(struct smc32_args* args) {
     TRACE_SMC("Unexpected stdcall restart!", args);
     return SM_ERR_UNEXPECTED_RESTART;
 }
@@ -75,14 +75,14 @@ static long smc_restart_stdcall(smc32_args_t* args) {
  * but if an interrupt is pending, it will be handled, and can in turn trigger a
  * context switch that will perform other secure work.
  */
-static long smc_nop_stdcall(smc32_args_t* args) {
+static long smc_nop_stdcall(struct smc32_args* args) {
     return 0;
 }
 
 /*
  * parameterized nop call handler
  */
-static long smc_nop_secure_monitor(smc32_args_t* args) {
+static long smc_nop_secure_monitor(struct smc32_args* args) {
     return (!args->params[0]) ? 0 : SM_ERR_UNDEFINED_SMC;
 }
 
@@ -94,7 +94,7 @@ static smc32_handler_t sm_stdcall_function_table[] = {
         [SMC_FUNCTION(SMC_SC_NOP)] = smc_undefined,
 };
 
-static long smc_stdcall_secure_monitor(smc32_args_t* args) {
+static long smc_stdcall_secure_monitor(struct smc32_args* args) {
     u_int function = SMC_FUNCTION(args->smc_nr);
     smc32_handler_t handler_fn = NULL;
 
@@ -107,24 +107,24 @@ static long smc_stdcall_secure_monitor(smc32_args_t* args) {
     return handler_fn(args);
 }
 
-long smc_fiq_exit(smc32_args_t* args) {
+long smc_fiq_exit(struct smc32_args* args) {
     sm_intc_fiq_exit();
     return 1; /* 0: reeenter fiq handler, 1: return */
 }
 
-static long smc_fiq_enter(smc32_args_t* args) {
+static long smc_fiq_enter(struct smc32_args* args) {
     return sm_intc_fiq_enter();
 }
 
 #if !WITH_LIB_SM_MONITOR
-static long smc_cpu_suspend(smc32_args_t* args) {
+static long smc_cpu_suspend(struct smc32_args* args) {
     lk_init_level_all(args->params[0] ? LK_INIT_FLAG_CPU_OFF
                                       : LK_INIT_FLAG_CPU_ENTER_IDLE);
 
     return 0;
 }
 
-static long smc_cpu_resume(smc32_args_t* args) {
+static long smc_cpu_resume(struct smc32_args* args) {
     lk_init_level_all(args->params[0] ? LK_INIT_FLAG_CPU_ON
                                       : LK_INIT_FLAG_CPU_EXIT_IDLE);
 
@@ -133,7 +133,7 @@ static long smc_cpu_resume(smc32_args_t* args) {
 #endif
 
 #if WITH_LIB_VERSION
-static long smc_get_version_str(smc32_args_t* args) {
+static long smc_get_version_str(struct smc32_args* args) {
     int32_t index = (int32_t)args->params[0];
     size_t version_len = strlen(lk_version);
 
@@ -163,7 +163,7 @@ static smc32_handler_t sm_fastcall_function_table[] = {
         [SMC_FUNCTION(SMC_FC_FIQ_RESUME)] = smc_intc_fiq_resume,
 };
 
-static long smc_fastcall_secure_monitor(smc32_args_t* args) {
+static long smc_fastcall_secure_monitor(struct smc32_args* args) {
     smc32_handler_t func = NULL;
     uint16_t index = SMC_FUNCTION(args->smc_nr);
 
@@ -195,7 +195,7 @@ smc32_handler_t sm_stdcall_table[SMC_NUM_ENTITIES] = {
         [SMC_ENTITY_SECURE_MONITOR + 1 ... SMC_NUM_ENTITIES - 1] =
                 smc_undefined};
 
-status_t sm_register_entity(uint entity_nr, smc32_entity_t* entity) {
+status_t sm_register_entity(uint entity_nr, struct smc32_entity* entity) {
     status_t err = NO_ERROR;
 
     if (entity_nr >= SMC_NUM_ENTITIES)

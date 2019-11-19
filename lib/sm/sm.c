@@ -42,7 +42,7 @@
 struct sm_std_call_state {
     spin_lock_t lock;
     event_t event;
-    smc32_args_t args;
+    struct smc32_args args;
     long ret;
     bool done;
     int active_cpu;  /* cpu that expects stdcall result */
@@ -79,7 +79,7 @@ extern smc32_handler_t sm_stdcall_table[];
 extern smc32_handler_t sm_nopcall_table[];
 extern smc32_handler_t sm_fastcall_table[];
 
-long smc_sm_api_version(smc32_args_t* args) {
+long smc_sm_api_version(struct smc32_args* args) {
     uint32_t api_version = args->params[0];
 
     spin_lock(&sm_api_version_lock);
@@ -140,7 +140,7 @@ static int __NO_RETURN sm_stdcall_loop(void* arg) {
 }
 
 /* must be called with irqs disabled */
-static long sm_queue_stdcall(smc32_args_t* args) {
+static long sm_queue_stdcall(struct smc32_args* args) {
     long ret;
     uint cpu = arch_curr_cpu_num();
 
@@ -184,7 +184,7 @@ err:
     return ret;
 }
 
-static void sm_sched_nonsecure_fiq_loop(long ret, smc32_args_t* args) {
+static void sm_sched_nonsecure_fiq_loop(long ret, struct smc32_args* args) {
     while (true) {
         if (atomic_load(&platform_halted)) {
             ret = SM_ERR_PANIC;
@@ -206,7 +206,7 @@ static void sm_sched_nonsecure_fiq_loop(long ret, smc32_args_t* args) {
 
 /* must be called with irqs disabled */
 static void sm_return_and_wait_for_next_stdcall(long ret, int cpu) {
-    smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
+    struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
 
     do {
         arch_disable_fiqs();
@@ -445,7 +445,7 @@ enum handler_return sm_handle_irq(void) {
 
 void sm_handle_fiq(void) {
     uint32_t expected_return;
-    smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
+    struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
     if (sm_get_api_version() >= TRUSTY_API_VERSION_RESTART_FIQ) {
         sm_sched_nonsecure_fiq_loop(SM_ERR_FIQ_INTERRUPTED, &args);
         expected_return = SMC_SC_RESTART_FIQ;
@@ -464,7 +464,7 @@ void sm_handle_fiq(void) {
 void platform_halt(platform_halt_action suggested_action,
                    platform_halt_reason reason) {
     bool already_halted;
-    smc32_args_t args = SMC32_ARGS_INITIAL_VALUE(args);
+    struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
 
     arch_disable_ints();
     already_halted = atomic_exchange(&platform_halted, true);

@@ -152,11 +152,11 @@ static status_t map_rb(paddr_t pa, size_t sz, vaddr_t* va) {
     return err;
 }
 
-static uint64_t args_get_pa(smc32_args_t* args) {
+static uint64_t args_get_pa(struct smc32_args* args) {
     return (((uint64_t)args->params[1] << 32) | args->params[0]);
 }
 
-static size_t args_get_sz(smc32_args_t* args) {
+static size_t args_get_sz(struct smc32_args* args) {
     return (size_t)args->params[2];
 }
 
@@ -235,7 +235,7 @@ long memlog_rm(paddr_t pa) {
     return 0;
 }
 
-static long memlog_stdcall(smc32_args_t* args) {
+static long memlog_stdcall(struct smc32_args* args) {
     switch (args->smc_nr) {
     case SMC_SC_SHARED_LOG_VERSION:
         return TRUSTY_LOG_API_VERSION;
@@ -249,7 +249,7 @@ static long memlog_stdcall(smc32_args_t* args) {
     return 0;
 }
 
-static smc32_entity_t log_sm_entity = {
+static struct smc32_entity log_sm_entity = {
         .stdcall_handler = memlog_stdcall,
 };
 

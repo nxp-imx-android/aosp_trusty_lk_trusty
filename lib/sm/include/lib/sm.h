@@ -31,45 +31,45 @@
 typedef uint64_t ns_addr_t;
 typedef uint32_t ns_size_t;
 
-typedef struct ns_page_info {
+struct ns_page_info {
     uint64_t attr;
-} ns_page_info_t;
+};
 
-typedef struct smc32_args {
+struct smc32_args {
     uint32_t smc_nr;
     uint32_t params[SMC_NUM_PARAMS];
-} smc32_args_t;
+};
 
 #define SMC32_ARGS_INITIAL_VALUE(args) \
     {                                  \
         0, { 0 }                       \
     }
 
-typedef long (*smc32_handler_t)(smc32_args_t* args);
+typedef long (*smc32_handler_t)(struct smc32_args* args);
 
-typedef struct smc32_entity {
+struct smc32_entity {
     smc32_handler_t fastcall_handler;
     smc32_handler_t nopcall_handler;
     smc32_handler_t stdcall_handler;
-} smc32_entity_t;
+};
 
 /* Schedule Secure OS */
-long sm_sched_secure(smc32_args_t* args);
+long sm_sched_secure(struct smc32_args* args);
 
 /* Schedule Non-secure OS */
-void sm_sched_nonsecure(long retval, smc32_args_t* args);
+void sm_sched_nonsecure(long retval, struct smc32_args* args);
 
 /* Handle an interrupt */
 enum handler_return sm_handle_irq(void);
 void sm_handle_fiq(void);
 
 /* Version */
-long smc_sm_api_version(smc32_args_t* args);
+long smc_sm_api_version(struct smc32_args* args);
 
 /* Interrupt controller irq/fiq support */
-long smc_intc_get_next_irq(smc32_args_t* args);
-long smc_intc_request_fiq(smc32_args_t* args);
-long smc_intc_fiq_resume(smc32_args_t* args);
+long smc_intc_get_next_irq(struct smc32_args* args);
+long smc_intc_request_fiq(struct smc32_args* args);
+long smc_intc_fiq_resume(struct smc32_args* args);
 /* return 0 to enter ns-fiq handler, return non-0 to return */
 status_t sm_intc_fiq_enter(void);
 void sm_intc_fiq_exit(void);
@@ -81,7 +81,7 @@ status_t sm_get_boot_args(void** boot_argsp, size_t* args_sizep);
 void sm_put_boot_args(void);
 
 /* Register handler(s) for an entity */
-status_t sm_register_entity(uint entity_nr, smc32_entity_t* entity);
+status_t sm_register_entity(uint entity_nr, struct smc32_entity* entity);
 
 status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
                                   ns_addr_t* ppa,

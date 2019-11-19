@@ -29,7 +29,7 @@
 #include <kernel/vm.h>
 
 #if !LIB_SM_CUSTOM_SCHED_NONSECURE
-/* sm_sched_nonsecure(uint32_t retval, smc32_args_t *args) */
+/* sm_sched_nonsecure(uint32_t retval, struct smc32_args *args) */
 FUNCTION(sm_sched_nonsecure)
 	push	{r1, lr}
 	mov	r1, r0

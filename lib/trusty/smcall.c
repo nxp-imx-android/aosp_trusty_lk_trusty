@@ -98,7 +98,7 @@ static long to_smc_error(long err) {
 /*
  *  Handle fastcall Trusted OS SMC call function
  */
-static long trusty_sm_fastcall(smc32_args_t* args) {
+static long trusty_sm_fastcall(struct smc32_args* args) {
     long res;
     ns_size_t ns_sz;
     ns_paddr_t ns_pa;
@@ -126,7 +126,7 @@ static long trusty_sm_fastcall(smc32_args_t* args) {
 /*
  *  Handle standard Trusted OS SMC call function
  */
-static long trusty_sm_stdcall(smc32_args_t* args) {
+static long trusty_sm_stdcall(struct smc32_args* args) {
     long res;
     ns_size_t ns_sz;
     ns_paddr_t ns_pa;
@@ -193,7 +193,7 @@ static long trusty_sm_stdcall(smc32_args_t* args) {
 /*
  *  Handle parameterized NOP Trusted OS SMC call function
  */
-static long trusty_sm_nopcall(smc32_args_t* args) {
+static long trusty_sm_nopcall(struct smc32_args* args) {
     long res;
 
     LTRACEF("Trusty SM service func %u args 0x%x 0x%x 0x%x\n",
@@ -214,7 +214,7 @@ static long trusty_sm_nopcall(smc32_args_t* args) {
     return to_smc_error(res);
 }
 
-static smc32_entity_t trusty_sm_entity = {
+static struct smc32_entity trusty_sm_entity = {
         .fastcall_handler = trusty_sm_fastcall,
         .stdcall_handler = trusty_sm_stdcall,
         .nopcall_handler = trusty_sm_nopcall,
