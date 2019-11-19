@@ -72,8 +72,8 @@ struct uctx {
     handle_id_t handle_id_base;
 };
 
-static status_t _uctx_startup(trusty_app_t* app);
-static status_t _uctx_shutdown(trusty_app_t* app);
+static status_t _uctx_startup(struct trusty_app* app);
+static status_t _uctx_shutdown(struct trusty_app* app);
 
 static uint _uctx_slot_id;
 static struct trusty_app_notifier _uctx_notifier = {
@@ -81,8 +81,8 @@ static struct trusty_app_notifier _uctx_notifier = {
         .shutdown = _uctx_shutdown,
 };
 
-static status_t _uctx_startup(trusty_app_t* app) {
-    uctx_t* uctx;
+static status_t _uctx_startup(struct trusty_app* app) {
+    struct uctx* uctx;
 
     int err = uctx_create(app, &uctx);
     if (err)
@@ -92,9 +92,9 @@ static status_t _uctx_startup(trusty_app_t* app) {
     return NO_ERROR;
 }
 
-static status_t _uctx_shutdown(trusty_app_t* app) {
+static status_t _uctx_shutdown(struct trusty_app* app) {
     LTRACEF("Destroying uctx for app:%d\n", app->app_id);
-    uctx_t* uctx;
+    struct uctx* uctx;
     uctx = trusty_als_get(app, _uctx_slot_id);
 
     if (uctx)
@@ -123,8 +123,8 @@ LK_INIT_HOOK(uctx, uctx_init, LK_INIT_LEVEL_APPS - 2);
 /*
  *  Get uctx context of the current app
  */
-uctx_t* current_uctx(void) {
-    trusty_app_t* tapp = current_trusty_app();
+struct uctx* current_uctx(void) {
+    struct trusty_app* tapp = current_trusty_app();
     return trusty_als_get(tapp, _uctx_slot_id);
 }
 
@@ -135,7 +135,7 @@ uctx_t* current_uctx(void) {
  *  On success return index of the handle in handle table,
  *  negative error otherwise
  */
-static int _check_handle_id(uctx_t* ctx, handle_id_t handle_id) {
+static int _check_handle_id(struct uctx* ctx, handle_id_t handle_id) {
     uint32_t idx;
 
     DEBUG_ASSERT(ctx);
@@ -304,12 +304,12 @@ err_already_exists:
  *  to keep track handles on behalf of user space app. Exactly one user
  *  context is created for each trusty app during it's nitialization.
  */
-int uctx_create(void* priv, uctx_t** ctx) {
-    uctx_t* new_ctx;
+int uctx_create(void* priv, struct uctx** ctx) {
+    struct uctx* new_ctx;
 
     DEBUG_ASSERT(ctx);
 
-    new_ctx = calloc(1, sizeof(uctx_t));
+    new_ctx = calloc(1, sizeof(struct uctx));
     if (!new_ctx) {
         LTRACEF("Out of memory\n");
         return ERR_NO_MEMORY;
@@ -330,7 +330,7 @@ int uctx_create(void* priv, uctx_t** ctx) {
 /*
  *   Destroy user context previously created by uctx_create.
  */
-void uctx_destroy(uctx_t* ctx) {
+void uctx_destroy(struct uctx* ctx) {
     int i;
     DEBUG_ASSERT(ctx);
 
@@ -352,7 +352,7 @@ void uctx_destroy(uctx_t* ctx) {
 /*
  *  Returns private data associated with user context. (Currently unused)
  */
-void* uctx_get_priv(uctx_t* ctx) {
+void* uctx_get_priv(struct uctx* ctx) {
     ASSERT(ctx);
     return ctx->priv;
 }
@@ -361,7 +361,9 @@ void* uctx_get_priv(uctx_t* ctx) {
  * Install specified handle into user handle table and increment installed
  * handle ref count accordinly.
  */
-int uctx_handle_install(uctx_t* ctx, struct handle* handle, handle_id_t* id) {
+int uctx_handle_install(struct uctx* ctx,
+                        struct handle* handle,
+                        handle_id_t* id) {
     int ret;
     int idx;
 
@@ -438,7 +440,7 @@ static int uctx_handle_get_tmp_ref(struct uctx* ctx,
  *   Retrieve handle from specified user context specified by
  *   given handle_id. Increment ref count for returned handle.
  */
-int uctx_handle_get(uctx_t* ctx,
+int uctx_handle_get(struct uctx* ctx,
                     handle_id_t handle_id,
                     struct handle** handle_ptr) {
     struct handle_ref tmp_ref;
@@ -459,7 +461,7 @@ int uctx_handle_get(uctx_t* ctx,
  *  return it to caller if requested. In later case the caller becomes an owner
  *  of that handle.
  */
-int uctx_handle_remove(uctx_t* ctx,
+int uctx_handle_remove(struct uctx* ctx,
                        handle_id_t handle_id,
                        struct handle** handle_ptr) {
     int ret;
@@ -525,7 +527,7 @@ long __SYSCALL sys_wait(uint32_t handle_id,
                         uint32_t timeout_msecs) {
     int ret;
     struct handle_ref target;
-    uctx_t* ctx = current_uctx();
+    struct uctx* ctx = current_uctx();
 
     LTRACEF("[%p][%d]: %d msec\n", current_trusty_thread(), handle_id,
             timeout_msecs);
@@ -551,7 +553,7 @@ long __SYSCALL sys_wait_any(user_addr_t user_event, uint32_t timeout_msecs) {
 #if WITH_WAIT_ANY_SUPPORT
     int ret;
     struct handle_ref target;
-    uctx_t* ctx = current_uctx();
+    struct uctx* ctx = current_uctx();
 
     LTRACEF("[%p]: %d msec\n", current_trusty_thread(), timeout_msecs);
 

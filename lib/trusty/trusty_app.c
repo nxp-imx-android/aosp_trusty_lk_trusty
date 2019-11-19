@@ -188,7 +188,7 @@ static void finalize_registration(void) {
     mutex_release(&apps_lock);
 }
 
-status_t trusty_register_app_notifier(trusty_app_notifier_t* n) {
+status_t trusty_register_app_notifier(struct trusty_app_notifier* n) {
     status_t ret = NO_ERROR;
 
     mutex_acquire(&apps_lock);
@@ -337,11 +337,12 @@ void __NO_RETURN trusty_thread_exit(int retcode) {
     thread_exit(retcode);
 }
 
-static struct trusty_thread* trusty_thread_create(const char* name,
-                                                  vaddr_t entry,
-                                                  int priority,
-                                                  size_t stack_size,
-                                                  trusty_app_t* trusty_app) {
+static struct trusty_thread* trusty_thread_create(
+        const char* name,
+        vaddr_t entry,
+        int priority,
+        size_t stack_size,
+        struct trusty_app* trusty_app) {
     struct trusty_thread* trusty_thread;
     status_t err;
     vaddr_t stack_bot = 0;
@@ -401,7 +402,7 @@ static struct manifest_port_entry* find_manifest_port_entry_locked(
 
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
 
-    list_for_every_entry(&trusty_app_list, app, trusty_app_t, node) {
+    list_for_every_entry(&trusty_app_list, app, struct trusty_app, node) {
         list_for_every_entry(&app->props.port_entry_list, entry,
                              struct manifest_port_entry, node) {
             if (!strncmp(port_path, entry->path, entry->path_len)) {
@@ -416,12 +417,12 @@ static struct manifest_port_entry* find_manifest_port_entry_locked(
     return NULL;
 }
 /* Must be called with the apps_lock held */
-static trusty_app_t* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
-    trusty_app_t* app;
+static struct trusty_app* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
+    struct trusty_app* app;
 
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
 
-    list_for_every_entry(&trusty_app_list, app, trusty_app_t, node) {
+    list_for_every_entry(&trusty_app_list, app, struct trusty_app, node) {
         if (!memcmp(&app->props.uuid, uuid, sizeof(uuid_t)))
             return app;
     }
@@ -429,7 +430,7 @@ static trusty_app_t* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
     return NULL;
 }
 
-static status_t load_app_config_options(trusty_app_t* trusty_app,
+static status_t load_app_config_options(struct trusty_app* trusty_app,
                                         ELF_SHDR* shdr) {
     char* manifest_data;
     const char* port_name;
@@ -614,7 +615,7 @@ static status_t load_app_config_options(trusty_app_t* trusty_app,
     return NO_ERROR;
 }
 
-static status_t init_brk(trusty_app_t* trusty_app) {
+static status_t init_brk(struct trusty_app* trusty_app) {
     status_t status;
     vaddr_t start_brk;
     vaddr_t brk_size;
@@ -735,7 +736,7 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     return NO_ERROR;
 }
 
-static status_t alloc_address_map(trusty_app_t* trusty_app) {
+static status_t alloc_address_map(struct trusty_app* trusty_app) {
     ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
     void* trusty_app_image;
     ELF_PHDR* prg_hdr;
@@ -1013,7 +1014,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     ELF_SHDR* manifest_shdr;
     char* shstbl;
     uint32_t shstbl_size;
-    trusty_app_t* trusty_app;
+    struct trusty_app* trusty_app;
     u_int i;
     status_t ret;
     struct manifest_port_entry* entry;
@@ -1031,7 +1032,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
             (void*)app_img->img_start, app_img->img_end - app_img->img_start,
             (void*)app_img->img_end);
 
-    trusty_app = (trusty_app_t*)calloc(1, sizeof(trusty_app_t));
+    trusty_app = (struct trusty_app*)calloc(1, sizeof(struct trusty_app));
     if (!trusty_app) {
         dprintf(CRITICAL,
                 "trusty_app: failed to allocate memory for trusty app\n");
@@ -1149,7 +1150,7 @@ err_hdr:
     return ret;
 }
 
-status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
+status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
                                uint32_t mmio_id,
                                user_addr_t* uaddr_p,
                                uint32_t map_size) {
@@ -1209,7 +1210,7 @@ status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
     return ERR_NOT_FOUND;
 }
 
-static status_t trusty_app_start(trusty_app_t* trusty_app) {
+static status_t trusty_app_start(struct trusty_app* trusty_app) {
     char name[32];
     struct trusty_thread* trusty_thread;
     struct trusty_app_notifier* n;
@@ -1490,22 +1491,25 @@ void trusty_app_init(void) {
 }
 
 /* rather export trusty_app_list?  */
-void trusty_app_forall(void (*fn)(trusty_app_t* ta, void* data), void* data) {
-    trusty_app_t* ta;
+void trusty_app_forall(void (*fn)(struct trusty_app* ta, void* data),
+                       void* data) {
+    struct trusty_app* ta;
 
     if (fn == NULL)
         return;
 
     mutex_acquire(&apps_lock);
-    list_for_every_entry(&trusty_app_list, ta, trusty_app_t, node) fn(ta, data);
+    list_for_every_entry(&trusty_app_list, ta, struct trusty_app, node)
+            fn(ta, data);
     mutex_release(&apps_lock);
 }
 
 static void start_apps(uint level) {
-    trusty_app_t* trusty_app;
+    struct trusty_app* trusty_app;
 
     mutex_acquire(&apps_lock);
-    list_for_every_entry(&trusty_app_list, trusty_app, trusty_app_t, node) {
+    list_for_every_entry(&trusty_app_list, trusty_app, struct trusty_app,
+                         node) {
         if (is_deferred_start(trusty_app))
             continue;
 

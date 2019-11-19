@@ -359,8 +359,8 @@ long __SYSCALL sys_port_create(user_addr_t path,
                                uint32_t num_recv_bufs,
                                uint32_t recv_buf_size,
                                uint32_t flags) {
-    trusty_app_t* tapp = current_trusty_app();
-    uctx_t* ctx = current_uctx();
+    struct trusty_app* tapp = current_trusty_app();
+    struct uctx* ctx = current_uctx();
     struct handle* port_handle = NULL;
     int ret;
     handle_id_t handle_id;
@@ -810,8 +810,8 @@ err_find_ports:
 #endif
 
 long __SYSCALL sys_connect(user_addr_t path, uint32_t flags) {
-    trusty_app_t* tapp = current_trusty_app();
-    uctx_t* ctx = current_uctx();
+    struct trusty_app* tapp = current_trusty_app();
+    struct uctx* ctx = current_uctx();
     struct handle* chandle;
     char tmp_path[IPC_PORT_PATH_MAX];
     int ret;
@@ -951,7 +951,7 @@ int ipc_port_accept(struct handle* phandle,
 }
 
 long __SYSCALL sys_accept(uint32_t handle_id, user_addr_t user_uuid) {
-    uctx_t* ctx = current_uctx();
+    struct uctx* ctx = current_uctx();
     struct handle* phandle = NULL;
     struct handle* chandle = NULL;
     int ret;

@@ -147,7 +147,7 @@ long sys_writev(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
 
 void* sys_brk(void* u_brk) {
     vaddr_t brk = (vaddr_t)u_brk;
-    trusty_app_t* trusty_app = current_trusty_app();
+    struct trusty_app* trusty_app = current_trusty_app();
 
     /* update brk, if within range */
     if ((brk >= trusty_app->start_brk) && (brk <= trusty_app->end_brk)) {
@@ -210,7 +210,7 @@ long sys_mmap(user_addr_t uaddr,
               uint32_t size,
               uint32_t flags,
               uint32_t handle) {
-    trusty_app_t* trusty_app = current_trusty_app();
+    struct trusty_app* trusty_app = current_trusty_app();
     long ret;
 
     /*
@@ -231,7 +231,7 @@ long sys_mmap(user_addr_t uaddr,
 }
 
 long sys_munmap(user_addr_t uaddr, uint32_t size) {
-    trusty_app_t* trusty_app = current_trusty_app();
+    struct trusty_app* trusty_app = current_trusty_app();
 
     /*
      * vmm_free_region always unmaps whole region.

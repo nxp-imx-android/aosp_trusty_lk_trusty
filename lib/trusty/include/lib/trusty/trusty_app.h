@@ -53,7 +53,7 @@ struct manifest_port_entry {
     struct list_node node;
 };
 
-typedef struct {
+struct trusty_app_props {
     uuid_t uuid;
     uint32_t mgmt_flags;
     uint32_t min_stack_size;
@@ -62,24 +62,24 @@ typedef struct {
     uint32_t config_entry_cnt;
     uint32_t* config_blob;
     struct list_node port_entry_list;
-} trusty_app_props_t;
+};
 
 struct trusty_app_img {
     uintptr_t img_start;
     uintptr_t img_end;
 };
 
-typedef struct trusty_app trusty_app_t;
+struct trusty_app;
 
 struct trusty_thread {
     vaddr_t stack_start;
     size_t stack_size;
     vaddr_t entry;
     thread_t* thread;
-    trusty_app_t* app;
+    struct trusty_app* app;
 };
 
-typedef struct trusty_app {
+struct trusty_app {
     /* corresponds to the order in which the apps were started */
     u_int app_id;
     enum app_state state;
@@ -89,13 +89,13 @@ typedef struct trusty_app {
     vaddr_t cur_brk;
     vaddr_t end_brk;
     vaddr_t load_bias;
-    trusty_app_props_t props;
+    struct trusty_app_props props;
     struct trusty_app_img* app_img;
     struct trusty_thread* thread;
     /* app local storage */
     void** als;
     struct list_node node;
-} trusty_app_t;
+};
 
 void trusty_app_init(void);
 
@@ -125,25 +125,26 @@ status_t trusty_app_request_start_by_port(const char* port_path,
                                           const uuid_t* uuid);
 
 void trusty_app_exit(int status) __NO_RETURN;
-status_t trusty_app_setup_mmio(trusty_app_t* trusty_app,
+status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
                                uint32_t mmio_id,
                                user_addr_t* uaddr_p,
                                uint32_t size);
-void trusty_app_forall(void (*fn)(trusty_app_t* ta, void* data), void* data);
+void trusty_app_forall(void (*fn)(struct trusty_app* ta, void* data),
+                       void* data);
 void trusty_thread_exit(int status);
 
-typedef struct trusty_app_notifier {
+struct trusty_app_notifier {
     struct list_node node;
-    status_t (*startup)(trusty_app_t* app);
-    status_t (*shutdown)(trusty_app_t* app);
-} trusty_app_notifier_t;
+    status_t (*startup)(struct trusty_app* app);
+    status_t (*shutdown)(struct trusty_app* app);
+};
 
 /*
  * All app notifiers registration has to be complete before
  * libtrusty is initialized which is happening at LK_INIT_LEVEL_APPS-1
  * init level.
  */
-status_t trusty_register_app_notifier(trusty_app_notifier_t* n);
+status_t trusty_register_app_notifier(struct trusty_app_notifier* n);
 
 /*
  * All als slots must be allocated before libtrusty is initialized
@@ -171,7 +172,7 @@ static inline struct trusty_thread* current_trusty_thread(void) {
     return (struct trusty_thread*)tls_get(TLS_ENTRY_TRUSTY);
 }
 
-static inline trusty_app_t* current_trusty_app(void) {
+static inline struct trusty_app* current_trusty_app(void) {
     return current_trusty_thread()->app;
 }
 
