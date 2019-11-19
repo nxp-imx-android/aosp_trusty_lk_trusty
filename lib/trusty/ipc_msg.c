@@ -206,8 +206,8 @@ static ssize_t kern_msg_write_locked(struct ipc_msg_queue* mq,
     }
 
     /* copy message body */
-    ret = kern_iovec_to_membuf(buf, mq->item_sz, (const iovec_kern_t*)msg->iov,
-                               msg->num_iov);
+    ret = kern_iovec_to_membuf(
+            buf, mq->item_sz, (const struct iovec_kern*)msg->iov, msg->num_iov);
     if (ret < 0)
         return ret;
 
@@ -389,8 +389,8 @@ static int kern_msg_read_locked(struct ipc_msg_queue* mq,
     const uint8_t* buf = msg_queue_get_buf(mq, item) + offset;
     size_t bytes_left = item->len - offset;
 
-    ret = membuf_to_kern_iovec((const iovec_kern_t*)kmsg->iov, kmsg->num_iov,
-                               buf, bytes_left);
+    ret = membuf_to_kern_iovec((const struct iovec_kern*)kmsg->iov,
+                               kmsg->num_iov, buf, bytes_left);
     if (ret < 0)
         return ret;
 

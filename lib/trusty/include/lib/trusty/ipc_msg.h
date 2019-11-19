@@ -50,7 +50,7 @@ bool ipc_msg_queue_is_full(struct ipc_msg_queue* mq);
 
 struct ipc_msg_kern {
     uint32_t num_iov;
-    iovec_kern_t* iov;
+    struct iovec_kern* iov;
 
     uint32_t num_handles;
     struct handle** handles;

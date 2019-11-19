@@ -63,7 +63,7 @@ struct vqueue_iovs {
     uint used;  /* number of iovs currently in use */
     size_t len; /* total length of all used iovs */
     paddr_t* phys;
-    iovec_kern_t* iovs;
+    struct iovec_kern* iovs;
 };
 
 struct vqueue_buf {

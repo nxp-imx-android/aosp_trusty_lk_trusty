@@ -431,7 +431,7 @@ static long dev_send(struct ql_tipc_dev* dev,
 
     struct ipc_msg_kern msg = {
             .iov =
-                    (iovec_kern_t[]){
+                    (struct iovec_kern[]){
                             [0] = {.base = ns_data, .len = ns_sz},
                     },
             .num_iov = 1,
@@ -454,7 +454,7 @@ static long dev_recv(struct ql_tipc_dev* dev, uint32_t target) {
 
     struct ipc_msg_kern msg = {
             .iov =
-                    (iovec_kern_t[]){
+                    (struct iovec_kern[]){
                             [0] = {.base = dev->ns_va +
                                            sizeof(struct tipc_cmd_hdr),
                                    .len = dev->ns_sz -

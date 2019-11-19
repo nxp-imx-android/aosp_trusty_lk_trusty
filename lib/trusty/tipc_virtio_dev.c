@@ -435,7 +435,7 @@ static int handle_chan_msg(struct tipc_dev* dev,
     int ret = ERR_NOT_FOUND;
     struct ipc_msg_kern msg = {
             .iov =
-                    (iovec_kern_t[]){
+                    (struct iovec_kern[]){
                             [0] =
                                     {
                                             .base = (void*)ns_data,
@@ -530,7 +530,7 @@ done:
 static int tipc_rx_thread_func(void* arg) {
     struct tipc_dev* dev = arg;
     paddr_t in_phys[MAX_RX_IOVS];
-    iovec_kern_t in_iovs[MAX_RX_IOVS];
+    struct iovec_kern in_iovs[MAX_RX_IOVS];
     struct vqueue* vq = &dev->vqs[TIPC_VQ_RX];
     struct vqueue_buf buf;
     int ret;
@@ -588,7 +588,7 @@ static int tx_data_cb(uint8_t* buf, size_t buf_len, void* ctx) {
     DEBUG_ASSERT(buf);
     DEBUG_ASSERT(cb_ctx);
 
-    iovec_kern_t dst_iov = {buf, buf_len};
+    struct iovec_kern dst_iov = {buf, buf_len};
     struct ipc_msg_kern dst_kern_msg = {
             .iov = &dst_iov,
             .num_iov = 1,
@@ -1000,7 +1000,7 @@ static int tipc_send_data(struct tipc_dev* dev,
                           uint16_t data_len,
                           bool wait) {
     paddr_t out_phys[MAX_TX_IOVS];
-    iovec_kern_t out_iovs[MAX_TX_IOVS];
+    struct iovec_kern out_iovs[MAX_TX_IOVS];
     struct vqueue* vq = &dev->vqs[TIPC_VQ_TX];
     struct vqueue_buf buf;
     int ret = 0;

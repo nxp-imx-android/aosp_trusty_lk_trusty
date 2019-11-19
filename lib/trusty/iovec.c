@@ -25,7 +25,7 @@
 #include <lib/trusty/uio.h>
 #include <string.h>
 
-ssize_t membuf_to_kern_iovec(const iovec_kern_t* iov,
+ssize_t membuf_to_kern_iovec(const struct iovec_kern* iov,
                              uint iov_cnt,
                              const uint8_t* buf,
                              size_t len) {
@@ -63,7 +63,7 @@ ssize_t membuf_to_kern_iovec(const iovec_kern_t* iov,
 
 ssize_t kern_iovec_to_membuf(uint8_t* buf,
                              size_t len,
-                             const iovec_kern_t* iov,
+                             const struct iovec_kern* iov,
                              uint iov_cnt) {
     size_t copied = 0;
 
@@ -103,7 +103,7 @@ ssize_t membuf_to_user_iovec(user_addr_t iov_uaddr,
                              size_t len) {
     status_t ret;
     size_t copied = 0;
-    iovec_user_t uiov;
+    struct iovec_user uiov;
 
     if (unlikely(iov_cnt == 0 || len == 0))
         return 0;
@@ -114,8 +114,8 @@ ssize_t membuf_to_user_iovec(user_addr_t iov_uaddr,
     /* for each iov entry */
     for (uint i = 0; i < iov_cnt; i++) {
         /* copy user iovec from user space into local buffer */
-        ret = copy_from_user(&uiov, iov_uaddr + i * sizeof(iovec_user_t),
-                             sizeof(iovec_user_t));
+        ret = copy_from_user(&uiov, iov_uaddr + i * sizeof(struct iovec_user),
+                             sizeof(struct iovec_user));
         if (unlikely(ret != NO_ERROR))
             return (ssize_t)ret;
 
@@ -143,10 +143,10 @@ ssize_t membuf_to_user_iovec(user_addr_t iov_uaddr,
 ssize_t user_iovec_to_membuf_iter(uint8_t* buf,
                                   size_t buf_len,
                                   user_addr_t iov_uaddr,
-                                  iovec_iter_t* iter) {
+                                  struct iovec_iter* iter) {
     status_t ret;
     size_t copied = 0;
-    iovec_user_t uiov;
+    struct iovec_user uiov;
 
     if (unlikely(buf_len == 0))
         return 0;
@@ -156,9 +156,9 @@ ssize_t user_iovec_to_membuf_iter(uint8_t* buf,
 
     while (buf_len > 0 && iovec_iter_has_next(iter)) {
         /* copy user iovec from user space into local buffer */
-        ret = copy_from_user(&uiov,
-                             iov_uaddr + iter->iov_index * sizeof(iovec_user_t),
-                             sizeof(iovec_user_t));
+        ret = copy_from_user(
+                &uiov, iov_uaddr + iter->iov_index * sizeof(struct iovec_user),
+                sizeof(struct iovec_user));
         if (unlikely(ret != NO_ERROR))
             return (ssize_t)ret;
 
@@ -196,6 +196,6 @@ ssize_t user_iovec_to_membuf(uint8_t* buf,
                              size_t buf_len,
                              user_addr_t iov_uaddr,
                              uint iov_cnt) {
-    iovec_iter_t iter = iovec_iter_create(iov_cnt);
+    struct iovec_iter iter = iovec_iter_create(iov_cnt);
     return user_iovec_to_membuf_iter(buf, buf_len, iov_uaddr, &iter);
 }

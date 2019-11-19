@@ -109,7 +109,7 @@ static int32_t sys_std_write(uint32_t fd,
         io_lock(fp->io);
     }
 
-    iovec_iter_t iter = iovec_iter_create(iov_cnt);
+    struct iovec_iter iter = iovec_iter_create(iov_cnt);
     size_t total_bytes = 0;
     int ret;
 

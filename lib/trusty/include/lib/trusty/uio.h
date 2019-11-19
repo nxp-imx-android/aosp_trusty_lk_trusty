@@ -27,39 +27,39 @@
 #include <kernel/usercopy.h>
 #include <sys/types.h>
 
-typedef struct iovec_kern {
+struct iovec_kern {
     void* base;
     size_t len;
-} iovec_kern_t;
+};
 
-typedef struct iovec_user {
+struct iovec_user {
     user_addr_t base;
     user_size_t len;
-} iovec_user_t;
+};
 
-typedef struct iovec_iter {
+struct iovec_iter {
     uint iov_index;
     uint iov_cnt;
     size_t data_offset;
-} iovec_iter_t;
+};
 
-static inline iovec_iter_t iovec_iter_create(uint iov_cnt) {
-    iovec_iter_t iter = {.iov_cnt = iov_cnt};
+static inline struct iovec_iter iovec_iter_create(uint iov_cnt) {
+    struct iovec_iter iter = {.iov_cnt = iov_cnt};
     return iter;
 }
 
-static inline int iovec_iter_has_next(const iovec_iter_t* iter) {
+static inline int iovec_iter_has_next(const struct iovec_iter* iter) {
     return iter->iov_index < iter->iov_cnt;
 }
 
-ssize_t membuf_to_kern_iovec(const iovec_kern_t* iov,
+ssize_t membuf_to_kern_iovec(const struct iovec_kern* iov,
                              uint iov_cnt,
                              const uint8_t* buf,
                              size_t len);
 
 ssize_t kern_iovec_to_membuf(uint8_t* buf,
                              size_t len,
-                             const iovec_kern_t* iov,
+                             const struct iovec_kern* iov,
                              uint iov_cnt);
 
 ssize_t membuf_to_user_iovec(user_addr_t iov_uaddr,
@@ -75,5 +75,5 @@ ssize_t user_iovec_to_membuf(uint8_t* buf,
 ssize_t user_iovec_to_membuf_iter(uint8_t* buf,
                                   size_t len,
                                   user_addr_t iov_uaddr,
-                                  iovec_iter_t* iter);
+                                  struct iovec_iter* iter);
 #endif

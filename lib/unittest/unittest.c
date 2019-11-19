@@ -94,7 +94,7 @@ static int send_msg_wait(struct handle* handle, struct ipc_msg_kern* msg) {
  */
 int unittest_printf(const char* fmt, ...) {
     char buf[256];
-    iovec_kern_t tx_iov = {buf, 1};
+    struct iovec_kern tx_iov = {buf, 1};
     struct ipc_msg_kern tx_msg = {1, &tx_iov, 0, NULL};
     va_list ap;
     int ret;
@@ -162,7 +162,7 @@ static int unittest_loop(void* arg) {
             LTRACEF("accept returned %d\n", ret);
             if (ret >= 0) {
                 char tx_buffer[1];
-                iovec_kern_t tx_iov = {
+                struct iovec_kern tx_iov = {
                         tx_buffer,
                         sizeof(tx_buffer),
                 };

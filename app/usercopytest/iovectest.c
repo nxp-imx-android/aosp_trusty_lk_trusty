@@ -61,7 +61,7 @@ test_abort:;
 
 /* Write an iovec with evenly spaced chunks to userspace. */
 static int write_chunked_iovec(iovectest_t* _state, int size) {
-    iovec_user_t uiov[sizeof(test_pattern)];
+    struct iovec_user uiov[sizeof(test_pattern)];
     unsigned int index = 0;
     for (unsigned int i = 0; i < sizeof(test_pattern); i += size, index += 1) {
         uiov[index].base = _state->buffer_addr + i;
@@ -75,7 +75,7 @@ static int write_chunked_iovec(iovectest_t* _state, int size) {
     /* Copy into user space. */
     ASSERT_EQ(0,
               copy_to_user(_state->iovec_addr, uiov,
-                           sizeof(iovec_user_t) * index),
+                           sizeof(struct iovec_user) * index),
               "chunk %d", size);
 
     return index;
@@ -105,7 +105,7 @@ static void iovectest_readback(iovectest_t* _state,
     ASSERT_LE(buffer_chunk, sizeof(tmp), LOCATION_MESSAGE);
 
     /* Read the data a buffer at a time. */
-    iovec_iter_t iter = iovec_iter_create(iov_cnt);
+    struct iovec_iter iter = iovec_iter_create(iov_cnt);
     size_t total_bytes = 0;
     while (iovec_iter_has_next(&iter)) {
         int ret = user_iovec_to_membuf_iter(tmp, buffer_chunk,
@@ -144,7 +144,7 @@ TEST_F(iovectest, varied_chunk_sizes) {
 
 /* Make sure that zero-length iovecs have no effect. */
 TEST_F(iovectest, zerolength) {
-    iovec_user_t uiov[] = {
+    struct iovec_user uiov[] = {
             {
                     .base = _state->buffer_addr + 0,
                     .len = 0,
@@ -192,7 +192,7 @@ test_abort:;
 
 /* Make sure we can read something other than the exact test pattern. */
 TEST_F(iovectest, swap_data) {
-    iovec_user_t uiov[] = {
+    struct iovec_user uiov[] = {
             {
                     .base = _state->buffer_addr + 14,
                     .len = 14,
