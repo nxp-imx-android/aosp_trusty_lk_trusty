@@ -65,8 +65,8 @@ static void chan_handle_destroy(struct handle* handle);
 static struct ipc_port* port_find_locked(const char* path);
 static int port_attach_client(struct ipc_port* port, struct ipc_chan* client);
 static void chan_shutdown(struct ipc_chan* chan);
-static void chan_add_ref(struct ipc_chan* conn, obj_ref_t* ref);
-static void chan_del_ref(struct ipc_chan* conn, obj_ref_t* ref);
+static void chan_add_ref(struct ipc_chan* conn, struct obj_ref* ref);
+static void chan_del_ref(struct ipc_chan* conn, struct obj_ref* ref);
 
 static struct handle_ops ipc_port_handle_ops = {
         .poll = port_poll,
@@ -215,7 +215,8 @@ static void port_shutdown(struct handle* phandle) {
         if (is_startup_port) {
             bool client_connecting = false;
             /* Get a local ref to the client*/
-            obj_ref_t tmp_client_ref = OBJ_REF_INITIAL_VALUE(tmp_client_ref);
+            struct obj_ref tmp_client_ref =
+                    OBJ_REF_INITIAL_VALUE(tmp_client_ref);
             chan_add_ref(server->peer, &tmp_client_ref);
 
             /* Remove server -> client ref */
@@ -319,7 +320,7 @@ int ipc_port_publish(struct handle* phandle) {
 
         /* go through pending connection list and pick those we can handle */
         struct ipc_chan *client, *temp;
-        obj_ref_t tmp_client_ref = OBJ_REF_INITIAL_VALUE(tmp_client_ref);
+        struct obj_ref tmp_client_ref = OBJ_REF_INITIAL_VALUE(tmp_client_ref);
         list_for_every_entry_safe(&waiting_for_port_chan_list, client, temp,
                                   struct ipc_chan, node) {
             if (strcmp(client->path, port->path))
@@ -438,7 +439,7 @@ static uint32_t port_poll(struct handle* phandle,
 /*
  *  Channel ref counting
  */
-static inline void __chan_destroy_refobj(obj_t* ref) {
+static inline void __chan_destroy_refobj(struct obj* ref) {
     struct ipc_chan* chan = containerof(ref, struct ipc_chan, refobj);
 
     /* should not point to peer */
@@ -457,7 +458,7 @@ static inline void __chan_destroy_refobj(obj_t* ref) {
     free(chan);
 }
 
-static inline void chan_add_ref(struct ipc_chan* chan, obj_ref_t* ref) {
+static inline void chan_add_ref(struct ipc_chan* chan, struct obj_ref* ref) {
     spin_lock_saved_state_t state;
 
     spin_lock_save(&chan->ref_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
@@ -465,7 +466,7 @@ static inline void chan_add_ref(struct ipc_chan* chan, obj_ref_t* ref) {
     spin_unlock_restore(&chan->ref_slock, state, SPIN_LOCK_FLAG_INTERRUPTS);
 }
 
-static inline void chan_del_ref(struct ipc_chan* chan, obj_ref_t* ref) {
+static inline void chan_del_ref(struct ipc_chan* chan, struct obj_ref* ref) {
     spin_lock_saved_state_t state;
 
     spin_lock_save(&chan->ref_slock, &state, SPIN_LOCK_FLAG_INTERRUPTS);
@@ -490,7 +491,7 @@ static inline struct handle* chan_handle_init(struct ipc_chan* chan) {
  */
 static struct ipc_chan* chan_alloc(uint32_t flags, const uuid_t* uuid) {
     struct ipc_chan* chan;
-    obj_ref_t tmp_ref = OBJ_REF_INITIAL_VALUE(tmp_ref);
+    struct obj_ref tmp_ref = OBJ_REF_INITIAL_VALUE(tmp_ref);
 
     chan = calloc(1, sizeof(struct ipc_chan));
     if (!chan)

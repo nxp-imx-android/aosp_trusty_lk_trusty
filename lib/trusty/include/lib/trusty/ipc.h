@@ -87,9 +87,9 @@ enum {
 #define IPC_CHAN_MAX_BUF_SIZE 4096
 
 struct ipc_chan {
-    obj_t refobj;
+    struct obj refobj;
     spin_lock_t ref_slock;
-    obj_ref_t peer_ref;
+    struct obj_ref peer_ref;
     struct ipc_chan* peer;
     const struct uuid* uuid;
 
@@ -101,16 +101,16 @@ struct ipc_chan {
      * outstanding handles out there. It is removed
      * when last handle ref goes away.
      */
-    obj_ref_t handle_ref;
+    struct obj_ref handle_ref;
     struct handle handle;
 
     /* used for port's pending list. node_ref field is a
      * self reference when node field is inserted in the list.
      *
      * TODO: consider creating generic solution by grouping
-     * together list_node and obj_ref_t into single struct.
+     * together list_node and struct obj_ref into single struct.
      */
-    obj_ref_t node_ref;
+    struct obj_ref node_ref;
     struct list_node node;
 
     struct ipc_msg_queue* msg_queue;
