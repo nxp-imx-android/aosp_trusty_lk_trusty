@@ -576,14 +576,14 @@ static int tipc_rx_thread_func(void* arg) {
     return 0;
 }
 
-typedef struct data_cb_ctx {
+struct data_cb_ctx {
     struct handle* chan;
     struct ipc_msg_info msg_inf;
-} data_cb_ctx_t;
+};
 
 static int tx_data_cb(uint8_t* buf, size_t buf_len, void* ctx) {
     int rc;
-    data_cb_ctx_t* cb_ctx = (data_cb_ctx_t*)ctx;
+    struct data_cb_ctx* cb_ctx = (struct data_cb_ctx*)ctx;
 
     DEBUG_ASSERT(buf);
     DEBUG_ASSERT(cb_ctx);
@@ -609,7 +609,7 @@ static void handle_tx_msg(struct tipc_dev* dev, struct handle* chan) {
     uint32_t local = 0;
     uint32_t remote = 0;
     struct tipc_ept* ept;
-    data_cb_ctx_t cb_ctx = {.chan = chan};
+    struct data_cb_ctx cb_ctx = {.chan = chan};
 
     mutex_acquire(&dev->ept_lock);
     ept = handle_get_cookie(chan);

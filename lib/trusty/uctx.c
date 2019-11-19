@@ -490,11 +490,11 @@ int uctx_handle_remove(struct uctx* ctx,
 /******************************************************************************/
 
 /* definition shared with userspace */
-typedef struct uevent {
+struct uevent {
     uint32_t handle;
     uint32_t event;
     user_addr_t cookie;
-} uevent_t;
+};
 
 static int _wait_for_uevent(const struct handle_ref* target,
                             user_addr_t user_event,

@@ -44,8 +44,6 @@
  */
 #define VIRTIO_FW_RSC_VER 1
 
-typedef struct resource_table trusty_virtio_descr_t;
-
 enum {
     VIRTIO_BUS_STATE_UNINITIALIZED = 0,
     VIRTIO_BUS_STATE_IDLE,
@@ -199,7 +197,7 @@ ssize_t virtio_get_description(ns_paddr_t buf_pa,
 
     /* build resource table */
     uint32_t vdev_idx = 0;
-    trusty_virtio_descr_t* descr = (trusty_virtio_descr_t*)va;
+    struct resource_table* descr = (struct resource_table*)va;
 
     descr->ver = VIRTIO_FW_RSC_VER;
     descr->num = vb->vdev_cnt;
