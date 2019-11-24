@@ -29,6 +29,7 @@
 #include <lib/trusty/ipc_msg.h>
 #include <lk/init.h>
 #include <lk/trace.h>
+#include <services/smc/acl.h>
 #include <string.h>
 
 #define LOCAL_TRACE (0)
@@ -36,6 +37,12 @@
 struct smc_service {
     struct handle* port;
     struct handle* hset;
+};
+
+struct smc_channel_ctx {
+    struct handle* handle;
+    struct handle_ref* href;
+    struct smc_access_policy policy;
 };
 
 /* UUID: {4ae225ec-20f2-4264-9a3f-935f90a42ddc} */
@@ -155,13 +162,23 @@ static int smc_send_response(struct handle* channel, struct smc_msg* msg) {
     return rc;
 }
 
-static int handle_msg(struct handle* channel) {
+static int handle_msg(struct smc_channel_ctx* channel_ctx) {
     int rc;
-
+    struct handle* channel = channel_ctx->handle;
     struct smc_msg request;
+    uint32_t smc_nr;
+
     rc = smc_read_request(channel, &request);
     if (rc != NO_ERROR) {
         TRACEF("%s: failed (%d) to read SMC request\n", __func__, rc);
+        goto err;
+    }
+
+    smc_nr = (uint32_t)request.params[0];
+    rc = channel_ctx->policy.check_access(smc_nr);
+    if (rc != NO_ERROR) {
+        TRACEF("%s: failed (%d) client not allowed to call SMC number %x\n",
+               __func__, rc, smc_nr);
         goto err;
     }
 
@@ -189,11 +206,11 @@ err:
 }
 
 /*
- * Adds a given handle to a given handle set. On success, returns pointer to
+ * Adds a given channel to a given handle set. On success, returns pointer to
  * added handle_ref. Otherwise, returns NULL.
  */
-static struct handle_ref* hset_add_handle(struct handle* hset,
-                                          struct handle* h) {
+static struct handle_ref* hset_add_channel(struct handle* hset,
+                                           struct smc_channel_ctx* hctx) {
     int rc;
     struct handle_ref* href;
 
@@ -203,12 +220,13 @@ static struct handle_ref* hset_add_handle(struct handle* hset,
         goto err_href_alloc;
     }
 
-    handle_incref(h);
-    href->handle = h;
+    handle_incref(hctx->handle);
+    href->handle = hctx->handle;
     href->emask = ~0U;
 
     /* to retrieve handle_ref from a handle_set_wait() event */
-    href->cookie = href;
+    hctx->href = href;
+    href->cookie = hctx;
 
     rc = handle_set_attach(hset, href);
     if (rc < 0) {
@@ -224,54 +242,78 @@ err_href_alloc:
     return NULL;
 }
 
-static void hset_remove_handle(struct handle_ref* href) {
+static void hset_remove_channel(struct handle_ref* href) {
     handle_set_detach_ref(href);
     handle_decref(href->handle);
     free(href);
 }
 
+static void smc_channel_close(struct smc_channel_ctx* hctx) {
+    handle_decref(hctx->handle);
+    free(hctx);
+}
+
 static void handle_channel_event(struct handle_ref* event) {
     int rc;
-    struct handle_ref* channel_ref = event->cookie;
-    struct handle* channel = event->handle;
+    struct smc_channel_ctx* channel_ctx = event->cookie;
 
-    DEBUG_ASSERT(channel_ref->handle == channel);
+    DEBUG_ASSERT(channel_ctx->href->handle == event->handle);
 
     if (event->emask & IPC_HANDLE_POLL_MSG) {
-        rc = handle_msg(channel);
+        rc = handle_msg(channel_ctx);
 
         if (rc != NO_ERROR) {
             TRACEF("%s: handle_msg failed (%d). Closing channel.\n", __func__,
                    rc);
-            hset_remove_handle(channel_ref);
-            return;
+            goto err;
         }
     }
 
     if (event->emask & IPC_HANDLE_POLL_HUP) {
-        hset_remove_handle(channel_ref);
+        goto err;
     }
+    return;
+
+err:
+    hset_remove_channel(channel_ctx->href);
+    smc_channel_close(channel_ctx);
 }
 
 static void handle_port_event(struct smc_service* ctx,
                               struct handle_ref* event) {
     int rc;
+    struct smc_channel_ctx* channel_ctx;
     struct handle* channel;
-    const struct uuid* dummy_uuid_ptr;
+    const struct uuid* peer_uuid;
 
     if (event->emask & IPC_HANDLE_POLL_READY) {
-        rc = ipc_port_accept(event->handle, &channel, &dummy_uuid_ptr);
+        rc = ipc_port_accept(event->handle, &channel, &peer_uuid);
         LTRACEF("accept returned %d\n", rc);
 
         if (rc != NO_ERROR) {
             TRACEF("%s: failed (%d) to accept incoming connection\n", __func__,
                    rc);
-            return;
+            goto err;
         }
 
-        hset_add_handle(ctx->hset, channel);
-        handle_decref(channel);
+        channel_ctx = calloc(1, sizeof(struct smc_channel_ctx));
+        if (!channel_ctx) {
+            TRACEF("%s: failed to allocate a smc_channel_ctx\n", __func__);
+            goto err;
+        }
+        channel_ctx->handle = channel;
+        smc_load_access_policy(peer_uuid, &channel_ctx->policy);
+
+        if (!hset_add_channel(ctx->hset, channel_ctx)) {
+            goto err_hset_add_channel;
+        }
     }
+    return;
+
+err_hset_add_channel:
+    smc_channel_close(channel_ctx);
+err:
+    return;
 }
 
 static void smc_service_loop(struct smc_service* ctx) {
@@ -324,18 +366,28 @@ static int smc_service_thread(void* arg) {
         goto err_port_publish;
     }
 
-    port_href = hset_add_handle(ctx.hset, ctx.port);
+    port_href = calloc(1, sizeof(struct handle_ref));
     if (!port_href) {
-        TRACEF("%s: failed (%d) to and to handle set\n", __func__, rc);
-        goto err_hset_add_handle;
+        TRACEF("%s: failed to allocate a port handle_ref\n", __func__);
+        goto err_port_href_alloc;
+    }
+    port_href->handle = ctx.port;
+    port_href->emask = ~0U;
+
+    rc = handle_set_attach(ctx.hset, port_href);
+    if (rc < 0) {
+        TRACEF("%s: failed (%d) handle_set_attach() port\n", __func__, rc);
+        goto err_hset_add_port;
     }
 
     smc_service_loop(&ctx);
     TRACEF("%s: smc_service_loop() returned. SMC service exiting.\n", __func__);
 
 err_smc_service_loop:
-    hset_remove_handle(port_href);
-err_hset_add_handle:
+    handle_set_detach_ref(port_href);
+err_hset_add_port:
+    free(port_href);
+err_port_href_alloc:
 err_port_publish:
     handle_close(ctx.port);
 err_port_create:

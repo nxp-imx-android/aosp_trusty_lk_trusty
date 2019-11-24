@@ -63,4 +63,11 @@ GLOBAL_DEFINES += \
 LINKER_SCRIPT += \
 	$(BUILDDIR)/system-onesegment.ld
 
+# SMC service support
+MODULE_INCLUDES += \
+	$(TRUSTY_TOP)/trusty/kernel/services/smc/include \
+
+MODULE_SRCS += \
+	$(LOCAL_DIR)/smc_service_access_policy.c \
+
 include make/module.mk
