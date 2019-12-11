@@ -125,7 +125,9 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
     /* the idx counter is free running, so check that it's no more
      * than the ring size away from last time we checked... this
      * should *never* happen, but we should be careful. */
-    uint16_t avail_cnt = vq->vring.avail->idx - vq->last_avail_idx;
+    uint16_t avail_cnt;
+    __builtin_sub_overflow(vq->vring.avail->idx, vq->last_avail_idx,
+                           &avail_cnt);
     if (unlikely(avail_cnt > (uint16_t)vq->vring.num)) {
         /* such state is not recoverable */
         panic("vq %p: new avail idx out of range (old %u new %u)\n", vq,
