@@ -28,6 +28,7 @@ MODULES += \
 	trusty/kernel/app/mmutest \
 	trusty/kernel/app/smptest \
 	trusty/kernel/app/stdcalltest \
+	trusty/kernel/app/uirqtest \
 	trusty/kernel/app/usercopytest \
 
 include external/lk/kerneltests-inc.mk

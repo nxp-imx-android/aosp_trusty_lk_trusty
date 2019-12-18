@@ -23,4 +23,5 @@
     porttest("com.android.kernel.smp-unittest").needs(smp4=True),
     porttest("com.android.kernel.usercopy-unittest"),
     porttest("com.android.kernel.dpc-unittest"),
+    porttest("com.android.kernel.uirq-unittest"),
 ]
