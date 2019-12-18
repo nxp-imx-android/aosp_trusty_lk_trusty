@@ -28,8 +28,8 @@
 #define MAX_SYS_FD_HADLERS 10
 
 struct sys_fd_ops {
-    int32_t (*read)(uint32_t fd, user_addr_t user_ptr, uint32_t size);
-    int32_t (*write)(uint32_t fd, user_addr_t user_ptr, uint32_t size);
+    ssize_t (*readv)(uint32_t fd, user_addr_t iov_uaddr, uint32_t iov_cnt);
+    ssize_t (*writev)(uint32_t fd, user_addr_t iov_uaddr, uint32_t iov_cnt);
     int32_t (*ioctl)(uint32_t fd, uint32_t cmd, user_addr_t user_ptr);
 };
 

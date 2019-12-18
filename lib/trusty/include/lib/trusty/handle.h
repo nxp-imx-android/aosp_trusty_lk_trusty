@@ -31,6 +31,7 @@
 
 #include <kernel/event.h>
 #include <kernel/mutex.h>
+#include <kernel/usercopy.h>
 
 #include <lib/trusty/refcount.h>
 
@@ -120,6 +121,12 @@ struct handle_ops {
     uint32_t (*poll)(struct handle* handle, uint32_t emask, bool finalize);
     void (*shutdown)(struct handle* handle);
     void (*destroy)(struct handle* handle);
+    ssize_t (*user_writev)(struct handle* handle,
+                           user_addr_t iov_uaddr,
+                           uint32_t iov_cnt);
+    ssize_t (*user_readv)(struct handle* handle,
+                          user_addr_t iov_uaddr,
+                          uint32_t iov_cnt);
 };
 
 struct handle_list {

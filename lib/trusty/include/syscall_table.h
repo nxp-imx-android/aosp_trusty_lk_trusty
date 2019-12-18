@@ -33,7 +33,7 @@
 DEF_SYSCALL(0x1, writev, long, 3, uint32_t fd, const struct iovec *iov, uint32_t iovcnt)
 DEF_SYSCALL(0x2, brk, void*, 1, void* brk)
 DEF_SYSCALL(0x3, exit_etc, long, 2, int32_t status, uint32_t flags)
-DEF_SYSCALL(0x4, read, long, 3, uint32_t fd, void *msg, uint32_t size)
+DEF_SYSCALL(0x4, readv, long, 3, uint32_t fd, const struct iovec *iov, uint32_t iovcnt)
 DEF_SYSCALL(0x5, ioctl, long, 3, uint32_t fd, uint32_t req, void *buf)
 DEF_SYSCALL(0x6, nanosleep, long, 3, uint32_t clock_id, uint32_t flags, uint64_t sleep_time)
 DEF_SYSCALL(0x7, gettime, long, 3, uint32_t clock_id, uint32_t flags, int64_t *time)

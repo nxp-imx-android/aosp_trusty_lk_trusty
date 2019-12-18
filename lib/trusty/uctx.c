@@ -778,6 +778,61 @@ long __SYSCALL sys_handle_set_ctrl(handle_id_t hset_id,
     return ret;
 }
 
+static ssize_t uctx_handle_writev(uint32_t fd,
+                                  user_addr_t iov_uaddr,
+                                  uint32_t iov_cnt) {
+    int rc;
+    struct handle* h;
+    struct uctx* ctx = current_uctx();
+
+    rc = uctx_handle_get(ctx, (handle_id_t)fd, &h);
+    if (rc != NO_ERROR)
+        return rc;
+
+    if (h->ops && h->ops->user_writev) {
+        rc = h->ops->user_writev(h, iov_uaddr, iov_cnt);
+    } else {
+        rc = ERR_NOT_SUPPORTED;
+    }
+
+    handle_decref(h);
+    return rc;
+}
+
+static ssize_t uctx_handle_readv(uint32_t fd,
+                                 user_addr_t iov_uaddr,
+                                 uint32_t iov_cnt) {
+    int rc;
+    struct handle* h;
+    struct uctx* ctx = current_uctx();
+
+    rc = uctx_handle_get(ctx, (handle_id_t)fd, &h);
+    if (rc != NO_ERROR)
+        return rc;
+
+    if (h->ops && h->ops->user_readv) {
+        rc = h->ops->user_readv(h, iov_uaddr, iov_cnt);
+    } else {
+        rc = ERR_NOT_SUPPORTED;
+    }
+
+    handle_decref(h);
+    return rc;
+}
+
+static const struct sys_fd_ops fd_op = {
+        .writev = uctx_handle_writev,
+        .readv = uctx_handle_readv,
+};
+
+const struct sys_fd_ops* uctx_get_fd_ops(uint32_t fd) {
+    if (fd >= IPC_HANDLE_ID_BASE &&
+        fd < (IPC_HANDLE_ID_BASE + IPC_MAX_HANDLES)) {
+        return &fd_op;
+    }
+    return NULL;
+}
+
 #else /* WITH_TRUSTY_IPC */
 
 long __SYSCALL sys_wait(uint32_t handle_id,
@@ -807,6 +862,10 @@ long __SYSCALL sys_handle_set_ctrl(handle_id_t hset_id,
                                    uint32_t cmd,
                                    user_addr_t user_event) {
     return ERR_NOT_SUPPORTED;
+}
+
+const struct sys_fd_ops* uctx_get_fd_ops(uint32_t fd) {
+    return NULL;
 }
 
 #endif /* WITH_TRUSTY_IPC */

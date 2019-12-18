@@ -36,17 +36,20 @@
 
 #include <lib/trusty/sys_fd.h>
 #include <lib/trusty/trusty_app.h>
+#include <lib/trusty/uctx.h>
 #include <lib/trusty/uio.h>
 #include <platform.h>
 
 #define LOCAL_TRACE 0
 
-static int32_t sys_std_write(uint32_t fd, user_addr_t user_ptr, uint32_t size);
+static ssize_t sys_std_writev(uint32_t fd,
+                              user_addr_t iov_uaddr,
+                              uint32_t iov_cnt);
 
 static mutex_t fd_lock = MUTEX_INITIAL_VALUE(fd_lock);
 
 static const struct sys_fd_ops sys_std_fd_op = {
-        .write = sys_std_write,
+        .writev = sys_std_writev,
 };
 
 static struct sys_fd_ops const* sys_fds[MAX_SYS_FD_HADLERS] = {
@@ -72,6 +75,12 @@ status_t install_sys_fd_handler(uint32_t fd, const struct sys_fd_ops* ops) {
 }
 
 static const struct sys_fd_ops* get_sys_fd_handler(uint32_t fd) {
+    const struct sys_fd_ops* ops;
+
+    ops = uctx_get_fd_ops(fd);
+    if (ops)
+        return ops;
+
     if (fd >= countof(sys_fds))
         return NULL;
 
@@ -94,9 +103,9 @@ static bool valid_address(vaddr_t addr, u_int size) {
 }
 
 /* handle stdout/stderr */
-static int32_t sys_std_write(uint32_t fd,
-                             user_addr_t iov_uaddr,
-                             uint32_t iov_cnt) {
+static ssize_t sys_std_writev(uint32_t fd,
+                              user_addr_t iov_uaddr,
+                              uint32_t iov_cnt) {
     /*
      * Even if we're suppressing the output, we need to process the data to
      * produce the correct return code.
@@ -136,11 +145,11 @@ write_done:
     return ret;
 }
 
-long sys_writev(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
+long sys_writev(uint32_t fd, user_addr_t iov_uaddr, uint32_t iov_cnt) {
     const struct sys_fd_ops* ops = get_sys_fd_handler(fd);
 
-    if (ops && ops->write)
-        return ops->write(fd, user_ptr, size);
+    if (ops && ops->writev)
+        return ops->writev(fd, iov_uaddr, iov_cnt);
 
     return ERR_NOT_SUPPORTED;
 }
@@ -163,11 +172,11 @@ long sys_exit_etc(int32_t status, uint32_t flags) {
     return 0L;
 }
 
-long sys_read(uint32_t fd, user_addr_t user_ptr, uint32_t size) {
+long sys_readv(uint32_t fd, user_addr_t iov_uaddr, uint32_t iov_cnt) {
     const struct sys_fd_ops* ops = get_sys_fd_handler(fd);
 
-    if (ops && ops->read)
-        return ops->read(fd, user_ptr, size);
+    if (ops && ops->readv)
+        return ops->readv(fd, iov_uaddr, iov_cnt);
 
     return ERR_NOT_SUPPORTED;
 }

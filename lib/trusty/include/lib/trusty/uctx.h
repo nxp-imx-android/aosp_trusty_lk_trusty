@@ -28,6 +28,7 @@
 #include <sys/types.h>
 
 #include <lib/trusty/handle.h>
+#include <lib/trusty/sys_fd.h>
 
 struct uctx;
 
@@ -49,5 +50,7 @@ int uctx_handle_remove(struct uctx* ctx,
 int uctx_handle_get(struct uctx* ctx,
                     handle_id_t handle_id,
                     struct handle** handle_ptr);
+
+const struct sys_fd_ops* uctx_get_fd_ops(uint32_t fd);
 
 #endif
