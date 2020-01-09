@@ -59,6 +59,8 @@
 #define SMC_ENTITY_TRUSTED_OS 50
 /* Used for secure -> nonsecure logging */
 #define SMC_ENTITY_LOGGING 51
+/* Used for secure -> nonsecure tests */
+#define SMC_ENTITY_TEST 52
 /* Trusted OS calls internal to secure monitor */
 #define SMC_ENTITY_SECURE_MONITOR 60
 

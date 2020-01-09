@@ -1,4 +1,5 @@
-# Copyright (C) 2019 The Android Open Source Project
+#
+# Copyright (c) 2020, Google, Inc. All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -20,14 +21,11 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-MODULES += \
-	trusty/kernel/app/busytest \
-	trusty/kernel/app/consoletest \
-	trusty/kernel/app/dpctest \
-	trusty/kernel/app/memorytest \
-	trusty/kernel/app/mmutest \
-	trusty/kernel/app/smptest \
-	trusty/kernel/app/stdcalltest \
-	trusty/kernel/app/usercopytest \
+LOCAL_DIR := $(GET_LOCAL_DIR)
 
-include external/lk/kerneltests-inc.mk
+MODULE := $(LOCAL_DIR)
+
+MODULE_SRCS += \
+	$(LOCAL_DIR)/stdcalltest.c
+
+include make/module.mk
