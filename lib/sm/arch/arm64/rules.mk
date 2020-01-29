@@ -27,6 +27,7 @@ ifeq (false,$(call TOBOOL,$(LIB_SM_CUSTOM_SCHED_NONSECURE)))
 
 MODULE_SRCS += \
 	$(CUR_DIR)/entry.S \
+	$(CUR_DIR)/smc.S \
 
 endif
 
