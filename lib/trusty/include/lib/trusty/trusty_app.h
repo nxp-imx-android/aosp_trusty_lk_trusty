@@ -173,7 +173,11 @@ static inline struct trusty_thread* current_trusty_thread(void) {
 }
 
 static inline struct trusty_app* current_trusty_app(void) {
-    return current_trusty_thread()->app;
+    struct trusty_thread* trusty_thread = current_trusty_thread();
+    if (!trusty_thread) {
+        return NULL;
+    }
+    return trusty_thread->app;
 }
 
 #endif
