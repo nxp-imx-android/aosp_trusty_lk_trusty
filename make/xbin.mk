@@ -112,7 +112,7 @@ endif
 # libcxx they link against, and the builtins do not use C++.)
 XBIN_LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_ARCH_NAME)-android.a
 
-XBIN_LD := $(XBIN_TOOLCHAIN_PREFIX)ld.bfd
+XBIN_LD := $(CLANG_BINDIR)/ld.lld
 XBIN_OBJCOPY := $(XBIN_TOOLCHAIN_PREFIX)objcopy
 XBIN_OBJDUMP := $(XBIN_TOOLCHAIN_PREFIX)objdump
 XBIN_STRIP := $(XBIN_TOOLCHAIN_PREFIX)strip
