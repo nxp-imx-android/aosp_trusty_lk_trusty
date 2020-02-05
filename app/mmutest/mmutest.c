@@ -170,6 +170,8 @@ TEST(mmutest, alloc_last_kernel_page) {
     void* ptr2;
     void* ptr3;
     vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
 
     /*
      * Perform allocations at a specific address and at a vmm chosen address
@@ -184,6 +186,15 @@ TEST(mmutest, alloc_last_kernel_page) {
                     VMM_FLAG_VALLOC_SPECIFIC, 0);
     /* TODO: allow this to fail as page could already be in use */
     ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
+
+    /* While the last page is allocated, get an object corresponding to it */
+    ret = vmm_get_obj(aspace, (vaddr_t)ptr1, PAGE_SIZE, &slice);
+    EXPECT_EQ(NO_ERROR, ret, "vmm_get_obj failed to get last page object");
+    /* Sanity check the slice we got back */
+    EXPECT_NE(NULL, slice.obj);
+    EXPECT_EQ(PAGE_SIZE, slice.size);
+    EXPECT_EQ(0, slice.offset);
+    vmm_obj_slice_release(&slice);
 
     /* Allocate page anywhere, while the last page is allocated. */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0, 0, 0);
@@ -297,6 +308,89 @@ TEST(mmutest, check_nx) {
 
 TEST(mmutest, DISABLED_run_nx) {
     EXPECT_EQ(ERR_FAULT, mmu_test_nx(true));
+}
+
+/* Test suite for vmm_obj_slice and vmm_get_obj */
+
+typedef struct {
+    vmm_aspace_t *aspace;
+    vaddr_t spot_a_2_page;
+    vaddr_t spot_b_1_page;
+    struct vmm_obj_slice slice;
+} mmutest_slice_t;
+
+TEST_F_SETUP(mmutest_slice) {
+    _state->aspace = vmm_get_kernel_aspace();
+    _state->spot_a_2_page = 0;
+    _state->spot_b_1_page = 0;
+    vmm_obj_slice_init(&_state->slice);
+    ASSERT_EQ(vmm_alloc(_state->aspace, "mmutest_slice", 2 * PAGE_SIZE,
+                        (void **)&_state->spot_a_2_page, 0, 0, 0),
+              NO_ERROR);
+    ASSERT_EQ(vmm_alloc(_state->aspace, "mmutest_slice", PAGE_SIZE,
+                        (void **)&_state->spot_b_1_page, 0, 0, 0),
+              NO_ERROR);
+test_abort:;
+}
+
+TEST_F_TEARDOWN(mmutest_slice) {
+    vmm_obj_slice_release(&_state->slice);
+    if (_state->spot_a_2_page) {
+        vmm_free_region(_state->aspace, (vaddr_t)_state->spot_a_2_page);
+    }
+
+    if (_state->spot_b_1_page) {
+        vmm_free_region(_state->aspace, (vaddr_t)_state->spot_b_1_page);
+    }
+}
+
+/*
+ * Simplest use of interface - get the slice for a mapped region,
+ * of the whole size
+ */
+TEST_F(mmutest_slice, simple) {
+    ASSERT_EQ(vmm_get_obj(_state->aspace, _state->spot_b_1_page, PAGE_SIZE,
+                          &_state->slice),
+              NO_ERROR);
+    EXPECT_EQ(_state->slice.offset, 0);
+    EXPECT_EQ(_state->slice.size, PAGE_SIZE);
+test_abort:;
+}
+
+/* Validate that we will reject an attempt to span two slices */
+TEST_F(mmutest_slice, two_objs) {
+    vaddr_t base;
+    size_t size;
+    vaddr_t spot_a = _state->spot_a_2_page;
+    vaddr_t spot_b = _state->spot_b_1_page;
+
+    base = MIN(spot_a, spot_b);
+    size = MAX(spot_a, spot_b) - base + PAGE_SIZE;
+
+    /* We should not be able to create a slice spanning both objects */
+    EXPECT_EQ(vmm_get_obj(_state->aspace, base, size, &_state->slice),
+              ERR_OUT_OF_RANGE);
+
+test_abort:;
+}
+
+/* Check we can acquire a subslice of a mapped object */
+TEST_F(mmutest_slice, subobj) {
+    ASSERT_EQ(vmm_get_obj(_state->aspace, _state->spot_a_2_page + PAGE_SIZE,
+                          PAGE_SIZE, &_state->slice),
+              NO_ERROR);
+
+    EXPECT_EQ(_state->slice.offset, PAGE_SIZE);
+    EXPECT_EQ(_state->slice.size, PAGE_SIZE);
+
+test_abort:;
+}
+
+/* Check for rejection of the requested range overflows */
+TEST_F(mmutest_slice, overflow) {
+    EXPECT_EQ(vmm_get_obj(_state->aspace, _state->spot_a_2_page, SIZE_MAX,
+                          &_state->slice),
+              ERR_INVALID_ARGS);
 }
 
 INSTANTIATE_TEST_SUITE_P(allocation_size,
