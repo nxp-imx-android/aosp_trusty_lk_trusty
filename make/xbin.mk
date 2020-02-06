@@ -173,6 +173,24 @@ $(ALLOBJS): $(XBIN_CONFIGHEADER)
 # add it to global dependency list
 GENERATED += $(XBIN_CONFIGHEADER)
 
+# build manifest objects if manifest config json provided
+ifneq ($(strip $(MANIFEST)),)
+XBIN_MANIFEST_BIN := $(BUILDDIR)/manifest.data
+$(XBIN_MANIFEST_BIN): MANIFEST_COMPILER := trusty/user/base/tools/manifest_compiler.py
+$(XBIN_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER)
+	@$(MKDIR)
+	@echo compiling $< to $@
+	$(MANIFEST_COMPILER) -i $< -o $@
+
+XBIN_MANIFEST_OBJ := $(BUILDDIR)/manifest.o
+$(XBIN_MANIFEST_OBJ): MANIFEST_OBJ_ASM := $(TRUSTY_APP_DIR)/appmanifestobj.S
+$(XBIN_MANIFEST_OBJ): $(MANIFEST_OBJ_ASM) $(XBIN_MANIFEST_BIN)
+	@echo converting $< to $@
+	$(NOECHO)$(CC) -DMANIFEST_DATA=\"$<\" $(ARCH_COMPILEFLAGS) -c $(MANIFEST_OBJ_ASM) -MD -MP -MT $@ -MF $(@:%o=%d) -o $@
+
+XBIN_ALL_OBJS += $(XBIN_MANIFEST_OBJ)
+endif
+
 # Link XBIN elf
 $(XBIN_SYMS_ELF): XBIN_LD := $(XBIN_LD)
 $(XBIN_SYMS_ELF): XBIN_LIBGCC := $(XBIN_LIBGCC)
@@ -252,3 +270,7 @@ XBIN_STRIP :=
 
 XBIN_LDFLAGS :=
 XBIN_APP :=
+
+MANIFEST :=
+XBIN_MANIFEST_OBJ :=
+XBIN_MANIFEST_BIN :=
