@@ -28,16 +28,16 @@ EXTRA_LINKER_SCRIPTS += $(LOCAL_DIR)/trusty_apps.ld
 MODULE := $(LOCAL_DIR)
 
 MODULE_SRCS := \
-	$(LOCAL_DIR)/trusty.c \
-	$(LOCAL_DIR)/trusty_app.c \
-	$(LOCAL_DIR)/syscall.c \
+	$(LOCAL_DIR)/event.c \
 	$(LOCAL_DIR)/handle.c \
 	$(LOCAL_DIR)/handle_set.c \
-	$(LOCAL_DIR)/event.c \
-	$(LOCAL_DIR)/uctx.c \
+	$(LOCAL_DIR)/iovec.c \
 	$(LOCAL_DIR)/ipc.c \
 	$(LOCAL_DIR)/ipc_msg.c \
-	$(LOCAL_DIR)/iovec.c \
+	$(LOCAL_DIR)/syscall.c \
+	$(LOCAL_DIR)/trusty.c \
+	$(LOCAL_DIR)/trusty_app.c \
+	$(LOCAL_DIR)/uctx.c \
 	$(LOCAL_DIR)/uirq.c \
 	$(LOCAL_DIR)/uuid.c \
 
