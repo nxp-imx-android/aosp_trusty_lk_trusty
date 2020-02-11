@@ -76,10 +76,6 @@ MODULE_DEPS += \
 	lib/syscall \
 	lib/version \
 
-ifeq ($(call TOBOOL,$(CLANGBUILD)), true)
-MODULE_DEPS += lib/rt
-endif
-
 GLOBAL_DEFINES += \
 	WITH_SYSCALL_TABLE=1 \
 
