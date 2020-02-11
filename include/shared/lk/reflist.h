@@ -55,10 +55,26 @@ static inline __ALWAYS_INLINE void obj_init(struct obj* obj,
     list_add_tail(&obj->ref_list, &ref->ref_node);
 }
 
-static inline __ALWAYS_INLINE void obj_add_ref(struct obj* obj,
-                                               struct obj_ref* ref) {
+static inline __ALWAYS_INLINE bool obj_has_ref(struct obj* obj) {
+    return !list_is_empty(&obj->ref_list);
+}
+
+/*
+ * Only use if you are intentionally reusing a possibly unreferenced
+ * object. A cache is an example of this use case, where the destroy
+ * callback may not actually free the object, and the code may wish to
+ * reuse it by adding a reference after it hits zero.
+ */
+static inline __ALWAYS_INLINE void obj_add_ref_allow_unreferenced_obj(
+        struct obj* obj, struct obj_ref* ref) {
     assert(!list_in_list(&ref->ref_node));
     list_add_tail(&obj->ref_list, &ref->ref_node);
+}
+
+static inline __ALWAYS_INLINE void obj_add_ref(struct obj* obj,
+                                               struct obj_ref* ref) {
+    assert(obj_has_ref(obj));
+    obj_add_ref_allow_unreferenced_obj(obj, ref);
 }
 
 static inline __ALWAYS_INLINE bool obj_del_ref(struct obj* obj,
