@@ -262,6 +262,7 @@ static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
 /* TODO share a common header file. */
 #define AT_PAGESZ 6
 #define AT_BASE 7
+#define AT_RANDOM 25
 
 /*
  * Pass data to libc on the user stack.
@@ -274,9 +275,16 @@ trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
                                vaddr_t load_bias) {
     /* Construct the elf tables in reverse order - the stack grows down. */
 
+    /*
+     * sixteen random bytes
+     * TODO assign random bytes.
+     */
+    uint8_t rand_bytes[16] = {1};
+    add_to_user_stack(trusty_thread, rand_bytes, sizeof(rand_bytes), 1,
+                      stack_ptr);
     /* auxv */
     user_addr_t auxv[] = {
-            AT_PAGESZ, PAGE_SIZE, AT_BASE, load_bias, 0,
+            AT_PAGESZ, PAGE_SIZE, AT_BASE, load_bias, AT_RANDOM, *stack_ptr, 0,
     };
     add_to_user_stack(trusty_thread, auxv, sizeof(auxv), sizeof(user_addr_t),
                       stack_ptr);
