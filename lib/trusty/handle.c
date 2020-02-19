@@ -377,4 +377,17 @@ err_do_poll:
     return ret;
 }
 
+status_t handle_mmap(struct handle* handle,
+                     size_t offset,
+                     user_size_t size,
+                     uint32_t mmap_prot,
+                     user_addr_t* addr) {
+    LTRACEF("mmap_prot 0x%x\n", mmap_prot);
+    if (handle->ops->mmap) {
+        return handle->ops->mmap(handle, offset, size, mmap_prot, addr);
+    } else {
+        return ERR_INVALID_ARGS;
+    }
+}
+
 #endif /* WITH_TRUSTY_IPC */

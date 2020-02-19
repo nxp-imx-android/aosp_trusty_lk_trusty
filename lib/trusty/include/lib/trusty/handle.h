@@ -127,6 +127,11 @@ struct handle_ops {
     ssize_t (*user_readv)(struct handle* handle,
                           user_addr_t iov_uaddr,
                           uint32_t iov_cnt);
+    status_t (*mmap)(struct handle* handle,
+                     size_t offset,
+                     user_size_t size,
+                     uint32_t mmap_prot,
+                     user_addr_t* addr);
 };
 
 struct handle_list {
@@ -186,5 +191,11 @@ int handle_list_wait(struct handle_list* hlist,
 static inline bool handle_is_sendable(struct handle* h) {
     return !(h->flags & HANDLE_FLAG_NO_SEND);
 }
+
+status_t handle_mmap(struct handle* handle,
+                     size_t offset,
+                     user_size_t size,
+                     uint32_t mmap_prot,
+                     user_addr_t* addr);
 
 #endif

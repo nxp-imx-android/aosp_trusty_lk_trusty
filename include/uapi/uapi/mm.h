@@ -28,12 +28,35 @@
  * Flags for mmap syscall
  */
 
-/*
- * Maps memory region specified by IO region id (handle) to user address space.
- * IO Mapping has fixed attributes (non-secure, strongly ordered,
+/**
+ * MMAP_FLAG_IO_HANDLE - map IO region rather than handle
+ * When passed to mmap(), this flag causes the handle argument to be
+ * interpreted as a MMIO region ID defined in the manifest rather than a
+ * handle.
+ *
+ * An IO Mapping has fixed attributes (non-secure, strongly ordered,
  * physically contiguous, read-writable and 4k aligned) for now.
+ *
+ * It is an error to use this flag without %MMAP_PROT_READ and
+ * %MMAP_PROT_WRITE specified, or with %MMAP_PROT_EXEC specified.
  */
-#define MMAP_FLAG_IO_HANDLE (0x1 << 0)
+#define MMAP_FLAG_IO_HANDLE (0x1 << 4)
+
+/**
+ * Memory Protection attributes - flags to control mmap attributes
+ * %MMAP_FLAG_PROT_NONE:  specifies absence of any mmap prot flags set
+ * %MMAP_FLAG_PROT_READ:  specifies that mapped region should be readable
+ * %MMAP_FLAG_PROT_WRITE: specifies that mapped region should be writable
+ * %MMAP_FLAG_PROT_EXEC:  specifies that mapped region should be executable
+ * %MMAP_FLAG_PROT_MASK:  a combination of all possible PROT attributes
+ */
+#define MMAP_FLAG_PROT_NONE 0x0
+#define MMAP_FLAG_PROT_READ 0x1
+#define MMAP_FLAG_PROT_WRITE 0x2
+#define MMAP_FLAG_PROT_EXEC 0x4
+
+#define MMAP_FLAG_PROT_MASK \
+    (MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_EXEC)
 
 /**
  * struct dma_pmem - a contiguous physical memory block

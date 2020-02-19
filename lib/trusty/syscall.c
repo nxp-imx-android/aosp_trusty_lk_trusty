@@ -34,6 +34,7 @@
 #include <trace.h>
 #include <uapi/mm.h>
 
+#include <lib/trusty/memref.h>
 #include <lib/trusty/sys_fd.h>
 #include <lib/trusty/trusty_app.h>
 #include <lib/trusty/uctx.h>
@@ -218,7 +219,7 @@ long sys_gettime(uint32_t clock_id, uint32_t flags, user_addr_t time) {
 long sys_mmap(user_addr_t uaddr,
               uint32_t size,
               uint32_t flags,
-              uint32_t handle) {
+              uint32_t handle_id) {
     struct trusty_app* trusty_app = current_trusty_app();
     long ret;
 
@@ -227,16 +228,34 @@ long sys_mmap(user_addr_t uaddr,
      * must be 0 for now.
      * TBD: Add support in to use uaddr as a hint.
      */
-    if (flags != MMAP_FLAG_IO_HANDLE || uaddr != 0) {
-        return ERR_INVALID_ARGS;
-    }
+    if (flags & MMAP_FLAG_IO_HANDLE) {
+        if (uaddr != 0) {
+            return ERR_INVALID_ARGS;
+        }
 
-    ret = trusty_app_setup_mmio(trusty_app, handle, &uaddr, size);
-    if (ret != NO_ERROR) {
-        return ret;
-    }
+        ret = trusty_app_setup_mmio(trusty_app, handle_id, &uaddr, size);
+        if (ret != NO_ERROR) {
+            return ret;
+        }
 
-    return uaddr;
+        return uaddr;
+    } else {
+        struct handle* handle;
+        ret = uctx_handle_get(current_uctx(), handle_id, &handle);
+        if (ret != NO_ERROR) {
+            LTRACEF("mmapped nonexistent handle\n");
+            return ret;
+        }
+
+        ret = handle_mmap(handle, 0, size, flags, &uaddr);
+        handle_decref(handle);
+        if (ret != NO_ERROR) {
+            LTRACEF("handle_mmap failed\n");
+            return ret;
+        }
+
+        return uaddr;
+    }
 }
 
 long sys_munmap(user_addr_t uaddr, uint32_t size) {
@@ -313,4 +332,33 @@ long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
 long sys_set_user_tls(user_addr_t uaddr) {
     arch_set_user_tls(uaddr);
     return NO_ERROR;
+}
+
+long sys_memref_create(user_addr_t uaddr,
+                       user_size_t size,
+                       uint32_t mmap_prot) {
+    struct trusty_app* app = current_trusty_app();
+    struct handle* handle;
+    handle_id_t id;
+    status_t rc = memref_create_from_aspace(app->aspace, uaddr, size, mmap_prot,
+                                            &handle);
+    if (rc) {
+        LTRACEF("failed to create memref\n");
+        return rc;
+    }
+
+    int rc_uctx = uctx_handle_install(current_uctx(), handle, &id);
+    /*
+     * uctx_handle_install takes a reference to the handle, so we release
+     * ours now. If it failed, this will release it. If it succeeded, this
+     * prevents us from leaking when the application is destroyed.
+     */
+    handle_decref(handle);
+    if (rc_uctx) {
+        LTRACEF("failed to install handle\n");
+        return rc_uctx;
+    }
+
+    LTRACEF("memref created: %d\n", id);
+    return id;
 }

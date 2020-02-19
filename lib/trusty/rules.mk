@@ -34,6 +34,7 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/iovec.c \
 	$(LOCAL_DIR)/ipc.c \
 	$(LOCAL_DIR)/ipc_msg.c \
+	$(LOCAL_DIR)/memref.c \
 	$(LOCAL_DIR)/syscall.c \
 	$(LOCAL_DIR)/trusty.c \
 	$(LOCAL_DIR)/trusty_app.c \
