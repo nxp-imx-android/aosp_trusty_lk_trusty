@@ -28,6 +28,30 @@
 #include <sys/types.h>
 
 /**
+ * memref_create_from_vmm_obj() - Bind a part of a vmm_obj to a handle
+ * @obj:       @struct vmm_obj to base memref off of
+ * @offset:    Offset into the object to start at
+ * @size:      How big the memref should be
+ * @mmap_prot: What mmap flags (MMAP_FLAG_PROT_*) the memref should support
+ * @handle:    Output parameter for the handle
+ *
+ * Creates a user-mappable handle out of a @struct vmm_obj.
+ *
+ * Can fail if the permissions requested for the handle are more
+ * permissive than what the object allows or if the offset/size are out of
+ * range or unaligned.
+ *
+ * *handle will only be modified on success.
+ *
+ * Return: NO_ERROR on success, negative ERR_ value on failure
+ */
+status_t memref_create_from_vmm_obj(struct vmm_obj *obj,
+                                    size_t offset,
+                                    size_t size,
+                                    uint32_t mmap_prot,
+                                    struct handle** handle);
+
+/**
  * memref_create_from_aspace() - Bind a part of an aspace to a handle
  * @aspace:    Address space to create the memref from
  * @vaddr:     Virtual address in the space the memref should start at

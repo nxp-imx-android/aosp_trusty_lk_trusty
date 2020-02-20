@@ -184,7 +184,56 @@ static struct memref* memref_create(uint32_t mmap_prot) {
     return memref;
 }
 
-status_t memref_create_from_aspace(const vmm_aspace_t* aspace,
+static status_t check_slice(struct vmm_obj_slice *slice, uint32_t mmap_prot) {
+    if (!IS_PAGE_ALIGNED(slice->size) || !IS_PAGE_ALIGNED(slice->offset)) {
+        LTRACEF("unaligned\n");
+        return ERR_INVALID_ARGS;
+    }
+
+    uint arch_mmu_flags = 0;
+    status_t rc = xlat_flags(mmap_prot, mmap_prot, &arch_mmu_flags);
+    if (rc) {
+        LTRACEF("xlat_flags failed\n");
+        return rc;
+    }
+    rc = slice->obj->ops->check_flags(slice->obj, &arch_mmu_flags);
+    if (rc) {
+        LTRACEF("check_flags failed\n");
+        return rc;
+    }
+
+    return NO_ERROR;
+}
+
+status_t memref_create_from_vmm_obj(struct vmm_obj *obj,
+                                    size_t offset,
+                                    size_t size,
+                                    uint32_t mmap_prot,
+                                    struct handle** handle) {
+    DEBUG_ASSERT(obj);
+
+    struct memref *memref = memref_create(mmap_prot);
+    if (!memref) {
+        return ERR_NO_MEMORY;
+    }
+
+    vmm_obj_slice_bind(&memref->slice, obj, offset, size);
+
+    status_t rc = check_slice(&memref->slice, mmap_prot);
+    if (rc) {
+        goto err;
+    }
+
+    *handle = &memref->handle;
+
+    return NO_ERROR;
+
+err:
+    handle_decref(&memref->handle);
+    return rc;
+}
+
+status_t memref_create_from_aspace(const vmm_aspace_t *aspace,
                                    vaddr_t vaddr,
                                    size_t size,
                                    uint32_t mmap_prot,
@@ -192,34 +241,19 @@ status_t memref_create_from_aspace(const vmm_aspace_t* aspace,
     DEBUG_ASSERT(aspace);
     DEBUG_ASSERT(handle);
 
-    if (!IS_PAGE_ALIGNED(size) || !IS_PAGE_ALIGNED(vaddr)) {
-        LTRACEF("aspace unaligned\n");
-        return ERR_INVALID_ARGS;
-    }
-
-    uint arch_mmu_flags = 0;
-    int rc = xlat_flags(mmap_prot, mmap_prot, &arch_mmu_flags);
-    if (rc) {
-        LTRACEF("aspace xlat_flags failed\n");
-        return rc;
-    }
-
     struct memref* memref = memref_create(mmap_prot);
     if (!memref) {
         return ERR_NO_MEMORY;
     }
 
-    rc = vmm_get_obj(aspace, vaddr, size, &memref->slice);
+    status_t rc = vmm_get_obj(aspace, vaddr, size, &memref->slice);
     if (rc) {
         LTRACEF("vmm_get_obj failed: %d\n", rc);
         goto err;
     }
 
-    struct vmm_obj_slice* slice = &memref->slice;
-
-    rc = slice->obj->ops->check_flags(slice->obj, &arch_mmu_flags);
+    rc = check_slice(&memref->slice, mmap_prot);
     if (rc) {
-        LTRACEF("aspace check_flags failed\n");
         goto err;
     }
 
