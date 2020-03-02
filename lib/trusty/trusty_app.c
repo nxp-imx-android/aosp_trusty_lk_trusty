@@ -32,6 +32,7 @@
 #include <kernel/event.h>
 #include <kernel/mutex.h>
 #include <kernel/thread.h>
+#include <lib/rand/rand.h>
 #include <lib/syscall.h>
 #include <lib/trusty/ipc.h>
 #include <lk/init.h>
@@ -277,14 +278,15 @@ trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
 
     /*
      * sixteen random bytes
-     * TODO assign random bytes.
      */
-    uint8_t rand_bytes[16] = {1};
-    add_to_user_stack(trusty_thread, rand_bytes, sizeof(rand_bytes), 1,
-                      stack_ptr);
+    uint8_t rand_bytes[16] = {0};
+    rand_get_bytes(rand_bytes, sizeof(rand_bytes));
+    user_addr_t rand_bytes_addr = add_to_user_stack(
+            trusty_thread, rand_bytes, sizeof(rand_bytes), 1, stack_ptr);
     /* auxv */
     user_addr_t auxv[] = {
-            AT_PAGESZ, PAGE_SIZE, AT_BASE, load_bias, AT_RANDOM, *stack_ptr, 0,
+            AT_PAGESZ, PAGE_SIZE,       AT_BASE, load_bias,
+            AT_RANDOM, rand_bytes_addr, 0,
     };
     add_to_user_stack(trusty_thread, auxv, sizeof(auxv), sizeof(user_addr_t),
                       stack_ptr);

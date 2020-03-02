@@ -29,14 +29,14 @@
 __BEGIN_CDECLS;
 
 /**
- * rand_get_int() - Get Random Integer
+ * rand_get_size() - Get Random Integer
  *
  * @max:  inclusive upper bound for the random integer
  *
  * Return: a pseudorandom integer in the range 0 to max inclusive
  *         (i.e., the mathematical range [0, max]).
  */
-unsigned int rand_get_int(unsigned int max);
+size_t rand_get_size(size_t max);
 
 /**
  * rand_get_bytes() - Get Random Bytes

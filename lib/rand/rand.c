@@ -23,11 +23,20 @@
 
 #include <lib/rand/rand.h>
 #include <rand.h>
+#include <stdint.h>
 #include <sys/types.h>
 
-/*TODO: replace the current dummy with implementation*/
-unsigned int rand_get_int(unsigned int max) {
-    return rand() % max;
+size_t rand_get_size(size_t max) {
+    size_t rand_size;
+    rand_get_bytes((uint8_t*)(&rand_size), sizeof(rand_size));
+    if (max == SIZE_MAX) {
+        return rand_size;
+    }
+    size_t retry = SIZE_MAX / (max + 1) * (max + 1);
+    while (rand_size >= retry) {
+        rand_get_bytes((uint8_t*)(&rand_size), sizeof(rand_size));
+    }
+    return rand_size % (max + 1);
 }
 
 /*TODO: replace the current dummy with implementation*/

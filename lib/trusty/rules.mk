@@ -75,6 +75,7 @@ GLOBAL_INCLUDES += \
 
 MODULE_DEPS += \
 	lib/libc-ext \
+	lib/rand \
 	lib/syscall \
 	lib/version \
 
