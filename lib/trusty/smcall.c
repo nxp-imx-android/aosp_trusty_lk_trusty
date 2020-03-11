@@ -23,6 +23,7 @@
 
 #include <arch/mmu.h>
 #include <assert.h>
+#include <debug.h>
 #include <err.h>
 #include <lib/sm.h>
 #include <lib/sm/sm_err.h>
