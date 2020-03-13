@@ -44,6 +44,7 @@ $(eval XBIN_LINKER_SCRIPT := $(BASE_USER_TASK_LINKER_SCRIPT))\
 $(eval XBIN_LDFLAGS := $(BASE_XBIN_LDFLAGS))\
 $(eval XBIN_ALIGNMENT := 4096)\
 $(eval XBIN_APP := true)\
+$(eval XBIN_SYMTAB_ENABLED := $(SYMTAB_ENABLED))\
 $(eval include make/xbin.mk)
 endef
 

@@ -30,6 +30,7 @@
 #     XBIN_LINKER_SCRIPT - linker script
 #     XBIN_TYPE - optional executable type
 #     XBIN_LDFLAGS - extra linker flags (optional)
+#     XBIN_SYMTAB_ENABLED - whether to build with .symtab or not (optional)
 #
 
 # check if all required variables are set or provide default
@@ -62,6 +63,10 @@ ifeq ($(XBIN_ALIGNMENT), )
 XBIN_ALIGNMENT := 1
 else
 XBIN_ALIGNMENT := $(XBIN_ALIGNMENT)
+endif
+
+ifeq ($(XBIN_SYMTAB_ENABLED),)
+XBIN_SYMTAB_ENABLED := false
 endif
 
 # save global variables
@@ -202,13 +207,20 @@ $(XBIN_SYMS_ELF): $(XBIN_ALL_OBJS) $(XBIN_LINKER_SCRIPT)
 	@echo linking $@
 	$(NOECHO)$(XBIN_LD) $(XBIN_LDFLAGS) -T $(XBIN_LINKER_SCRIPT) --start-group $(XBIN_ALL_OBJS) $(XBIN_LIBGCC) --end-group -o $@
 
+ifeq ($(call TOBOOL,$(XBIN_SYMTAB_ENABLED)),true)
+XBIN_STRIPFLAGS := --strip-debug
+else
+XBIN_STRIPFLAGS := -s
+endif
+
 # And strip it and pad with zeros to be page aligned
 $(XBIN_ELF): XBIN_STRIP := $(XBIN_STRIP)
 $(XBIN_ELF): XBIN_ALIGNMENT := $(XBIN_ALIGNMENT)
+$(XBIN_ELF): XBIN_STRIPFLAGS := $(XBIN_STRIPFLAGS)
 $(XBIN_ELF): $(XBIN_SYMS_ELF)
 	@$(MKDIR)
 	@echo stripping $<
-	$(NOECHO)$(XBIN_STRIP) -s $< -o $@
+	$(NOECHO)$(XBIN_STRIP) $(XBIN_STRIPFLAGS) $< -o $@
 	@echo page aligning $<
 	$(NOECHO)truncate -s %$(XBIN_ALIGNMENT) $@
 
@@ -254,6 +266,7 @@ XBIN_ARCH :=
 XBIN_TOP_MODULE :=
 XBIN_BUILDDIR :=
 XBIN_ALIGNMENT :=
+XBIN_SYMTAB_ENABLED :=
 
 XBIN_BIN :=
 XBIN_ELF :=
@@ -267,6 +280,7 @@ XBIN_CC :=
 XBIN_LD :=
 XBIN_OBJCOPY :=
 XBIN_STRIP :=
+XBIN_STRIPFLAGS :=
 
 XBIN_LDFLAGS :=
 XBIN_APP :=
