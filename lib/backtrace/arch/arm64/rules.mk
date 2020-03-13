@@ -19,19 +19,6 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-LOCAL_DIR := $(GET_LOCAL_DIR)
-
-MODULE := $(LOCAL_DIR)
-
-MODULE_STATIC_LIB := true
-
-MODULE_DEPS := \
-	trusty/kernel/lib/trusty \
-
-MODULE_SRCS := \
-	$(LOCAL_DIR)/backtrace.c \
-	$(LOCAL_DIR)/symbolize.c \
-
-include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
-
-include make/module.mk
+MODULE_SRCS += \
+	$(GET_LOCAL_DIR)/backtrace.c \
+	$(GET_LOCAL_DIR)/backtrace_arm64.c \
