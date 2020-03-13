@@ -22,6 +22,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <lib/trusty/elf.h>
 #include <lib/trusty/trusty_app.h>
 
 #include <arch.h>
@@ -44,8 +45,6 @@
 #include <sys/types.h>
 #include <trace.h>
 #include <uapi/trusty_app_manifest_types.h>
-
-#include "elf.h"
 
 #define LOCAL_TRACE 0
 
