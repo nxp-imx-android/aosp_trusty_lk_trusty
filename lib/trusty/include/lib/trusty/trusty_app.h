@@ -168,6 +168,10 @@ static inline void trusty_als_set(struct trusty_app* app,
     app->als[slot] = ptr;
 }
 
+static inline struct trusty_thread* trusty_thread_get(thread_t* t) {
+    return (struct trusty_thread*)thread_tls_get(t, TLS_ENTRY_TRUSTY);
+}
+
 static inline struct trusty_thread* current_trusty_thread(void) {
     return (struct trusty_thread*)tls_get(TLS_ENTRY_TRUSTY);
 }
