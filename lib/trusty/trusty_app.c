@@ -391,7 +391,8 @@ static struct trusty_thread* trusty_thread_create(
     trusty_thread->entry = entry;
     trusty_thread->stack_start = stack_bot + stack_size;
     trusty_thread->stack_size = stack_size;
-    trusty_thread->thread->tls[TLS_ENTRY_TRUSTY] = (uintptr_t)trusty_thread;
+    thread_tls_set(trusty_thread->thread, TLS_ENTRY_TRUSTY,
+                   (uintptr_t)trusty_thread);
 
     return trusty_thread;
 

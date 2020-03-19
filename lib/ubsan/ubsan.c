@@ -32,18 +32,31 @@
 #include <trusty/string.h>
 
 /*
- * in_ubsan is used to track whether we are currently processing a UBSan
+ * in_ubsan_* is used to track whether we are currently processing a UBSan
  * report. This is useful information so that if UBSan gets tripped again
  * (due to e.g. a bug in printf, or the logging code) we don't sit in an
  * infinite recursion trying to report the bug over and over.
  */
+static bool in_ubsan_get(void);
+static void in_ubsan_set(bool);
+
 #ifdef USER_TASK
 /* TODO Once TLS is available, make this __thread */
-bool in_ubsan = false;
+static bool in_ubsan = false;
+static inline bool in_ubsan_get(void) {
+    return in_ubsan;
+}
+static inline void in_ubsan_set(bool val) {
+    in_ubsan = val;
+}
 #else
-#include <debug.h>
 #include <kernel/thread.h>
-#define in_ubsan get_current_thread()->tls[TLS_ENTRY_UBSAN]
+static inline bool in_ubsan_get(void) {
+    return tls_get(TLS_ENTRY_UBSAN);
+}
+static inline void in_ubsan_set(bool val) {
+    tls_set(TLS_ENTRY_UBSAN, val);
+}
 #endif
 
 #define VALUE_RENDER_SIZE 64
@@ -132,19 +145,19 @@ static void ubsan_fail(const char* msg) {
 }
 
 static bool start() {
-    if (in_ubsan) {
+    if (in_ubsan_get()) {
         return false;
     }
-    in_ubsan = true;
+    in_ubsan_set(true);
     return true;
 }
 
 static void finish() {
-    assert(in_ubsan);
+    assert(in_ubsan_get());
 #ifdef UBSAN_HARD_FAIL
     ubsan_fail("UBSAN_HARD_FAIL");
 #endif
-    in_ubsan = false;
+    in_ubsan_set(false);
 }
 
 /*
