@@ -153,6 +153,11 @@ ifneq ($(ASLR), false)
     endif
 endif
 
+ifneq ($(strip $(CONSTANTS)),)
+GLOBAL_USER_INCLUDES += \
+	$(BUILDDIR)/constants/include
+endif
+
 # Set appropriate globals for all targets under $(BUILDDIR)
 $(BUILDDIR)/%: CC := $(XBIN_CC)
 $(BUILDDIR)/%: LD := $(XBIN_LD)
@@ -179,14 +184,24 @@ $(ALLOBJS): $(XBIN_CONFIGHEADER)
 GENERATED += $(XBIN_CONFIGHEADER)
 
 # build manifest objects if manifest config json provided
+# generate shared constants headers if constants provided
 ifneq ($(strip $(MANIFEST)),)
 XBIN_MANIFEST_BIN := $(BUILDDIR)/manifest.data
 $(XBIN_MANIFEST_BIN): MANIFEST_COMPILER := trusty/user/base/tools/manifest_compiler.py
-$(XBIN_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER)
+$(XBIN_MANIFEST_BIN): CONFIG_CONSTANTS := $(CONSTANTS)
+$(XBIN_MANIFEST_BIN): HEADER_DIR := $(BUILDDIR)/constants/include
+$(XBIN_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER) $(CONFIG_CONSTANTS)
 	@$(MKDIR)
 	@echo compiling $< to $@
-	$(MANIFEST_COMPILER) -i $< -o $@
+	$(MANIFEST_COMPILER) -i $< -o $@ $(addprefix -c,$(CONFIG_CONSTANTS)) --header-dir $(HEADER_DIR)
 
+# The manifest binary is not actually a SRCDEP,
+# but it is generated at the same time of header files that are.
+# Since we do not know the name of the header files,
+# add a dependency edge on a file created at the same time.
+GLOBAL_SRCDEPS += $(XBIN_MANIFEST_BIN)
+
+# Create manifest object using its manifest data in binary form
 XBIN_MANIFEST_OBJ := $(BUILDDIR)/manifest.o
 $(XBIN_MANIFEST_OBJ): MANIFEST_OBJ_ASM := $(TRUSTY_APP_DIR)/appmanifestobj.S
 $(XBIN_MANIFEST_OBJ): $(MANIFEST_OBJ_ASM) $(XBIN_MANIFEST_BIN)
@@ -286,5 +301,6 @@ XBIN_LDFLAGS :=
 XBIN_APP :=
 
 MANIFEST :=
+CONSTANTS :=
 XBIN_MANIFEST_OBJ :=
 XBIN_MANIFEST_BIN :=
