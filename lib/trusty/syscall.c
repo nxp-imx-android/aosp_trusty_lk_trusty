@@ -273,7 +273,7 @@ long sys_prepare_dma(user_addr_t uaddr,
                      uint32_t flags,
                      user_addr_t pmem) {
     struct dma_pmem kpmem;
-    uint32_t mapped_size = 0;
+    size_t mapped_size = 0;
     uint32_t entries = 0;
     long ret;
     vaddr_t vaddr = uaddr;
@@ -282,20 +282,45 @@ long sys_prepare_dma(user_addr_t uaddr,
             ", size 0x%x, flags 0x%x, pmem 0x%" PRIxPTR_USER "\n",
             uaddr, size, flags, pmem);
 
-    if (size == 0 || !valid_address(vaddr, size))
+    if (size == 0)
         return ERR_INVALID_ARGS;
 
-    do {
-        kpmem.paddr = vaddr_to_paddr((void*)(vaddr + mapped_size));
-        if (!kpmem.paddr)
-            return ERR_INVALID_ARGS;
+    struct trusty_app* trusty_app = current_trusty_app();
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
 
-        kpmem.size = MIN(size - mapped_size,
-                         PAGE_SIZE - (kpmem.paddr & (PAGE_SIZE - 1)));
+    ret = vmm_get_obj(trusty_app->aspace, vaddr, size, &slice);
+    if (ret != NO_ERROR)
+        return ret;
+
+    if (!slice.obj || !slice.obj->ops) {
+        ret = ERR_NOT_VALID;
+        goto err;
+    }
+
+    do {
+        paddr_t paddr;
+        size_t paddr_size;
+        ret = slice.obj->ops->get_page(slice.obj, slice.offset, &paddr,
+                                       &paddr_size);
+        if (ret != NO_ERROR)
+            goto err;
+
+        kpmem.paddr = paddr;
+        kpmem.size = MIN(size - mapped_size, paddr_size);
+
+        /*
+         * Here, kpmem.size is either the remaining mapping size
+         * (size - mapping_size)
+         * or the distance to a page boundary that is not physically
+         * contiguous with the next page mapped in the given virtual
+         * address range.
+         * In either case it marks the end of the current kpmem record.
+         */
 
         ret = copy_to_user(pmem, &kpmem, sizeof(struct dma_pmem));
         if (ret != NO_ERROR)
-            return ret;
+            goto err;
 
         pmem += sizeof(struct dma_pmem);
 
@@ -303,6 +328,8 @@ long sys_prepare_dma(user_addr_t uaddr,
         entries++;
 
     } while (mapped_size < size && (flags & DMA_FLAG_MULTI_PMEM));
+
+    vmm_obj_slice_release(&slice);
 
     if (flags & DMA_FLAG_FROM_DEVICE)
         arch_clean_invalidate_cache_range(vaddr, mapped_size);
@@ -313,6 +340,10 @@ long sys_prepare_dma(user_addr_t uaddr,
         return ERR_BAD_LEN;
 
     return entries;
+
+err:
+    vmm_obj_slice_release(&slice);
+    return ret;
 }
 
 long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
