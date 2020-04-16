@@ -40,3 +40,11 @@ KEEP(*(.task.data .task.data.*))
 }
 }
 INSERT AFTER .rodata;
+
+SECTIONS {
+.__manifest_data : {
+/* pre-built secure apps manifest get inserted here */
+KEEP(*(.trusty_app.manifest .trusty_app.manifest.*))
+}
+}
+INSERT AFTER .rodata;

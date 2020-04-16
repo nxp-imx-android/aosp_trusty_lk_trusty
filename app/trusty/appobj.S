@@ -32,7 +32,14 @@
 .incbin USER_TASK_ELF
 .task.body.end:
 
+.section .trusty_app.manifest, "a"
+.task.manifest.start:
+.align 2
+.incbin MANIFEST_DATA
+.task.manifest.end:
+
 .section .task.list, "a"
+DATA_PTR .task.manifest.start
+DATA_PTR .task.manifest.end
 DATA_PTR .task.body.start
 DATA_PTR .task.body.end
-

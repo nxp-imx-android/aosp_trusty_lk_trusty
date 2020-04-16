@@ -61,6 +61,8 @@ struct trusty_app_props {
 };
 
 struct trusty_app_img {
+    uintptr_t manifest_start;
+    uintptr_t manifest_end;
     uintptr_t img_start;
     uintptr_t img_end;
 };

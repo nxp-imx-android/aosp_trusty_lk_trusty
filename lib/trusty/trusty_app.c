@@ -430,69 +430,23 @@ static struct trusty_app* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
 static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
                                              char** manifest_data,
                                              size_t* size) {
-    ELF_EHDR* ehdr;
-    ELF_SHDR* shdr;
-    ELF_SHDR* manifest_shdr;
-    char* shstbl;
-    uint32_t shstbl_size;
-    u_int i;
-    char* data;
+    struct trusty_app_img* app_img;
 
-    ehdr = (ELF_EHDR*)trusty_app->app_img->img_start;
-    shdr = (ELF_SHDR*)((uintptr_t)ehdr + ehdr->e_shoff);
-    if (!address_range_within_img(shdr, sizeof(ELF_SHDR) * ehdr->e_shnum,
-                                  trusty_app->app_img)) {
-        dprintf(CRITICAL,
-                "get_app_manifest_config_data: ELF section headers out of bounds\n");
-        return ERR_NOT_VALID;
-    }
-
-    if (ehdr->e_shstrndx >= ehdr->e_shnum) {
-        dprintf(CRITICAL,
-                "get_app_manifest_config_data: ELF names table section header out of bounds\n");
-        return ERR_NOT_VALID;
-    }
-
-    shstbl = (char*)((uintptr_t)ehdr + shdr[ehdr->e_shstrndx].sh_offset);
-    shstbl_size = shdr[ehdr->e_shstrndx].sh_size;
-    if (!address_range_within_img(shstbl, shstbl_size, trusty_app->app_img)) {
-        dprintf(CRITICAL,
-                "get_app_manifest_config_data: ELF section names out of bounds\n");
-        return ERR_NOT_VALID;
-    }
-
-    manifest_shdr = NULL;
-
-    for (i = 0; i < ehdr->e_shnum; i++) {
-        if (shdr[i].sh_type == SHT_NULL)
-            continue;
-        LTRACEF("trusty_app: sect %d"
-                ", off 0x%08" PRIxELF_Off ", size 0x%08" PRIxELF_Size
-                ", flags 0x%02" PRIxELF_Flags ", name %s\n",
-                i, shdr[i].sh_offset, shdr[i].sh_size, shdr[i].sh_flags,
-                shstbl + shdr[i].sh_name);
-
-        if (compare_section_name(shdr + i, ".trusty_app.manifest", shstbl,
-                                 shstbl_size)) {
-            manifest_shdr = shdr + i;
-        }
-    }
-
-    if (!manifest_shdr) {
+    app_img = trusty_app->app_img;
+    if (!app_img->manifest_start) {
         dprintf(CRITICAL, "manifest section header not found\n");
         return ERR_NOT_VALID;
     }
 
-    data = (char*)(trusty_app->app_img->img_start + manifest_shdr->sh_offset);
-    if (!address_range_within_img(data, manifest_shdr->sh_size,
-                                  trusty_app->app_img)) {
-        dprintf(CRITICAL, "app %u manifest data out of bounds\n",
-                trusty_app->app_id);
-        return ERR_NOT_VALID;
-    }
+    /* manifest data is embedded in kernel */
+    dprintf(SPEW, "trusty app manifest: start %p size 0x%08lx end %p\n",
+            (void*)app_img->manifest_start,
+            app_img->manifest_end - app_img->manifest_start,
+            (void*)app_img->manifest_end);
 
-    *manifest_data = data;
-    *size = manifest_shdr->sh_size;
+    *size = trusty_app->app_img->manifest_end -
+            trusty_app->app_img->manifest_start;
+    *manifest_data = (char*)(trusty_app->app_img->manifest_start);
 
     return NO_ERROR;
 }

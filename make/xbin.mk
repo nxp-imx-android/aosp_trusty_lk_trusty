@@ -186,7 +186,7 @@ GENERATED += $(XBIN_CONFIGHEADER)
 # build manifest objects if manifest config json provided
 # generate shared constants headers if constants provided
 ifneq ($(strip $(MANIFEST)),)
-XBIN_MANIFEST_BIN := $(BUILDDIR)/manifest.data
+XBIN_MANIFEST_BIN := $(BUILDDIR)/$(XBIN_NAME).manifest
 $(XBIN_MANIFEST_BIN): MANIFEST_COMPILER := trusty/user/base/tools/manifest_compiler.py
 $(XBIN_MANIFEST_BIN): CONFIG_CONSTANTS := $(CONSTANTS)
 $(XBIN_MANIFEST_BIN): HEADER_DIR := $(BUILDDIR)/constants/include
@@ -200,15 +200,6 @@ $(XBIN_MANIFEST_BIN): $(MANIFEST) $(MANIFEST_COMPILER) $(CONFIG_CONSTANTS)
 # Since we do not know the name of the header files,
 # add a dependency edge on a file created at the same time.
 GLOBAL_SRCDEPS += $(XBIN_MANIFEST_BIN)
-
-# Create manifest object using its manifest data in binary form
-XBIN_MANIFEST_OBJ := $(BUILDDIR)/manifest.o
-$(XBIN_MANIFEST_OBJ): MANIFEST_OBJ_ASM := $(TRUSTY_APP_DIR)/appmanifestobj.S
-$(XBIN_MANIFEST_OBJ): $(MANIFEST_OBJ_ASM) $(XBIN_MANIFEST_BIN)
-	@echo converting $< to $@
-	$(NOECHO)$(CC) -DMANIFEST_DATA=\"$<\" $(ARCH_COMPILEFLAGS) -c $(MANIFEST_OBJ_ASM) -MD -MP -MT $@ -MF $(@:%o=%d) -o $@
-
-XBIN_ALL_OBJS += $(XBIN_MANIFEST_OBJ)
 endif
 
 # Link XBIN elf
@@ -302,5 +293,4 @@ XBIN_APP :=
 
 MANIFEST :=
 CONSTANTS :=
-XBIN_MANIFEST_OBJ :=
 XBIN_MANIFEST_BIN :=
