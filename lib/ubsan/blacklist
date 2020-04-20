@@ -54,3 +54,7 @@ src:external/trusty/musl/src/*
 [unsigned-integer-overflow|pointer-overflow]
 src:*/system/keymaster/android_keymaster/authorization_set.cpp
 src:*/system/keymaster/android_keymaster/serializable.cpp
+
+# Exempt libfreetype from overflow sanitization.
+[unsigned-integer-overflow|implicit-integer-sign-change|pointer-overflow]
+src:*/external/freetype/*
