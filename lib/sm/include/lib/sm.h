@@ -53,8 +53,20 @@ struct smc32_entity {
     smc32_handler_t stdcall_handler;
 };
 
-/* Get selected api version. Prevent further changes if needed */
-uint32_t sm_get_api_version(bool lock);
+/* Get selected api version. */
+uint32_t sm_get_api_version(void);
+
+/**
+ * sm_check_and_lock_api_version - Check and lock api version
+ * @api_version_wanted: Version wanted.
+ *
+ * Check if the currently selected api version is greater or equal to
+ * @api_version_wanted and prevent changing the selected api version to a
+ * a version that would change that answer.
+ *
+ * Return: true if currently connected client support @api_version_wanted.
+ */
+bool sm_check_and_lock_api_version(uint32_t api_version_wanted);
 
 /* Schedule Secure OS */
 long sm_sched_secure(struct smc32_args* args);

@@ -57,8 +57,9 @@ extern ulong lk_boot_args[4];
 static void* boot_args;
 static int boot_args_refcnt;
 static mutex_t boot_args_lock = MUTEX_INITIAL_VALUE(boot_args_lock);
-static uint32_t sm_api_version;
-static bool sm_api_version_locked;
+static atomic_uint_fast32_t sm_api_version;
+static atomic_uint_fast32_t sm_api_version_min;
+static atomic_uint_fast32_t sm_api_version_max = TRUSTY_API_VERSION_CURRENT;
 static spin_lock_t sm_api_version_lock;
 static atomic_bool platform_halted;
 
@@ -83,16 +84,17 @@ long smc_sm_api_version(struct smc32_args* args) {
     uint32_t api_version = args->params[0];
 
     spin_lock(&sm_api_version_lock);
-    if (!sm_api_version_locked) {
-        LTRACEF("request api version %d\n", api_version);
-        if (api_version > TRUSTY_API_VERSION_CURRENT)
-            api_version = TRUSTY_API_VERSION_CURRENT;
+    LTRACEF("request api version %d\n", api_version);
+    if (api_version > sm_api_version_max) {
+        api_version = sm_api_version_max;
+    }
 
-        sm_api_version = api_version;
-    } else {
-        TRACEF("ERROR: Tried to select api version %d after use, current version %d\n",
-               api_version, sm_api_version);
+    if (api_version < sm_api_version_min) {
+        TRACEF("ERROR: Tried to select incompatible api version %d < %d, current version %d\n",
+               api_version, sm_api_version_min, sm_api_version);
         api_version = sm_api_version;
+    } else {
+        sm_api_version = api_version;
     }
     spin_unlock(&sm_api_version_lock);
 
@@ -100,18 +102,37 @@ long smc_sm_api_version(struct smc32_args* args) {
     return api_version;
 }
 
-uint32_t sm_get_api_version(bool lock) {
-    if (!sm_api_version_locked) {
-        spin_lock_saved_state_t state;
-        spin_lock_save(&sm_api_version_lock, &state, SPIN_LOCK_FLAG_IRQ_FIQ);
-        if (lock) {
-            sm_api_version_locked = true;
-            TRACEF("lock api version %d\n", sm_api_version);
-        }
-        spin_unlock_restore(&sm_api_version_lock, state,
-                            SPIN_LOCK_FLAG_IRQ_FIQ);
-    }
+uint32_t sm_get_api_version(void) {
     return sm_api_version;
+}
+
+bool sm_check_and_lock_api_version(uint32_t version_wanted) {
+    spin_lock_saved_state_t state;
+
+    DEBUG_ASSERT(version_wanted > 0);
+
+    if (sm_api_version_min >= version_wanted) {
+        return true;
+    }
+    if (sm_api_version_max < version_wanted) {
+        return false;
+    }
+
+    spin_lock_save(&sm_api_version_lock, &state, SPIN_LOCK_FLAG_IRQ_FIQ);
+    if (sm_api_version < version_wanted) {
+        sm_api_version_max = MIN(sm_api_version_max, version_wanted - 1);
+        TRACEF("max api version set: %d\n", sm_api_version_max);
+    } else {
+        sm_api_version_min = MAX(sm_api_version_min, version_wanted);
+        TRACEF("min api version set: %d\n", sm_api_version_min);
+    }
+    DEBUG_ASSERT(sm_api_version_min <= sm_api_version_max);
+    DEBUG_ASSERT(sm_api_version >= sm_api_version_min);
+    DEBUG_ASSERT(sm_api_version <= sm_api_version_max);
+
+    spin_unlock_restore(&sm_api_version_lock, state, SPIN_LOCK_FLAG_IRQ_FIQ);
+
+    return sm_api_version_min >= version_wanted;
 }
 
 static int __NO_RETURN sm_stdcall_loop(void* arg) {
@@ -291,9 +312,8 @@ static long sm_get_stdcall_ret(void) {
         LTRACEF("cpu %d, return stdcall result, %ld, initial cpu %d\n", cpu,
                 stdcallstate.ret, stdcallstate.initial_cpu);
     } else {
-        if (sm_get_api_version(true) >=
-            TRUSTY_API_VERSION_SMP) /* ns using new api */
-            ret = SM_ERR_CPU_IDLE;
+        if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_SMP))
+            ret = SM_ERR_CPU_IDLE; /* ns using smp api */
         else if (stdcallstate.restart_count)
             ret = SM_ERR_BUSY;
         else
@@ -449,7 +469,7 @@ enum handler_return sm_handle_irq(void) {
 void sm_handle_fiq(void) {
     uint32_t expected_return;
     struct smc32_args args = SMC32_ARGS_INITIAL_VALUE(args);
-    if (sm_get_api_version(true) >= TRUSTY_API_VERSION_RESTART_FIQ) {
+    if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_RESTART_FIQ)) {
         sm_sched_nonsecure_fiq_loop(SM_ERR_FIQ_INTERRUPTED, &args);
         expected_return = SMC_SC_RESTART_FIQ;
     } else {

@@ -104,7 +104,7 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
     if (pmmu) {
         uint64_t attr = NS_PTE_ATTR(pinf->attr);
         if (attr == 0) {
-            if (sm_get_api_version(false) >= TRUSTY_API_VERSION_PHYS_MEM_OBJ) {
+            if (sm_get_api_version() >= TRUSTY_API_VERSION_PHYS_MEM_OBJ) {
                 LTRACEF("Unsupported 0 memory attr\n");
                 return ERR_NOT_SUPPORTED;
             }
