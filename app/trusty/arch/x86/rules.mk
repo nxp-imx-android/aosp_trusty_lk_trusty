@@ -25,9 +25,7 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 # linking script for user tasks
 
-ifeq ($(SUBARCH),x86-64)
-BASE_USER_TASK_LINKER_SCRIPT := $(LOCAL_DIR)/64/user_task-trusty.ld
-else
+ifneq ($(SUBARCH),x86-64)
 $(error Unsupported SUBARCH=$(SUBARCH))
 endif
 

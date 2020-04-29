@@ -27,7 +27,6 @@
 #     XBIN_BUILDDIR - build directory
 #     XBIN_TOP_MODULE - top module to compile
 #     XBIN_ARCH - architecture to compile for
-#     XBIN_LINKER_SCRIPT - linker script
 #     XBIN_TYPE - optional executable type
 #     XBIN_LDFLAGS - extra linker flags (optional)
 #     XBIN_SYMTAB_ENABLED - whether to build with .symtab or not (optional)
@@ -45,10 +44,6 @@ endif
 
 ifeq ($(XBIN_TOP_MODULE), )
 $(error XBIN_TOP_MODULE must be specified)
-endif
-
-ifeq ($(XBIN_LINKER_SCRIPT), )
-$(error XBIN_LINKER_SCRIPT must be specified)
 endif
 
 ifeq ($(XBIN_ARCH), )
@@ -206,12 +201,12 @@ endif
 $(XBIN_SYMS_ELF): XBIN_LD := $(XBIN_LD)
 $(XBIN_SYMS_ELF): XBIN_LIBGCC := $(XBIN_LIBGCC)
 $(XBIN_SYMS_ELF): XBIN_LDFLAGS := $(XBIN_LDFLAGS)
+$(XBIN_SYMS_ELF): XBIN_MEMBASE := $(XBIN_MEMBASE)
 $(XBIN_SYMS_ELF): XBIN_ALL_OBJS := $(XBIN_ALL_OBJS)
-$(XBIN_SYMS_ELF): XBIN_LINKER_SCRIPT := $(XBIN_LINKER_SCRIPT)
-$(XBIN_SYMS_ELF): $(XBIN_ALL_OBJS) $(XBIN_LINKER_SCRIPT)
+$(XBIN_SYMS_ELF): $(XBIN_ALL_OBJS)
 	@$(MKDIR)
 	@echo linking $@
-	$(NOECHO)$(XBIN_LD) $(XBIN_LDFLAGS) -T $(XBIN_LINKER_SCRIPT) --start-group $(XBIN_ALL_OBJS) $(XBIN_LIBGCC) --end-group -o $@
+	$(NOECHO)$(XBIN_LD) $(XBIN_LDFLAGS) $(addprefix -Ttext ,$(XBIN_MEMBASE)) --start-group $(XBIN_ALL_OBJS) $(XBIN_LIBGCC) --end-group -o $@
 
 ifeq ($(call TOBOOL,$(XBIN_SYMTAB_ENABLED)),true)
 XBIN_STRIPFLAGS := --strip-debug
@@ -279,7 +274,6 @@ XBIN_ELF :=
 XBIN_SYMS_ELF :=
 XBIN_ALL_OBJS :=
 XBIN_CONFIGHEADER :=
-XBIN_LINKER_SCRIPT :=
 
 XBIN_TOOLCHAIN_PREFIX :=
 XBIN_CC :=
@@ -294,3 +288,4 @@ XBIN_APP :=
 MANIFEST :=
 CONSTANTS :=
 XBIN_MANIFEST_BIN :=
+XBIN_MEMBASE :=

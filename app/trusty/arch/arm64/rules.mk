@@ -23,5 +23,3 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
-# linking script for user tasks
-BASE_USER_TASK_LINKER_SCRIPT := $(LOCAL_DIR)/user_task-trusty.ld
