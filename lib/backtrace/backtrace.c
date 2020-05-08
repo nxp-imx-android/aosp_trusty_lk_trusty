@@ -74,15 +74,32 @@ static void dump_function(thread_t* thread, uintptr_t pc) {
     }
 }
 
-static bool is_on_user_stack(struct trusty_thread* thread, uintptr_t addr) {
-    uintptr_t stack_end = thread->stack_start;
-    uintptr_t stack_bottom = stack_end - thread->stack_size;
+static bool is_on_user_stack(struct thread* _thread, uintptr_t addr) {
+    uintptr_t stack_end;
+    uintptr_t stack_bottom;
+    struct trusty_thread* thread = trusty_thread_get(_thread);
+
+    if (!thread) {
+        return false;
+    }
+
+    stack_end = thread->stack_start;
+    if (__builtin_sub_overflow(stack_end, thread->stack_size, &stack_bottom)) {
+        return false;
+    }
+
     return stack_bottom <= addr && addr < stack_end;
 }
 
 static bool is_on_kernel_stack(struct thread* thread, uintptr_t addr) {
-    uintptr_t stack_bottom = (uintptr_t)thread->stack;
-    uintptr_t stack_end = stack_bottom + thread->stack_size;
+    uintptr_t stack_bottom;
+    uintptr_t stack_end;
+
+    stack_bottom = (uintptr_t)thread->stack;
+    if (__builtin_add_overflow(stack_bottom, thread->stack_size, &stack_end)) {
+        return false;
+    }
+
     return stack_bottom <= addr && addr < stack_end;
 }
 
@@ -96,7 +113,7 @@ static bool is_on_kernel_stack(struct thread* thread, uintptr_t addr) {
  */
 static bool is_on_stack(struct thread* thread, uintptr_t addr, bool user) {
     if (user) {
-        return is_on_user_stack(trusty_thread_get(thread), addr);
+        return is_on_user_stack(thread, addr);
     } else {
         return is_on_kernel_stack(thread, addr);
     }
