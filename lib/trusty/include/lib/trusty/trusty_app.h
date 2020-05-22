@@ -34,15 +34,11 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
-#define APP_FLAGS_BUILTIN (1u << 0)
-#define APP_FLAGS_UNLOAD_PENDING (1u << 1)
-
 enum app_state {
     APP_NOT_RUNNING = 0,
     APP_STARTING,
     APP_RUNNING,
     APP_TERMINATING,
-    APP_LOADING,
 };
 
 struct manifest_port_entry {
@@ -84,7 +80,6 @@ struct trusty_app {
     u_int app_id;
     enum app_state state;
     vmm_aspace_t* aspace;
-    uint32_t flags;
     vaddr_t start_brk;
     vaddr_t cur_brk;
     vaddr_t end_brk;

@@ -34,7 +34,6 @@
 #include <kernel/mutex.h>
 #include <kernel/thread.h>
 #include <lib/rand/rand.h>
-#include <lib/syscall.h>
 #include <lib/trusty/ipc.h>
 #include <lk/init.h>
 #include <malloc.h>
@@ -168,18 +167,6 @@ static bool compare_section_name(ELF_SHDR* shdr,
                                  uint32_t shstbl_size) {
     return shstbl_size - shdr->sh_name > strlen(name) &&
            !strcmp(shstbl + shdr->sh_name, name);
-}
-
-static inline bool is_builtin(struct trusty_app* app) {
-    return app->flags & APP_FLAGS_BUILTIN;
-}
-
-static inline bool has_unload_pending(struct trusty_app* app) {
-    return app->flags & APP_FLAGS_UNLOAD_PENDING;
-}
-
-static inline bool is_deferred_start(struct trusty_app* app) {
-    return app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_DEFERRED_START;
 }
 
 static void finalize_registration(void) {
@@ -951,32 +938,6 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
     return NO_ERROR;
 }
 
-static void trusty_app_destroy_locked(struct trusty_app* app) {
-    status_t rc;
-    struct manifest_port_entry* entry;
-    struct manifest_port_entry* tmp_entry;
-
-    DEBUG_ASSERT(is_mutex_held(&apps_lock));
-    DEBUG_ASSERT(app->state == APP_NOT_RUNNING);
-    DEBUG_ASSERT(!is_builtin(app));
-
-    list_delete(&app->node);
-
-    list_for_every_entry_safe(&app->props.port_entry_list, entry, tmp_entry,
-                              struct manifest_port_entry, node) {
-        list_delete(&entry->node);
-        free(entry);
-    }
-
-    rc = vmm_free_region_etc(vmm_get_kernel_aspace(), app->app_img->img_start,
-                             app->app_img->img_end - app->app_img->img_start,
-                             0);
-
-    ASSERT(rc == NO_ERROR);
-    free(app->app_img);
-    free(app);
-}
-
 static bool has_waiting_connection(struct trusty_app* app) {
     struct manifest_port_entry* entry;
 
@@ -1000,10 +961,6 @@ static bool has_waiting_connection(struct trusty_app* app) {
 static status_t request_app_start_locked(struct trusty_app* app) {
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
 
-    if (has_unload_pending(app)) {
-        return ERR_NOT_FOUND;
-    }
-
     if (app->state == APP_NOT_RUNNING) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
@@ -1017,8 +974,7 @@ static status_t request_app_start_locked(struct trusty_app* app) {
  * Create a trusty_app from its memory image and add it to the global list of
  * apps
  */
-static status_t trusty_app_create(struct trusty_app_img* app_img,
-                                  uint32_t flags) {
+static status_t trusty_app_create(struct trusty_app_img* app_img) {
     ELF_EHDR* ehdr;
     ELF_SHDR* shdr;
     ELF_SHDR* manifest_shdr;
@@ -1029,7 +985,6 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     status_t ret;
     struct manifest_port_entry* entry;
     struct manifest_port_entry* tmp_entry;
-    bool connection_waiting;
 
     if (app_img->img_start & PAGE_MASK || app_img->img_end & PAGE_MASK) {
         dprintf(CRITICAL,
@@ -1111,10 +1066,9 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
         goto err_hdr;
     }
 
-    trusty_app->flags |= flags;
     trusty_app->app_id = trusty_next_app_id++;
     trusty_app->app_img = app_img;
-    trusty_app->state = APP_LOADING;
+    trusty_app->state = APP_NOT_RUNNING;
 
     mutex_acquire(&apps_lock);
 
@@ -1125,31 +1079,12 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
 
     mutex_release(&apps_lock);
 
-    if (ret != NO_ERROR)
-        goto err_load;
+    if (ret == NO_ERROR)
+        return ret;
 
-    /*
-     * Call into ipc to check for waiting connections without the lock held.
-     * This is safe since the app is still in APP_LOADING state.
-     */
-    connection_waiting = has_waiting_connection(trusty_app);
-
-    mutex_acquire(&apps_lock);
-
-    if (is_builtin(trusty_app) || has_unload_pending(trusty_app) ||
-        (is_deferred_start(trusty_app) && !connection_waiting)) {
-        trusty_app->state = APP_NOT_RUNNING;
-    } else {
-        trusty_app->state = APP_STARTING;
-        event_signal(&app_mgr_event, false);
-    }
-
-    mutex_release(&apps_lock);
-
-    return NO_ERROR;
+    dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
 
 err_load:
-    dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
     list_for_every_entry_safe(&trusty_app->props.port_entry_list, entry,
                               tmp_entry, struct manifest_port_entry, node) {
         list_delete(&entry->node);
@@ -1383,9 +1318,8 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     has_connection = has_waiting_connection(app);
     mutex_acquire(&apps_lock);
 
-    if (!has_unload_pending(app) &&
-        (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT ||
-         has_connection)) {
+    if (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT ||
+        has_connection) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
     } else {
@@ -1398,7 +1332,6 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
 static int app_mgr(void* arg) {
     status_t ret;
     struct trusty_app* app;
-    struct trusty_app* tmp;
 
     while (true) {
         LTRACEF("app manager waiting for events\n");
@@ -1406,16 +1339,8 @@ static int app_mgr(void* arg) {
 
         mutex_acquire(&apps_lock);
 
-        list_for_every_entry_safe(&trusty_app_list, app, tmp, struct trusty_app,
-                                  node) {
+        list_for_every_entry(&trusty_app_list, app, struct trusty_app, node) {
             switch (app->state) {
-            /*
-             * This state is used to prevent the app from being destroyed while
-             * it is still loading (i.e. detemrining if the next state should
-             * be NOT_RUNNING or STARTING).
-             */
-            case APP_LOADING:
-                break;
             case APP_TERMINATING:
                 ret = app_mgr_handle_terminating(app);
                 if (ret != NO_ERROR)
@@ -1495,7 +1420,7 @@ void trusty_app_init(void) {
 
     for (app_img = __trusty_app_list_start; app_img != __trusty_app_list_end;
          app_img++) {
-        if (trusty_app_create(app_img, APP_FLAGS_BUILTIN) != NO_ERROR)
+        if (trusty_app_create(app_img) != NO_ERROR)
             panic("Failed to create builtin apps\n");
     }
 }
@@ -1520,7 +1445,7 @@ static void start_apps(uint level) {
     mutex_acquire(&apps_lock);
     list_for_every_entry(&trusty_app_list, trusty_app, struct trusty_app,
                          node) {
-        if (is_deferred_start(trusty_app))
+        if (trusty_app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_DEFERRED_START)
             continue;
 
         request_app_start_locked(trusty_app);
@@ -1529,153 +1454,3 @@ static void start_apps(uint level) {
 }
 
 LK_INIT_HOOK(libtrusty_apps, start_apps, LK_INIT_LEVEL_APPS + 1);
-
-#ifdef TEST_BUILD
-
-static const uuid_t loader_uuids[] = {
-        {0xc51f3873,
-         0x7aec,
-         0x447d,
-         {0x96, 0xef, 0xa5, 0x97, 0x92, 0x57, 0x1b, 0x17}},
-};
-
-static bool is_loader(uuid_t* uuid) {
-    for (size_t i = 0; i < countof(loader_uuids); i++) {
-        if (!memcmp(uuid, &loader_uuids[i], sizeof(uuid_t))) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-long __SYSCALL sys_register_app(user_addr_t img_uaddr, uint32_t img_size) {
-    int rc;
-    struct trusty_app* caller;
-    struct trusty_app_img* app_img;
-    uint32_t aligned_size;
-
-    caller = current_trusty_app();
-
-    LTRACEF("app: %u  addr: %#" PRIxPTR_USER " size: %#x\n", caller->app_id,
-            img_uaddr, img_size);
-
-    if (!is_loader(&caller->props.uuid)) {
-        dprintf(CRITICAL,
-                "app %u is not allowed to register other applications\n",
-                caller->app_id);
-        PRINT_TRUSTY_APP_UUID(caller->app_id, &caller->props.uuid);
-        return ERR_ACCESS_DENIED;
-    }
-
-    if (!img_size) {
-        dprintf(CRITICAL, "Invalid image: zero size\n");
-        return ERR_INVALID_ARGS;
-    }
-
-    app_img = calloc(1, sizeof(struct trusty_app_img));
-    if (!app_img) {
-        dprintf(CRITICAL, "Failed to allocate memory for app img metadata\n");
-        return ERR_NO_MEMORY;
-    }
-
-    aligned_size = round_up(img_size, PAGE_SIZE);
-
-    rc = vmm_alloc(vmm_get_kernel_aspace(), "app_img", aligned_size,
-                   (void**)&app_img->img_start, PAGE_SIZE_SHIFT, 0,
-                   ARCH_MMU_FLAG_CACHED);
-    if (rc != NO_ERROR) {
-        dprintf(CRITICAL,
-                "Failed(%d) to allocate memory for app img. Size: %#x\n", rc,
-                aligned_size);
-        goto err_vmm;
-    }
-
-    rc = copy_from_user((void*)app_img->img_start, img_uaddr, img_size);
-    if (rc != NO_ERROR) {
-        dprintf(CRITICAL,
-                "Failed(%d) to copy app img from userspace addr: %#" PRIxPTR_USER
-                " size %#x\n",
-                rc, img_uaddr, img_size);
-        goto err_copy;
-    }
-
-    app_img->img_end = app_img->img_start + aligned_size;
-    rc = trusty_app_create(app_img, 0);
-    if (rc != NO_ERROR) {
-        dprintf(CRITICAL, "Failed(%d) to register app\n", rc);
-        goto err_create;
-    }
-
-    return NO_ERROR;
-
-err_create:
-err_copy:
-    vmm_free_region_etc(vmm_get_kernel_aspace(), app_img->img_start,
-                        aligned_size, 0);
-err_vmm:
-    free(app_img);
-    return rc;
-}
-
-long __SYSCALL sys_unregister_app(user_addr_t app_uuid) {
-    int rc;
-    struct trusty_app* caller;
-    struct trusty_app* target = NULL;
-    uuid_t target_uuid;
-
-    caller = current_trusty_app();
-
-    if (!is_loader(&caller->props.uuid)) {
-        dprintf(CRITICAL,
-                "app %u is not allowed to unregister other applications\n",
-                caller->app_id);
-        PRINT_TRUSTY_APP_UUID(caller->app_id, &caller->props.uuid);
-        return ERR_ACCESS_DENIED;
-    }
-
-    rc = copy_from_user(&target_uuid, app_uuid, sizeof(uuid_t));
-    if (rc != NO_ERROR) {
-        dprintf(CRITICAL,
-                "Failed(%d) to copy uuid from userspace addr: %#" PRIxPTR_USER
-                " size %#zx\n",
-                rc, app_uuid, sizeof(uuid_t));
-        return rc;
-    }
-
-    mutex_acquire(&apps_lock);
-    target = trusty_app_find_by_uuid_locked(&target_uuid);
-    if (!target) {
-        rc = ERR_NOT_FOUND;
-        goto out;
-    }
-
-    if (target->flags & APP_FLAGS_BUILTIN) {
-        rc = ERR_NOT_ALLOWED;
-        goto out;
-    }
-
-    if (target->state == APP_NOT_RUNNING) {
-        trusty_app_destroy_locked(target);
-    } else {
-        target->flags |= APP_FLAGS_UNLOAD_PENDING;
-        rc = ERR_BUSY;
-    }
-
-out:
-    mutex_release(&apps_lock);
-
-    return rc;
-}
-
-#else /* TEST_BUILD */
-
-long __SYSCALL sys_register_app(user_addr_t img_uaddr, uint32_t img_size) {
-    return ERR_NOT_SUPPORTED;
-}
-
-long __SYSCALL sys_unregister_app(user_addr_t app_uuid) {
-    return ERR_NOT_SUPPORTED;
-}
-
-#endif /* TEST_BUILD */
