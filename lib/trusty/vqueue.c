@@ -87,6 +87,7 @@ void vqueue_destroy(struct vqueue* vq) {
 
     spin_lock_save(&vq->slock, &state, VQ_LOCK_FLAGS);
     vring_addr = vq->vring_addr;
+    vq->last_avail_idx = 0;
     vq->vring_addr = (vaddr_t)NULL;
     vq->vring_sz = 0;
     spin_unlock_restore(&vq->slock, state, VQ_LOCK_FLAGS);
