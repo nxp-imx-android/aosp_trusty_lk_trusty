@@ -194,6 +194,10 @@ ssize_t virtio_get_description(ext_mem_client_id_t client_id,
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
     LTRACEF("descr_buf: %u bytes @ 0x%" PRIx64 "\n", buf_sz, buf_id);
+    if (vb->state == VIRTIO_BUS_STATE_ACTIVE || vb->state == VIRTIO_BUS_STATE_ACTIVATING) {
+        LTRACEF("need stop virtio first!\n");
+        virtio_stop(client_id, buf_id, buf_sz, buf_mmu_flags);
+    }
 
     /* on_create notifiers must only be called if virtio bus is uninitialized */
     if (vb->state == VIRTIO_BUS_STATE_UNINITIALIZED) {
@@ -343,8 +347,10 @@ status_t virtio_stop(ext_mem_client_id_t client_id,
     oldstate = atomic_cmpxchg(&vb->state, VIRTIO_BUS_STATE_ACTIVE,
                               VIRTIO_BUS_STATE_DEACTIVATING);
 
-    if (oldstate != VIRTIO_BUS_STATE_ACTIVE)
+    if (oldstate != VIRTIO_BUS_STATE_ACTIVE) {
+        LTRACEF("unexpected state state (%d)\n", oldstate);
         return ERR_BAD_STATE;
+    }
 
     /* reset all devices */
     list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
@@ -366,8 +372,10 @@ status_t virtio_device_reset(uint devid) {
 
     LTRACEF("dev=%d\n", devid);
 
-    if (vb->state != VIRTIO_BUS_STATE_ACTIVE)
+    if (vb->state != VIRTIO_BUS_STATE_ACTIVE) {
+        LTRACEF("unexpected state state (%d)\n", vb->state);
         return ERR_BAD_STATE;
+    }
 
     list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
         if (vd->devid == devid) {
@@ -375,6 +383,7 @@ status_t virtio_device_reset(uint devid) {
             break;
         }
     }
+    vb->state = VIRTIO_BUS_STATE_IDLE;
     return ret;
 }
 
