@@ -748,6 +748,9 @@ static int tipc_rx_thread_func(void* arg) {
         /* wait for next available buffer */
         event_wait(&vq->avail_event);
 
+        if (dev->rx_stop)
+           break;
+
         ret = vqueue_get_avail_buf(vq, &buf);
 
         if (ret == ERR_CHANNEL_CLOSED)
@@ -952,6 +955,8 @@ static int tipc_tx_thread_func(void* arg) {
 
         /* wait forever until we have handles */
         event_wait(&dev->have_handles);
+        if (dev->tx_stop)
+            break;
 
         LTRACEF("have handles\n");
 
