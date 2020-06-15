@@ -44,7 +44,10 @@
 #include <lib/trusty/handle.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/ipc_msg.h>
+#include <lib/trusty/memref.h>
 #include <lib/trusty/tipc_virtio_dev.h>
+
+#include <uapi/mm.h>
 
 #define LOCAL_TRACE 0
 
@@ -98,10 +101,16 @@ struct tipc_dev {
     bool rx_stop;
 };
 
+struct tipc_shm {
+    uint64_t obj_id;
+    uint64_t size;
+} __PACKED;
+
 struct tipc_hdr {
     uint32_t src;
     uint32_t dst;
-    uint32_t reserved;
+    uint16_t reserved;
+    uint16_t shm_cnt;
     uint16_t len;
     uint16_t flags;
     uint8_t data[0];
@@ -430,9 +439,13 @@ static int handle_chan_msg(struct tipc_dev* dev,
                            uint32_t remote,
                            uint32_t local,
                            const volatile void* ns_data,
-                           size_t len) {
+                           size_t len,
+                           const volatile struct tipc_shm* shm,
+                           size_t shm_cnt) {
     struct tipc_ept* ept;
     int ret = ERR_NOT_FOUND;
+    size_t shm_idx = 0;
+    struct handle* handles[MAX_MSG_HANDLES];
     struct ipc_msg_kern msg = {
             .iov =
                     (struct iovec_kern[]){
@@ -443,8 +456,53 @@ static int handle_chan_msg(struct tipc_dev* dev,
                                     },
                     },
             .num_iov = 1,
-            .num_handles = 0,
+            .handles = handles,
+            .num_handles = shm_cnt,
     };
+
+    LTRACEF("shm_cnt=%zu\n", shm_cnt);
+
+    if (shm_cnt > MAX_MSG_HANDLES) {
+        return ERR_INVALID_ARGS;
+    }
+
+    for (shm_idx = 0; shm_idx < shm_cnt; shm_idx++) {
+        struct vmm_obj* shm_obj;
+        struct obj_ref shm_ref;
+        /*
+         * Read out separately to prevent it from changing between the two calls
+         */
+        uint64_t size64 = READ_ONCE(shm[shm_idx].size);
+        if (size64 > SIZE_MAX) {
+            TRACEF("Received shm object larger than SIZE_MAX\n");
+            goto release_shm;
+        }
+        size_t size = size64;
+
+        status_t ret =
+                ext_mem_get_vmm_obj(dev->vd.client_id, shm[shm_idx].obj_id,
+                                    size, &shm_obj, &shm_ref);
+        if (ret < 0) {
+            LTRACEF("Failed to create ext_mem object\n");
+            goto release_shm;
+        }
+
+        ret = memref_create_from_vmm_obj(
+                shm_obj, 0, size, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE,
+                &handles[shm_idx]);
+
+        /*
+         * We want to release our local ref whether or not we made a handle
+         * successfully. If we made a handle, the handle's ref keeps it alive.
+         * If we didn't, we want it cleaned up.
+         */
+        vmm_obj_del_ref(&shm->vmm_obj, &shm_ref);
+
+        if (ret < 0) {
+            TRACEF("Failed to create memref\n");
+            goto release_shm;
+        }
+    }
 
     mutex_acquire(&dev->ept_lock);
     ept = lookup_ept(dev, local);
@@ -454,12 +512,21 @@ static int handle_chan_msg(struct tipc_dev* dev,
         }
     }
     mutex_release(&dev->ept_lock);
+
+release_shm:
+    while (shm_idx > 0) {
+        shm_idx--;
+        handle_decref(handles[shm_idx]);
+    }
     return ret;
 }
 
 static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
     const volatile struct tipc_hdr* ns_hdr;
     const volatile void* ns_data;
+    const volatile struct tipc_shm* ns_shm;
+    size_t ns_shm_cnt;
+    size_t ns_shm_len;
     size_t ns_data_len;
     uint32_t src_addr;
     uint32_t dst_addr;
@@ -504,21 +571,31 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
 
     ns_hdr = buf->in_iovs.iovs[0].base;
     ns_data = buf->in_iovs.iovs[0].base + sizeof(struct tipc_hdr);
-    ns_data_len = ns_hdr->len;
+    ns_shm_cnt = ns_hdr->shm_cnt;
+    ns_shm_len = ns_shm_cnt * sizeof(*ns_shm);
+    ns_data_len = ns_hdr->len - ns_shm_len;
+    ns_shm = ns_data + ns_data_len;
     src_addr = ns_hdr->src;
     dst_addr = ns_hdr->dst;
 
-    if (ns_data_len + sizeof(struct tipc_hdr) != buf->in_iovs.iovs[0].len) {
-        LTRACEF("malformed message len %zu msglen %zu\n", ns_data_len,
-                buf->in_iovs.iovs[0].len);
+    if (ns_shm_len + ns_data_len + sizeof(struct tipc_hdr) !=
+        buf->in_iovs.iovs[0].len) {
+        LTRACEF("malformed message len %zu shm_len %zu msglen %zu\n",
+                ns_data_len, ns_shm_len, buf->in_iovs.iovs[0].len);
         ret = ERR_INVALID_ARGS;
         goto done;
     }
 
-    if (dst_addr == TIPC_CTRL_ADDR)
+    if (dst_addr == TIPC_CTRL_ADDR) {
+        if (ns_shm_cnt != 0) {
+            TRACEF("sent message with shared memory objects to control address\n");
+            return ERR_INVALID_ARGS;
+        }
         ret = handle_ctrl_msg(dev, src_addr, ns_data, ns_data_len);
-    else
-        ret = handle_chan_msg(dev, src_addr, dst_addr, ns_data, ns_data_len);
+    } else {
+        ret = handle_chan_msg(dev, src_addr, dst_addr, ns_data, ns_data_len,
+                              ns_shm, ns_shm_cnt);
+    }
 
 done:
     vqueue_unmap_iovs(&buf->in_iovs);
