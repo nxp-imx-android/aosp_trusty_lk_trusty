@@ -77,6 +77,7 @@ static bool is_prot_valid(uint32_t mmap_prot) {
 
 /* This is only safe to call when the handle is destroyed */
 static void memref_destroy(struct memref* memref) {
+    LTRACEF("dropping memref\n");
     vmm_obj_slice_release(&memref->slice);
     free(memref);
 }
@@ -264,4 +265,16 @@ status_t memref_create_from_aspace(const vmm_aspace_t *aspace,
 err:
     handle_decref(&memref->handle);
     return rc;
+}
+
+static bool handle_is_memref(struct handle* handle) {
+    return handle->ops == &memref_handle_ops;
+}
+
+struct vmm_obj* memref_handle_to_vmm_obj(struct handle* handle) {
+    if (handle_is_memref(handle)) {
+        return containerof(handle, struct memref, handle)->slice.obj;
+    } else {
+        return NULL;
+    }
 }

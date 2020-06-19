@@ -74,3 +74,15 @@ status_t memref_create_from_aspace(const vmm_aspace_t* aspace,
                                    size_t size,
                                    uint32_t mmap_prot,
                                    struct handle** handle);
+
+/**
+ * memref_handle_to_vmm_obj() - Get the vmm_obj for enclosing memref
+ * @handle: Handle to extract from
+ *
+ * Checks a handle to see if it is backed by a memref, and returns the
+ * vmm_obj if it is.
+ *
+ * Return: Pointer to the vmm_obj for the enclosing memref if it is a memref,
+ *         NULL otherwise.
+ */
+struct vmm_obj* memref_handle_to_vmm_obj(struct handle* handle);

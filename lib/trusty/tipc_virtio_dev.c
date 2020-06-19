@@ -34,6 +34,7 @@
 
 #include <kernel/vm.h>
 #include <lk/init.h>
+#include <lk/reflist.h>
 
 #include <virtio/virtio_config.h>
 #include <virtio/virtio_ring.h>
@@ -122,6 +123,7 @@ enum tipc_ctrl_msg_types {
     TIPC_CTRL_MSGTYPE_CONN_REQ,
     TIPC_CTRL_MSGTYPE_CONN_RSP,
     TIPC_CTRL_MSGTYPE_DISC_REQ,
+    TIPC_CTRL_MSGTYPE_RELEASE,
 };
 
 /*
@@ -156,7 +158,79 @@ struct tipc_disc_req_body {
     uint32_t target;
 } __PACKED;
 
+struct tipc_release_body {
+    uint64_t id;
+} __PACKED;
+
 typedef int (*tipc_data_cb_t)(uint8_t* dst, size_t sz, void* ctx);
+
+struct tipc_ext_mem {
+    struct vmm_obj vmm_obj;
+    struct vmm_obj* ext_mem;
+    struct obj_ref ext_mem_ref;
+    struct tipc_dev* dev;
+    bool suppress_release;
+};
+
+static int tipc_ext_mem_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
+    struct tipc_ext_mem* tem = containerof(obj, struct tipc_ext_mem, vmm_obj);
+    return tem->ext_mem->ops->check_flags(tem->ext_mem, arch_mmu_flags);
+}
+
+int tipc_ext_mem_get_page(struct vmm_obj* obj,
+                          size_t offset,
+                          paddr_t* paddr,
+                          size_t* paddr_size) {
+    struct tipc_ext_mem* tem = containerof(obj, struct tipc_ext_mem, vmm_obj);
+    return tem->ext_mem->ops->get_page(tem->ext_mem, offset, paddr, paddr_size);
+}
+
+status_t release_shm(struct tipc_dev* dev, uint64_t shm_id);
+
+void tipc_ext_mem_destroy(struct vmm_obj* obj) {
+    struct tipc_ext_mem* tem = containerof(obj, struct tipc_ext_mem, vmm_obj);
+    struct ext_mem_obj* ext_mem =
+            containerof(tem->ext_mem, struct ext_mem_obj, vmm_obj);
+    /* Save the ext_mem ID as we're about to drop a reference to it */
+    ext_mem_obj_id_t ext_mem_id = ext_mem->id;
+    vmm_obj_del_ref(tem->ext_mem, &tem->ext_mem_ref);
+    /* In case this was the last reference, tell NS to try reclaiming */
+    if (!tem->suppress_release) {
+        if (release_shm(tem->dev, ext_mem_id) != NO_ERROR) {
+            TRACEF("Failed to release external memory: 0x%llx\n", ext_mem_id);
+        }
+    }
+    free(tem);
+}
+
+static struct vmm_obj_ops tipc_ext_mem_ops = {
+        .check_flags = tipc_ext_mem_check_flags,
+        .get_page = tipc_ext_mem_get_page,
+        .destroy = tipc_ext_mem_destroy,
+};
+
+static bool vmm_obj_is_tipc_ext_mem(struct vmm_obj* obj) {
+    return obj->ops == &tipc_ext_mem_ops;
+}
+
+static struct tipc_ext_mem* vmm_obj_to_tipc_ext_mem(struct vmm_obj* obj) {
+    if (vmm_obj_is_tipc_ext_mem(obj)) {
+        return containerof(obj, struct tipc_ext_mem, vmm_obj);
+    } else {
+        return NULL;
+    }
+}
+
+static void tipc_ext_mem_initialize(struct tipc_ext_mem* tem,
+                                    struct tipc_dev* dev,
+                                    struct vmm_obj* ext_mem,
+                                    struct obj_ref* ref) {
+    tem->dev = dev;
+    tem->ext_mem = ext_mem;
+    vmm_obj_add_ref(tem->ext_mem, &tem->ext_mem_ref);
+    tem->vmm_obj.ops = &tipc_ext_mem_ops;
+    obj_init(&tem->vmm_obj.obj, ref);
+}
 
 static int tipc_send_data(struct tipc_dev* dev,
                           uint32_t local,
@@ -435,6 +509,18 @@ err_mailformed_msg:
     return ERR_NOT_VALID;
 }
 
+/*
+ * Sets the suppression flag on a memref handle backed by a vmm_obj of a
+ * tipc_ext_mem.
+ */
+static void suppress_handle(struct handle* handle) {
+    struct vmm_obj* obj = memref_handle_to_vmm_obj(handle);
+    ASSERT(obj);
+    struct tipc_ext_mem* tem = vmm_obj_to_tipc_ext_mem(obj);
+    ASSERT(tem);
+    tem->suppress_release = true;
+}
+
 static int handle_chan_msg(struct tipc_dev* dev,
                            uint32_t remote,
                            uint32_t local,
@@ -460,7 +546,7 @@ static int handle_chan_msg(struct tipc_dev* dev,
             .num_handles = shm_cnt,
     };
 
-    LTRACEF("shm_cnt=%zu\n", shm_cnt);
+    LTRACEF("len=%zu, shm_cnt=%zu\n", len, shm_cnt);
 
     if (shm_cnt > MAX_MSG_HANDLES) {
         return ERR_INVALID_ARGS;
@@ -469,38 +555,55 @@ static int handle_chan_msg(struct tipc_dev* dev,
     for (shm_idx = 0; shm_idx < shm_cnt; shm_idx++) {
         struct vmm_obj* shm_obj;
         struct obj_ref shm_ref;
+        struct tipc_ext_mem* tem;
+        struct obj_ref tem_ref;
         /*
          * Read out separately to prevent it from changing between the two calls
          */
         uint64_t size64 = READ_ONCE(shm[shm_idx].size);
         if (size64 > SIZE_MAX) {
             TRACEF("Received shm object larger than SIZE_MAX\n");
-            goto release_shm;
+            goto out;
         }
         size_t size = size64;
+
+        obj_ref_init(&shm_ref);
+        obj_ref_init(&tem_ref);
 
         status_t ret =
                 ext_mem_get_vmm_obj(dev->vd.client_id, shm[shm_idx].obj_id,
                                     size, &shm_obj, &shm_ref);
         if (ret < 0) {
             LTRACEF("Failed to create ext_mem object\n");
-            goto release_shm;
+            goto out;
         }
 
-        ret = memref_create_from_vmm_obj(
-                shm_obj, 0, size, MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE,
-                &handles[shm_idx]);
+        tem = calloc(1, sizeof(struct tipc_ext_mem));
+        if (!tem) {
+            ret = ERR_NO_MEMORY;
+            goto out;
+        }
 
+        tipc_ext_mem_initialize(tem, dev, shm_obj, &tem_ref);
+        vmm_obj_del_ref(shm_obj, &shm_ref);
+        shm_obj = NULL;
+
+        ret = memref_create_from_vmm_obj(
+                &tem->vmm_obj, 0, size,
+                MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, &handles[shm_idx]);
+        if (ret != NO_ERROR) {
+            tem->suppress_release = true;
+        }
         /*
          * We want to release our local ref whether or not we made a handle
          * successfully. If we made a handle, the handle's ref keeps it alive.
          * If we didn't, we want it cleaned up.
          */
-        vmm_obj_del_ref(&shm->vmm_obj, &shm_ref);
+        vmm_obj_del_ref(&tem->vmm_obj, &tem_ref);
 
         if (ret < 0) {
             TRACEF("Failed to create memref\n");
-            goto release_shm;
+            goto out;
         }
     }
 
@@ -513,11 +616,17 @@ static int handle_chan_msg(struct tipc_dev* dev,
     }
     mutex_release(&dev->ept_lock);
 
-release_shm:
+out:
+    /* Tear down the successfully processed handles */
     while (shm_idx > 0) {
         shm_idx--;
+        if (ret != NO_ERROR) {
+            LTRACEF("Suppressing handle release\n");
+            suppress_handle(handles[shm_idx]);
+        }
         handle_decref(handles[shm_idx]);
     }
+
     return ret;
 }
 
@@ -1240,4 +1349,21 @@ status_t create_tipc_device(const struct tipc_vdev_descr* descr,
 err_register:
     free(dev);
     return ret;
+}
+
+status_t release_shm(struct tipc_dev* dev, uint64_t shm_id) {
+    struct {
+        struct tipc_ctrl_msg_hdr hdr;
+        struct tipc_release_body body;
+    } msg;
+
+    msg.hdr.type = TIPC_CTRL_MSGTYPE_RELEASE;
+    msg.hdr.body_len = sizeof(struct tipc_release_body);
+
+    msg.body.id = shm_id;
+
+    LTRACEF("release shm %llu\n", shm_id);
+
+    return tipc_send_buf(dev, TIPC_CTRL_ADDR, TIPC_CTRL_ADDR, &msg, sizeof(msg),
+                         true);
 }
