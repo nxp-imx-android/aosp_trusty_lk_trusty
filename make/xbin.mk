@@ -144,7 +144,7 @@ ifneq ($(ASLR), false)
     # Generate PIE code to allow ASLR to be applied
     ifeq ($(XBIN_APP),true)
         GLOBAL_COMPILEFLAGS += -fPIC
-        XBIN_LDFLAGS += -static -pie --no-dynamic-linker -z text -Bsymbolic
+        XBIN_LDFLAGS += -static -pie --no-dynamic-linker -z text -Bsymbolic --image-base=0x8000
     endif
 endif
 
