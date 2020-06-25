@@ -715,10 +715,6 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     vaddr_t low = VADDR_MAX;
     vaddr_t high = 0;
     for (size_t i = 0; i < num_phdrs; i++, phdr++) {
-        if ((phdr->p_vaddr < TRUSTY_APP_START_ADDR) ||
-            (phdr->p_type != PT_LOAD)) {
-            continue;
-        }
         low = MIN(low, phdr->p_vaddr);
         vaddr_t candidate_high;
         if (!__builtin_add_overflow(phdr->p_vaddr, phdr->p_memsz,
@@ -737,9 +733,21 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     LTRACEF("Spot size: %zu\n", size);
 
     vaddr_t spot;
-    if (!vmm_find_spot(aspace, size, &spot)) {
+    /*
+     * Find a spot that could encompass the extra initial empty pages to
+     * avoid the possibility of wrapping the address space.
+     */
+    if (!vmm_find_spot(aspace, size + TRUSTY_APP_START_ADDR, &spot)) {
         return ERR_NO_MEMORY;
     }
+    /*
+     * Shift the spot up to gaurantee the bottom TRUSTY_APP_START_ADDR bytes
+     * are empty, ensuring NULL dereferences will still fault.
+     *
+     * This should not be able to overflow since we reserved an additional
+     * TRUSTY_APP_START_ADDR bytes when asking for our spot.
+     */
+    spot += TRUSTY_APP_START_ADDR;
     LTRACEF("Load target: %lx\n", spot);
 
     /*
