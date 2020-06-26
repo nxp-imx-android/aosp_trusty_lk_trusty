@@ -122,6 +122,7 @@ status_t trusty_app_request_start_by_port(const char* port_path,
                                           const uuid_t* uuid);
 
 void trusty_app_exit(int status) __NO_RETURN;
+void trusty_app_crash(void) __NO_RETURN;
 status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
                                uint32_t mmio_id,
                                user_addr_t* uaddr_p,

@@ -1265,6 +1265,10 @@ void trusty_app_exit(int status) {
     trusty_thread_exit(status);
 }
 
+void trusty_app_crash(void) {
+    trusty_app_exit(1 /*EXIT_FAILURE*/);
+}
+
 static status_t app_mgr_handle_starting(struct trusty_app* app) {
     status_t ret;
 
