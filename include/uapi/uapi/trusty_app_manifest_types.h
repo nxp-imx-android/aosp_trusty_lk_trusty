@@ -55,3 +55,5 @@ enum {
 #define TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT (1u << 0)
 /* Don't start the application at boot */
 #define TRUSTY_APP_MGMT_FLAGS_DEFERRED_START (1u << 1)
+/* Exit application if application crashes or exit with a non-0 exit code */
+#define TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP (1u << 2)

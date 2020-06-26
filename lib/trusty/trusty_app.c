@@ -1241,7 +1241,9 @@ void trusty_app_exit(int status) {
     if (status) {
         TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
         dump_backtrace();
-        panic("Unclean exit from app\n");
+        if (!(app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP)) {
+            panic("Unclean exit from critical app\n");
+        }
     }
 
     list_for_every_entry(&app_notifier_list, notifier,
