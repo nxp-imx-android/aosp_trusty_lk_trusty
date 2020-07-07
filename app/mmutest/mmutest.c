@@ -83,13 +83,15 @@ static int mmutest_vmm_store_uint32_user(uint arch_mmu_flags) {
     return mmutest_vmm_store_uint32(arch_mmu_flags, true);
 }
 
-static int mmu_test_nx(bool execute) {
+static int mmu_test_execute(arch_mmu_flags) {
     int ret;
+    int thread_ret;
+    struct thread* thread;
     void* ptr;
     size_t len;
-    int (*nop)(int ret);
+    int (*nop)(void* ret);
 
-    ret = mmutest_alloc(&ptr, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+    ret = mmutest_alloc(&ptr, arch_mmu_flags);
     if (ret) {
         return ret;
     }
@@ -100,10 +102,23 @@ static int mmu_test_nx(bool execute) {
     memcpy(ptr, mmutest_arch_nop, len);
     arch_sync_cache_range((addr_t)ptr, len);
 
-    if (execute) {
-        printf("Starting fatal test, expect crash\n");
-        ret = nop(0);
+    thread = thread_create("mmu_test_execute", nop, NULL, DEFAULT_PRIORITY,
+                           DEFAULT_STACK_SIZE);
+    if (!thread) {
+        ret = ERR_NO_MEMORY;
+        goto err_thread;
     }
+    thread_set_flag_exit_on_panic(thread, true);
+    ret = thread_resume(thread);
+    if (ret) {
+        goto err_thread;
+    }
+    ret = thread_join(thread, &thread_ret, INFINITE_TIME);
+    if (ret) {
+        goto err_thread;
+    }
+    ret = thread_ret;
+err_thread:
 
     vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)ptr);
 
@@ -302,12 +317,12 @@ TEST(mmutest, DISABLED_store_ns) {
                                                ARCH_MMU_FLAG_PERM_USER));
 }
 
-TEST(mmutest, check_nx) {
-    EXPECT_EQ(0, mmu_test_nx(false));
+TEST(mmutest, run_x) {
+    EXPECT_EQ(0, mmu_test_execute(0));
 }
 
-TEST(mmutest, DISABLED_run_nx) {
-    EXPECT_EQ(ERR_FAULT, mmu_test_nx(true));
+TEST(mmutest, run_nx) {
+    EXPECT_EQ(ERR_FAULT, mmu_test_execute(ARCH_MMU_FLAG_PERM_NO_EXECUTE));
 }
 
 /* Test suite for vmm_obj_slice and vmm_get_obj */
