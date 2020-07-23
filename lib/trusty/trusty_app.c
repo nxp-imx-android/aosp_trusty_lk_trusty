@@ -22,6 +22,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <lib/backtrace/backtrace.h>
 #include <lib/trusty/elf.h>
 #include <lib/trusty/trusty_app.h>
 
@@ -1236,6 +1237,12 @@ void trusty_app_exit(int status) {
     DEBUG_ASSERT(app->state == APP_RUNNING);
 
     LTRACEF("app %u exiting...\n", app->app_id);
+
+    if (status) {
+        TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
+        dump_backtrace();
+        panic("Unclean exit from app\n");
+    }
 
     list_for_every_entry(&app_notifier_list, notifier,
                          struct trusty_app_notifier, node) {
