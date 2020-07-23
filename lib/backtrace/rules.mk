@@ -33,8 +33,6 @@ LIB_BACKTRACE_ENABLE ?= $(LIB_BACKTRACE_ARCH_SUPPORTED)
 ifeq (true,$(call TOBOOL,$(LIB_BACKTRACE_ENABLE)))
 MODULE := $(LOCAL_DIR)
 
-MODULE_STATIC_LIB := true
-
 MODULE_DEPS := \
 	trusty/kernel/lib/trusty \
 
