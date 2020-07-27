@@ -39,7 +39,7 @@ size_t rand_get_size(size_t max) {
     return rand_size % (max + 1);
 }
 
-/*TODO: replace the current dummy with implementation*/
+/*TODO: replace the current fake with implementation*/
 int rand_get_bytes(uint8_t* buf, size_t len) {
     for (size_t i = 0; i < len; i++) {
         buf[i] = (uint8_t)rand();
@@ -47,7 +47,7 @@ int rand_get_bytes(uint8_t* buf, size_t len) {
     return 0;
 }
 
-/*TODO: replace the current dummy with implementation*/
+/*TODO: replace the current fake with implementation*/
 int rand_add_entropy(const uint8_t* buf, size_t len) {
     libc_trusty_rand_add_entropy(buf, len);
     return 0;

@@ -111,7 +111,7 @@ TEST(consoletest, steal_lock) {
 static bool run_console_test(struct unittest* test) {
     bool tests_passed;
     print_callback_t cb;
-    /* Set a dummy callback so all paths get exercised. */
+    /* Set a stub callback so all paths get exercised. */
     memset(&cb, 0, sizeof(cb));
     cb.print = test_print_callback;
     cb.commit = test_commit_callback;

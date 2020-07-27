@@ -273,14 +273,14 @@ static struct event_source* event_source_lookup_locked(const char* name,
                                                        struct obj_ref* ref) {
     struct bst_node* tn;
     struct event_source* es;
-    struct event_source dummy;
+    struct event_source unused;
 
     /* only init .name */
-    dummy.name = name;
+    unused.name = name;
 
     DEBUG_ASSERT(is_mutex_held(&es_lock));
 
-    tn = bst_search(&es_tree_root, &dummy.tree_node, event_source_bst_compare);
+    tn = bst_search(&es_tree_root, &unused.tree_node, event_source_bst_compare);
     if (!tn) {
         /* Object not found */
         return NULL;

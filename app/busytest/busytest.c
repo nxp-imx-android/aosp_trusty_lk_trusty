@@ -60,7 +60,7 @@ err:
 static int busy_test_server(void* arg) {
     struct handle* phandle = arg;
     struct handle* chandle;
-    const uuid_t* dummy_uuid_p;
+    const uuid_t* unused_uuid_p;
     uint32_t event;
     int ret;
 
@@ -73,7 +73,7 @@ static int busy_test_server(void* arg) {
         LTRACEF("got port event (ret=%d): ev=%x\n", ret, event);
         if (event & IPC_HANDLE_POLL_READY) {
             /* get connection request */
-            ret = ipc_port_accept(phandle, &chandle, &dummy_uuid_p);
+            ret = ipc_port_accept(phandle, &chandle, &unused_uuid_p);
             LTRACEF("accept returned %d\n", ret);
             if (ret >= 0) {
                 busy_test_connected(chandle);

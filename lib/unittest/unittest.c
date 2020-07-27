@@ -143,7 +143,7 @@ static int unittest_loop(void* arg) {
     int ret;
     struct handle* chandle;
     struct handle_ref evt;
-    const uuid_t* dummy_uuid_p;
+    const uuid_t* unused_uuid_p;
     struct unittest* test;
 
     LTRACEF("waiting for connection\n");
@@ -158,7 +158,7 @@ static int unittest_loop(void* arg) {
                 evt.handle, test->port_name);
         if (evt.emask & IPC_HANDLE_POLL_READY) {
             /* get connection request */
-            ret = ipc_port_accept(evt.handle, &chandle, &dummy_uuid_p);
+            ret = ipc_port_accept(evt.handle, &chandle, &unused_uuid_p);
             LTRACEF("accept returned %d\n", ret);
             if (ret >= 0) {
                 char tx_buffer[1];
