@@ -38,7 +38,7 @@
 #
 # Modules wishing to opt out of UBSan can do so by adding
 # the contents of UBSAN_DISABLE to their MODULE_CFLAGS/MODULE_CPPFLAGS or by
-# adding to trusty/kernel/lib/ubsan/blacklist.
+# adding to trusty/kernel/lib/ubsan/exemptlist.
 #
 # Example reasons to do this include:
 # * Contexts which cannot easily support the ubsan runtime (e.g. test-runner)
@@ -87,7 +87,7 @@ UBSAN_SANITIZERS := \
 
 UBSAN_ENABLE := \
     $(foreach san,$(UBSAN_SANITIZERS),-fsanitize=$(san)) \
-    -fsanitize-blacklist=trusty/kernel/lib/ubsan/blacklist \
+    -fsanitize-blacklist=trusty/kernel/lib/ubsan/exemptlist \
 
 UBSAN_DISABLE := \
     $(foreach san,$(UBSAN_SANITIZERS),-fno-sanitize=$(san))

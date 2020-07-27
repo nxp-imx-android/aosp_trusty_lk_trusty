@@ -30,7 +30,7 @@ src:external/boringssl/*
 
 # ocb.c implements pseudo-bignum math, and so plays fast and loose with signs
 # We would either need to annotate many of the functions in here, or rewrite
-# it dangerously to avoid this blacklist.
+# it dangerously to avoid this exemption.
 src:*/system/keymaster/key_blob_utils/ocb.c
 
 # test-runner is missing important facilities for error reporting (e.g. printf)
