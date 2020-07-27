@@ -81,6 +81,7 @@ struct trusty_app {
     /* corresponds to the order in which the apps were started */
     u_int app_id;
     enum app_state state;
+    lk_time_ns_t min_start_time;
     vmm_aspace_t* aspace;
     vaddr_t start_brk;
     vaddr_t cur_brk;

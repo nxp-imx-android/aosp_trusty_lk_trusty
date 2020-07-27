@@ -50,6 +50,9 @@
 
 #define DEFAULT_MGMT_FLAGS TRUSTY_APP_MGMT_FLAGS_NONE
 
+#define TRUSTY_APP_RESTART_TIMEOUT_SUCCESS (10ULL * 1000ULL * 1000ULL)
+#define TRUSTY_APP_RESTART_TIMEOUT_FAILURE (5ULL * 1000ULL * 1000ULL * 1000ULL)
+
 #define TRUSTY_APP_START_ADDR 0x8000
 
 #ifdef TRUSTY_APP_STACK_TOP
@@ -308,6 +311,8 @@ static int trusty_thread_startup(void* arg) {
     user_addr_t stack_ptr = trusty_thread->stack_start;
     user_addr_t elf_tables = trusty_thread_write_elf_tables(
             trusty_thread, &stack_ptr, trusty_thread->app->load_bias);
+
+    thread_sleep_until_ns(trusty_thread->app->min_start_time);
 
     arch_enter_uspace(trusty_thread->entry, stack_ptr, ENTER_USPACE_FLAGS,
                       elf_tables);
@@ -1231,6 +1236,7 @@ void trusty_app_exit(int status) {
     status_t ret;
     struct trusty_app* app;
     struct trusty_app_notifier* notifier;
+    lk_time_ns_t restart_timeout;
 
     app = current_trusty_app();
 
@@ -1244,7 +1250,11 @@ void trusty_app_exit(int status) {
         if (!(app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP)) {
             panic("Unclean exit from critical app\n");
         }
+        restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_FAILURE;
+    } else {
+        restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_SUCCESS;
     }
+    app->min_start_time = current_time_ns() + restart_timeout;
 
     list_for_every_entry(&app_notifier_list, notifier,
                          struct trusty_app_notifier, node) {
