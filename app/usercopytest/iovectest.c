@@ -42,7 +42,7 @@ TEST_F_TEARDOWN(iovectest) {
 }
 
 /* Check the test fixture is OK. */
-TEST_F(iovectest, sanity) {
+TEST_F(iovectest, fixture) {
     ASSERT_LT(0, sizeof(test_pattern));
 
     /* Non-zero clear because last character of the pattern is null. */
@@ -99,7 +99,7 @@ static void iovectest_readback(iovectest_t* _state,
     uint8_t tmp[sizeof(test_pattern) * 2];
     memset(tmp, 0xff, sizeof(tmp));
 
-    /* Sanity check chunk sizes. */
+    /* Check chunk sizes. */
     ASSERT_LE(expected_len, sizeof(buf), LOCATION_MESSAGE);
     ASSERT_LE(0, buffer_chunk, LOCATION_MESSAGE);
     ASSERT_LE(buffer_chunk, sizeof(tmp), LOCATION_MESSAGE);
@@ -110,7 +110,7 @@ static void iovectest_readback(iovectest_t* _state,
     while (iovec_iter_has_next(&iter)) {
         int ret = user_iovec_to_membuf_iter(tmp, buffer_chunk,
                                             _state->iovec_addr, &iter);
-        /* Sanity check the return value. */
+        /* Check the return value. */
         ASSERT_LE(0, ret, LOCATION_MESSAGE);
         ASSERT_LE(ret, buffer_chunk, LOCATION_MESSAGE);
         /* If there is more data, the buffer should be filled. */

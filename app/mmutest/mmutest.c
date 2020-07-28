@@ -190,7 +190,7 @@ TEST(mmutest, alloc_last_kernel_page) {
     /* While the last page is allocated, get an object corresponding to it */
     ret = vmm_get_obj(aspace, (vaddr_t)ptr1, PAGE_SIZE, &slice);
     EXPECT_EQ(NO_ERROR, ret, "vmm_get_obj failed to get last page object");
-    /* Sanity check the slice we got back */
+    /* Check the slice we got back */
     EXPECT_NE(NULL, slice.obj);
     EXPECT_EQ(PAGE_SIZE, slice.size);
     EXPECT_EQ(0, slice.offset);

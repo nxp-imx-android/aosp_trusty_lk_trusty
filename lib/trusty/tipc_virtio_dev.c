@@ -391,7 +391,7 @@ static int handle_ctrl_msg(struct tipc_dev* dev,
 
     DEBUG_ASSERT(ns_data);
 
-    /* do some sanity checks */
+    /* do some safety checks */
     if (msg_len < sizeof(struct tipc_ctrl_msg_hdr)) {
         LTRACEF("%s: remote=%u: ttl_len=%zu\n", "malformed msg", remote,
                 msg_len);

@@ -298,7 +298,7 @@ def main():
     op = OptionParser(usage=usage)
     op.add_option("-v", "--verify", action="store_true",
             dest="verify", default=False,
-            help="Sanity check syscall table. Do not generate any files.")
+            help="Check syscall table. Do not generate any files.")
     op.add_option("-d", "--std-header", type="string",
             dest="std_file", default=None,
             help="path to syscall defintions header file.")
