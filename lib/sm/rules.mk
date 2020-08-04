@@ -38,7 +38,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/shared_mem.c \
 
 MODULE_DEPS += \
-	lib/extmem \
+	trusty/kernel/lib/extmem \
 
 include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 

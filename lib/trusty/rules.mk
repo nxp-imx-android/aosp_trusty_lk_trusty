@@ -63,6 +63,11 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/trusty_virtio.c \
 	$(LOCAL_DIR)/tipc_virtio_dev.c \
 	$(LOCAL_DIR)/tipc_dev_ql.c
+
+MODULE_DEPS += \
+	trusty/kernel/lib/extmem \
+	trusty/kernel/lib/sm \
+
 endif
 
 ifneq (true,$(call TOBOOL,$(WITH_CUSTOM_TRUSTY_IPC_CONFIG)))
@@ -75,10 +80,11 @@ GLOBAL_INCLUDES += \
 	$(LOCAL_DIR)/include \
 
 MODULE_DEPS += \
-	lib/libc-ext \
-	lib/rand \
 	lib/syscall \
-	lib/version \
+	trusty/kernel/lib/backtrace \
+	trusty/kernel/lib/libc-ext \
+	trusty/kernel/lib/rand \
+	trusty/kernel/lib/version \
 
 GLOBAL_DEFINES += \
 	WITH_SYSCALL_TABLE=1 \
