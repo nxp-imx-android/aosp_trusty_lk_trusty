@@ -21,6 +21,16 @@
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
+LIB_BACKTRACE_ARCHS := \
+	arm \
+	arm64 \
+
+LIB_BACKTRACE_ARCH_SUPPORTED ?= \
+	$(if $(filter $(LIB_BACKTRACE_ARCHS),$(ARCH)),true,false)
+
+LIB_BACKTRACE_ENABLE ?= $(LIB_BACKTRACE_ARCH_SUPPORTED)
+
+ifeq (true,$(call TOBOOL,$(LIB_BACKTRACE_ENABLE)))
 MODULE := $(LOCAL_DIR)
 
 MODULE_STATIC_LIB := true
@@ -32,6 +42,11 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/backtrace.c \
 	$(LOCAL_DIR)/symbolize.c \
 
+GLOBAL_DEFINES += LIB_BACKTRACE_ENABLE=1
+
 include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 
 include make/module.mk
+else
+GLOBAL_INCLUDES += $(LOCAL_DIR)/include
+endif

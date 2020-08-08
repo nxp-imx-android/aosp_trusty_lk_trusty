@@ -23,6 +23,7 @@
 
 #pragma once
 
+#ifdef LIB_BACKTRACE_ENABLE
 #include <kernel/thread.h>
 
 /**
@@ -84,3 +85,6 @@ void dump_thread_backtrace(struct thread* thread);
 static inline void dump_backtrace(void) {
     dump_thread_backtrace(get_current_thread());
 }
+#else
+static void dump_backtrace(void) {}
+#endif
