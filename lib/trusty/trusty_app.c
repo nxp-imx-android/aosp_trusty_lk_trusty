@@ -53,11 +53,12 @@
 #define TRUSTY_APP_RESTART_TIMEOUT_SUCCESS (10ULL * 1000ULL * 1000ULL)
 #define TRUSTY_APP_RESTART_TIMEOUT_FAILURE (5ULL * 1000ULL * 1000ULL * 1000ULL)
 
-#define TRUSTY_APP_START_ADDR 0x8000
-
 #ifdef TRUSTY_APP_STACK_TOP
 #error "TRUSTY_APP_STACK_TOP is no longer respected"
 #endif
+
+/* Don't allow NULL to be a valid userspace address */
+STATIC_ASSERT(USER_ASPACE_BASE != 0);
 
 #ifndef DEFAULT_HEAP_SIZE
 #define DEFAULT_HEAP_SIZE (4 * PAGE_SIZE)
@@ -739,21 +740,9 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     LTRACEF("Spot size: %zu\n", size);
 
     vaddr_t spot;
-    /*
-     * Find a spot that could encompass the extra initial empty pages to
-     * avoid the possibility of wrapping the address space.
-     */
-    if (!vmm_find_spot(aspace, size + TRUSTY_APP_START_ADDR, &spot)) {
+    if (!vmm_find_spot(aspace, size, &spot)) {
         return ERR_NO_MEMORY;
     }
-    /*
-     * Shift the spot up to gaurantee the bottom TRUSTY_APP_START_ADDR bytes
-     * are empty, ensuring NULL dereferences will still fault.
-     *
-     * This should not be able to overflow since we reserved an additional
-     * TRUSTY_APP_START_ADDR bytes when asking for our spot.
-     */
-    spot += TRUSTY_APP_START_ADDR;
     LTRACEF("Load target: %lx\n", spot);
 
     /*
@@ -811,9 +800,10 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
         if (prg_hdr->p_type != PT_LOAD)
             continue;
 
-        /* skip PT_LOAD if it's below trusty_app start */
-        if (p_vaddr < TRUSTY_APP_START_ADDR)
-            continue;
+        if (p_vaddr < USER_ASPACE_BASE) {
+            TRACEF("Attempted to load segment beneath user address space\n");
+            return ERR_NOT_VALID;
+        }
 
         vaddr_t vaddr = p_vaddr;
         vaddr_t img_kvaddr = (vaddr_t)(trusty_app_image + prg_hdr->p_offset);
@@ -942,12 +932,11 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
     prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
     for (i = 0; i < elf_hdr->e_phnum; i++, prg_hdr++) {
         /*
-         * If it is a loadable segment above the low address, we already
+         * If it is a loadable segment, we already
          * validated and mapped it previously, additional validation is not
          * needed.
          */
-        if ((prg_hdr->p_type != PT_LOAD) ||
-            (prg_hdr->p_vaddr < TRUSTY_APP_START_ADDR)) {
+        if ((prg_hdr->p_type != PT_LOAD)) {
             continue;
         }
         vaddr_t low_addr, high_addr;
