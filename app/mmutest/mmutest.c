@@ -198,7 +198,7 @@ TEST(mmutest, alloc_last_kernel_page) {
     /* Allocate last kernel aspace page. */
     ptr1 = (void*)(aspace->base + (aspace->size - PAGE_SIZE));
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
-                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD, 0);
     /* TODO: allow this to fail as page could already be in use */
     ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
 
@@ -223,7 +223,7 @@ TEST(mmutest, alloc_last_kernel_page) {
     /* Allocate 2nd last kernel aspace page, while last page is allocated. */
     ptr3 = (void*)(aspace->base + (aspace->size - 2 * PAGE_SIZE));
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
-                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
     /* TODO: allow this to fail as page could already be in use */
     ASSERT_EQ(0, ret, "vmm_alloc failed 2nd last page\n");
 
@@ -250,6 +250,193 @@ TEST(mmutest, alloc_last_kernel_page) {
     EXPECT_EQ(0, ret, "vmm_free_region failed\n");
 
 test_abort:;
+}
+
+TEST(mmutest, guard_page) {
+    int ret;
+    bool retb;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+    size_t size = PAGE_SIZE * 6;
+    vaddr_t base;
+    void* ptr1 = NULL;
+    void* ptr2 = NULL;
+    void* ptr3 = NULL;
+    void* ptr4 = NULL;
+    void* ptr5 = NULL;
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
+
+    /* Allocate a page at a random spot with guard pages. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0, 0, 0);
+    ASSERT_EQ(0, ret);
+
+    /* Check that there are no existing adjacent allocations. */
+    ret = vmm_get_obj(aspace, (vaddr_t)ptr1 - PAGE_SIZE, PAGE_SIZE, &slice);
+    EXPECT_EQ(ERR_NOT_FOUND, ret);
+    vmm_obj_slice_release(&slice);
+
+    ret = vmm_get_obj(aspace, (vaddr_t)ptr1 + PAGE_SIZE, PAGE_SIZE, &slice);
+    EXPECT_EQ(ERR_NOT_FOUND, ret);
+    vmm_obj_slice_release(&slice);
+
+    /* Check that guard pages cannot be allocated. */
+    ptr2 = (void*)((vaddr_t)ptr1 - PAGE_SIZE);
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    ptr2 = (void*)((vaddr_t)ptr1 + PAGE_SIZE);
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    ptr2 = NULL;
+    vmm_free_region(aspace, (vaddr_t)ptr1);
+    ptr1 = NULL;
+
+    /* Find a range to to more specific tests in. */
+    retb = vmm_find_spot(aspace, size, &base);
+    ASSERT_EQ(true, retb, "failed to find region for test\n");
+
+    /* Allocate first test page. */
+    ptr1 = (void*)base;
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    if (ret) {
+        /*
+         * This allocation can fail if another thread allocated the page after
+         * vmm_find_spot returned as that call does not reserve the memory.
+         * Set ptr1 to NULL so we don't free memory belonging to someone else.
+         */
+        ptr1 = NULL;
+    }
+    ASSERT_EQ(0, ret);
+
+    /* Test adjacent page. Should all fail as ptr1 has guard on both sides. */
+    ptr2 = (void*)(base + PAGE_SIZE);
+
+    /* No flags. Should fail as both regions have a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No start guard. Should fail as first region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No end guard. Should fail as both regions have a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No guard pages. Should fail as first region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* Allocate page after guard page with no end guard */
+    ptr2 = (void*)(base + PAGE_SIZE * 2);
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
+    if (ret) {
+        ptr2 = NULL;
+    }
+    ASSERT_EQ(0, ret);
+
+    /* Test page directly after ptr2 */
+    ptr3 = (void*)(base + PAGE_SIZE * 3);
+
+    /* No flags. Should fail as second region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No end guard. Should fail as second region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No guard pages. Should succeed as neither region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
+    if (ret) {
+        ptr3 = NULL;
+    }
+    ASSERT_EQ(0, ret);
+
+    /* Test page directly after ptr3 */
+    ptr4 = (void*)(base + PAGE_SIZE * 4);
+
+    /* No flags. Should fail as second region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr4, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No end guard. Should fail as second region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr4, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No start guard. Should succeed as neither region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr4, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD, 0);
+    if (ret) {
+        ptr4 = NULL;
+    }
+    ASSERT_EQ(0, ret);
+
+    /*
+     * Test page directly after ptr4. Should all fail as ptr4 has end guard.
+     * Similar the test after ptr1, but checks that disabling start guard does
+     * not affect end guard.
+     */
+    ptr5 = (void*)(base + PAGE_SIZE * 5);
+
+    /* No flags. Should fail as both regions have a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr5, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No start guard. Should fail as first region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr5, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No end guard. Should fail as both regions have a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr5, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /* No guard pages. Should fail as first region has a guard page. */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr5, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+
+    /*
+     * Clear ptr5 so we don't try to free it. Not strictly needed as the guard
+     * page around ptr4 will prevent anyone else from allocating memory at this
+     * location, and ptr5 is freed first below, but useful if vmm tracing is
+     * enabled as failing vmm_free_region calls should all be for vaddr 0.
+     */
+    ptr5 = NULL;
+
+test_abort:
+    vmm_free_region(aspace, (vaddr_t)ptr5);
+    vmm_free_region(aspace, (vaddr_t)ptr4);
+    vmm_free_region(aspace, (vaddr_t)ptr3);
+    vmm_free_region(aspace, (vaddr_t)ptr2);
+    vmm_free_region(aspace, (vaddr_t)ptr1);
 }
 
 TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_pnx)) {
