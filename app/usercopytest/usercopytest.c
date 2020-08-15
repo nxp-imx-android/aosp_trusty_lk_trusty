@@ -121,7 +121,8 @@ TEST_F_SETUP(usercopytest) {
 
     if (start_flags != FLAGS_NO_PAGE) {
         ret = vmm_alloc(_state->aspace, "start-page", PAGE_SIZE, &addr, 0,
-                        VMM_FLAG_VALLOC_SPECIFIC, start_flags);
+                        VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD,
+                        start_flags);
         ASSERT_EQ(NO_ERROR, ret);
         ASSERT_EQ(START_PAGE_ADDR, addr);
     }
@@ -130,7 +131,8 @@ TEST_F_SETUP(usercopytest) {
 
     if (end_flags != FLAGS_NO_PAGE) {
         ret = vmm_alloc(_state->aspace, "end-page", PAGE_SIZE, &addr, 0,
-                        VMM_FLAG_VALLOC_SPECIFIC, end_flags);
+                        VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD,
+                        end_flags);
         ASSERT_EQ(NO_ERROR, ret);
         ASSERT_EQ(START_PAGE_ADDR + PAGE_SIZE, addr);
     }
