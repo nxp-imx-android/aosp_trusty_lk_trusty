@@ -45,6 +45,33 @@ int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
 extern uint8_t mmutest_arch_nop[];
 extern uint8_t mmutest_arch_nop_end[];
 
+static int mmutest_run_in_thread(const char* thread_name,
+                                 int (*func)(void* arg),
+                                 void* arg) {
+    int ret;
+    int thread_ret;
+    struct thread* thread;
+
+    thread = thread_create("mmu_test_execute", func, arg, DEFAULT_PRIORITY,
+                           DEFAULT_STACK_SIZE);
+    if (!thread) {
+        return ERR_NO_MEMORY;
+    }
+
+    thread_set_flag_exit_on_panic(thread, true);
+    ret = thread_resume(thread);
+    if (ret) {
+        return ret;
+    }
+
+    ret = thread_join(thread, &thread_ret, INFINITE_TIME);
+    if (ret) {
+        return ret;
+    }
+
+    return thread_ret;
+}
+
 static int mmutest_alloc(void** ptrp, uint arch_mmu_flags) {
     int ret;
     uint arch_mmu_flags_query = ~0U;
@@ -102,8 +129,6 @@ static int mmu_test_execute_thread_func(void* arg)
 
 static int mmu_test_execute(arch_mmu_flags) {
     int ret;
-    int thread_ret;
-    struct thread* thread;
     void* ptr;
     size_t len;
 
@@ -117,23 +142,8 @@ static int mmu_test_execute(arch_mmu_flags) {
     memcpy(ptr, mmutest_arch_nop, len);
     arch_sync_cache_range((addr_t)ptr, len);
 
-    thread = thread_create("mmu_test_execute", mmu_test_execute_thread_func,
-                           ptr, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-    if (!thread) {
-        ret = ERR_NO_MEMORY;
-        goto err_thread;
-    }
-    thread_set_flag_exit_on_panic(thread, true);
-    ret = thread_resume(thread);
-    if (ret) {
-        goto err_thread;
-    }
-    ret = thread_join(thread, &thread_ret, INFINITE_TIME);
-    if (ret) {
-        goto err_thread;
-    }
-    ret = thread_ret;
-err_thread:
+    ret = mmutest_run_in_thread("mmu_test_execute",
+                                mmu_test_execute_thread_func, ptr);
 
     vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)ptr);
 
@@ -192,6 +202,17 @@ TEST_P(mmutestvmm, vmm_alloc_contiguous) {
     EXPECT_NE(NULL, ptr);
     ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
     EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+}
+
+static int mmutest_panic_thread_func(void* _unused) {
+    panic("mmutest-panic");
+}
+
+TEST(mmutest, panic) {
+    /* Check thread_set_flag_exit_on_panic feature needed by other tests */
+    int ret = mmutest_run_in_thread("mmutest-panic", mmutest_panic_thread_func,
+                                    NULL);
+    EXPECT_EQ(ERR_FAULT, ret);
 }
 
 TEST(mmutest, alloc_last_kernel_page) {
