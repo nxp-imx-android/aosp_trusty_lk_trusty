@@ -215,6 +215,23 @@ TEST(mmutest, panic) {
     EXPECT_EQ(ERR_FAULT, ret);
 }
 
+static int mmutest_panic_thread_lock_thread_func(void* _unused) {
+    THREAD_LOCK(state);
+    panic("mmutest-panic-thread-lock");
+}
+
+TEST(mmutest, panic_thread_lock) {
+    /*
+     * Test panic with thread locked. Both _panic and platform_halt locks the
+     * thread_lock, so _panic needs to release it if it was already held by the
+     * current CPU.
+     */
+    int ret =
+            mmutest_run_in_thread("mmutest-panic-thread-lock",
+                                  mmutest_panic_thread_lock_thread_func, NULL);
+    EXPECT_EQ(ERR_FAULT, ret);
+}
+
 TEST(mmutest, alloc_last_kernel_page) {
     int ret;
     void* ptr1;
