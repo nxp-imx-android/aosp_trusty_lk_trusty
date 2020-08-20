@@ -51,11 +51,23 @@ static int mmutest_run_in_thread(const char* thread_name,
     int ret;
     int thread_ret;
     struct thread* thread;
+    uint8_t* canary;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
 
     thread = thread_create("mmu_test_execute", func, arg, DEFAULT_PRIORITY,
                            DEFAULT_STACK_SIZE);
     if (!thread) {
         return ERR_NO_MEMORY;
+    }
+
+    canary = (uint8_t*)thread->stack - PAGE_SIZE * 2;
+
+    ret = vmm_alloc(aspace, "canary", PAGE_SIZE, (void**)&canary, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+    if (ret) {
+        canary = NULL;
+    } else {
+        memset(canary, 0x55, PAGE_SIZE);
     }
 
     thread_set_flag_exit_on_panic(thread, true);
@@ -67,6 +79,17 @@ static int mmutest_run_in_thread(const char* thread_name,
     ret = thread_join(thread, &thread_ret, INFINITE_TIME);
     if (ret) {
         return ret;
+    }
+
+    if (canary) {
+        size_t i;
+        for (i = 0; i < PAGE_SIZE; i++) {
+            if (canary[i] != 0x55)
+                break;
+        }
+        EXPECT_EQ(i, PAGE_SIZE, "memory below stack corrupted\n");
+
+        vmm_free_region(aspace, (vaddr_t)canary);
     }
 
     return thread_ret;
@@ -531,6 +554,43 @@ test_abort:
     for (size_t i = 0; i < num_regions; i++) {
         vmm_free_region(aspace, (vaddr_t)ptr[i]);
     }
+}
+
+TEST(mmutest, check_stack_guard_page_bad_ptr)
+__attribute__((no_sanitize("bounds"))) {
+    char data[4];
+    void* ptr1 = data;
+    void* ptr2 = data - DEFAULT_STACK_SIZE;
+    EXPECT_EQ(0, mmutest_arch_store_uint32(ptr1, false));
+    EXPECT_EQ(ERR_GENERIC, mmutest_arch_store_uint32(ptr2, false));
+}
+
+static int mmutest_stack_overflow_thread_func(void* arg) {
+    char data[DEFAULT_STACK_SIZE] __attribute((uninitialized));
+    void* ptr = data;
+    mmutest_arch_store_uint32(ptr, false);
+    return 0;
+}
+
+TEST(mmutest, check_stack_guard_page_stack_overflow) {
+    EXPECT_EQ(ERR_FAULT,
+              mmutest_run_in_thread("stack-overflow",
+                                    mmutest_stack_overflow_thread_func, NULL));
+}
+
+static int mmutest_recursive_stack_overflow_thread_func(void* arg) {
+    char b;
+    if ((vaddr_t)arg == 1) {
+        return 0;
+    }
+    return mmutest_recursive_stack_overflow_thread_func(&b) + 1;
+}
+
+TEST(mmutest, check_stack_guard_page_recursive_stack_overflow) {
+    EXPECT_EQ(ERR_FAULT,
+              mmutest_run_in_thread(
+                      "stack-overflow",
+                      mmutest_recursive_stack_overflow_thread_func, 0));
 }
 
 TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_pnx)) {
