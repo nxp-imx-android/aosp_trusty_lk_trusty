@@ -63,7 +63,7 @@ static void dump_user_function(struct trusty_app* app,
 }
 
 static void dump_kernel_function(struct stack_frame* frame) {
-    /* TODO(b/149918767): kernel instruction address symbolization */
+    /* TODO(b/164524596): kernel instruction address symbolization */
     print_function_info(frame, 0 /* load_bias */, NULL);
 }
 
