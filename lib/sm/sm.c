@@ -327,7 +327,7 @@ err:
     return ret;
 }
 
-static void sm_wait_for_smcall(void) {
+static int sm_wait_for_smcall(void* arg) {
     int cpu;
     long ret = 0;
 
@@ -395,9 +395,8 @@ static void sm_secondary_init(uint level) {
     thread_set_real_time(nsirqthreads[cpu]);
 
     snprintf(name, sizeof(name), "idle-ns-switch-%d", cpu);
-    nsidlethreads[cpu] =
-            thread_create(name, (thread_start_routine)sm_wait_for_smcall, NULL,
-                          LOWEST_PRIORITY + 1, DEFAULT_STACK_SIZE);
+    nsidlethreads[cpu] = thread_create(name, sm_wait_for_smcall, NULL,
+                                       LOWEST_PRIORITY + 1, DEFAULT_STACK_SIZE);
     if (!nsidlethreads[cpu]) {
         panic("failed to create idle NS switcher thread for cpu %d!\n", cpu);
     }
