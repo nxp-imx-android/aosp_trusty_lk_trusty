@@ -36,8 +36,14 @@ int mmutest_arch_data_pnx(void);
 int mmutest_arch_rodata_ro(void);
 
 int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
-int mmutest_arch_nop(int ret);
-int mmutest_arch_nop_end(int ret);
+
+/*
+ * These below declarations are made to avoid issues wth CFI
+ * while copying heap allocated method, this is to reduce the
+ * probability of it breaking in future toolchain versions
+ */
+extern uint8_t mmutest_arch_nop[];
+extern uint8_t mmutest_arch_nop_end[];
 
 static int mmutest_alloc(void** ptrp, uint arch_mmu_flags) {
     int ret;
@@ -83,27 +89,36 @@ static int mmutest_vmm_store_uint32_user(uint arch_mmu_flags) {
     return mmutest_vmm_store_uint32(arch_mmu_flags, true);
 }
 
+/*
+ * disabling the cfi-icall as a workaround to avoid cfi check
+ * failure errors while calling heap allocated functions
+ */
+static int mmu_test_execute_thread_func(void* arg)
+        __attribute__((no_sanitize("cfi-icall"))) {
+    void (*func)(void) = arg;
+    func();
+    return 0;
+}
+
 static int mmu_test_execute(arch_mmu_flags) {
     int ret;
     int thread_ret;
     struct thread* thread;
     void* ptr;
     size_t len;
-    int (*nop)(void* ret);
 
     ret = mmutest_alloc(&ptr, arch_mmu_flags);
     if (ret) {
         return ret;
     }
 
-    nop = ptr;
     len = mmutest_arch_nop_end - mmutest_arch_nop;
 
     memcpy(ptr, mmutest_arch_nop, len);
     arch_sync_cache_range((addr_t)ptr, len);
 
-    thread = thread_create("mmu_test_execute", nop, NULL, DEFAULT_PRIORITY,
-                           DEFAULT_STACK_SIZE);
+    thread = thread_create("mmu_test_execute", mmu_test_execute_thread_func,
+                           ptr, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
     if (!thread) {
         ret = ERR_NO_MEMORY;
         goto err_thread;
