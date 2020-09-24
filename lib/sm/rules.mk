@@ -39,6 +39,7 @@ MODULE_SRCS += \
 
 MODULE_DEPS += \
 	trusty/kernel/lib/extmem \
+	trusty/kernel/lib/version \
 
 include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 

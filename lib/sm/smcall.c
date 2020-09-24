@@ -37,9 +37,7 @@
 #include <lk/init.h>
 #include <string.h>
 #include <trace.h>
-#if WITH_LIB_VERSION
 #include <version.h>
-#endif
 
 #define LOCAL_TRACE 1
 
@@ -132,7 +130,6 @@ static long smc_cpu_resume(struct smc32_args* args) {
 }
 #endif
 
-#if WITH_LIB_VERSION
 static long smc_get_version_str(struct smc32_args* args) {
     int32_t index = (int32_t)args->params[0];
     size_t version_len = strlen(lk_version);
@@ -145,7 +142,6 @@ static long smc_get_version_str(struct smc32_args* args) {
 
     return lk_version[index];
 }
-#endif
 
 static smc32_handler_t sm_fastcall_function_table[] = {
         [SMC_FUNCTION(SMC_FC_REQUEST_FIQ)] = smc_intc_request_fiq,
@@ -156,9 +152,7 @@ static smc32_handler_t sm_fastcall_function_table[] = {
         [SMC_FUNCTION(SMC_FC_CPU_SUSPEND)] = smc_cpu_suspend,
         [SMC_FUNCTION(SMC_FC_CPU_RESUME)] = smc_cpu_resume,
 #endif
-#if WITH_LIB_VERSION
         [SMC_FUNCTION(SMC_FC_GET_VERSION_STR)] = smc_get_version_str,
-#endif
         [SMC_FUNCTION(SMC_FC_API_VERSION)] = smc_sm_api_version,
         [SMC_FUNCTION(SMC_FC_FIQ_RESUME)] = smc_intc_fiq_resume,
 };
