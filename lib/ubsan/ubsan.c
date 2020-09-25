@@ -40,7 +40,7 @@
 static bool in_ubsan_get(void);
 static void in_ubsan_set(bool);
 
-#ifdef USER_TASK
+#ifdef TRUSTY_USERSPACE
 /* TODO Once TLS is available, make this __thread */
 static bool in_ubsan = false;
 static inline bool in_ubsan_get(void) {
@@ -136,7 +136,7 @@ static void log(struct source_location* location,
 }
 
 static void ubsan_fail(const char* msg) {
-#ifdef USER_TASK
+#ifdef TRUSTY_USERSPACE
     fprintf(stderr, "ubsan panic: %s\n", msg);
     *(volatile char*)0 = 0;
 #else

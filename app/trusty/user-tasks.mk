@@ -21,10 +21,6 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
-$(info Include Trusty user tasks support)
-
-TRUSTY_APP_DIR := $(GET_LOCAL_DIR)
-
 #
 # Input variables
 #
@@ -38,30 +34,65 @@ TRUSTY_APP_DIR := $(GET_LOCAL_DIR)
 #			- trusty/app/some_prebuilt_app/some_prebuilt_app.manifest
 #
 
-# generate user task build rule: $(1): user task
-define user-task-build-rule
-$(eval XBIN_NAME := $(notdir $(1)))\
-$(eval XBIN_TOP_MODULE := $(1))\
-$(eval XBIN_TYPE := USER_TASK)\
-$(eval XBIN_ARCH := $(TRUSTY_USER_ARCH))\
-$(eval XBIN_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
-$(eval XBIN_LDFLAGS := $(BASE_XBIN_LDFLAGS))\
-$(eval XBIN_ALIGNMENT := 4096)\
-$(eval XBIN_APP := true)\
-$(eval XBIN_SYMTAB_ENABLED := $(SYMTAB_ENABLED))\
-$(eval include make/xbin.mk)
+$(info Include Trusty user tasks support)
+
+TRUSTY_APP_DIR := $(GET_LOCAL_DIR)
+
+# generate trusty app or library build rules:
+# $(1): path to app source dir (module name)
+#
+# Note: this function must be eval'd after calling it
+#
+# Other input variables, shared across all apps
+# TRUSTY_APP_BASE_LDFLAGS: LDFLAGS for the app
+# ARCH: Architecture of the app
+# TRUSTY_APP_ALIGNMENT: Alignment of app image (defaults to 1)
+# TRUSTY_APP_MEMBASE: App base address, if fixed
+# TRUSTY_APP_SYMTAB_ENABLED: If true do not strip symbols from the
+# 		resulting app binary
+# TRUSTY_USERSPACE: Boolean indicating that the app should be built for the
+# 		trusty userspace
+#
+define trusty-build-rule
+# MODULE should be set to the parent module when including userspace_recurse.mk.
+# In this case we are trying to build a top-level app or library, and need to
+# isolate this build from the kernel build. In order to isolate the top level
+# library (or app) module from the kernel build system, we save the kernel
+# module flags (to a synthetic parent module, KERNEL), clear those flags, then
+# include the library via DEPENDENCY_MODULE. After finishing with the rules for
+# the library, we will restore the kernel flags from their saved values.
+DEPENDENCY_MODULE := $(1)
+MODULE := KERNEL
+include make/userspace_recurse.mk
 endef
 
+TRUSTY_TOP_LEVEL_BUILDDIR := $(BUILDDIR)
+TRUSTY_APP_BUILDDIR := $(BUILDDIR)/user_tasks
+TRUSTY_LIBRARY_BUILDDIR := $(BUILDDIR)/lib
+
+# Save userspace-global variables so we can restore kernel state
+TRUSTY_KERNEL_SAVED_ARCH := $(ARCH)
+TRUSTY_KERNEL_SAVED_ALLOW_FP_USE := $(ALLOW_FP_USE)
+TRUSTY_KERNEL_SAVED_SCS_ENABLED := $(SCS_ENABLED)
+
 # while compiling user space we allow FP support
-SAVED_ALLOW_FP_USE := $(ALLOW_FP_USE)
 ALLOW_FP_USE := true
 
-SAVED_SCS_ENABLED = $(SCS_ENABLED)
 # tell the arch-specific makefiles to set flags required for SCS if supported
 SCS_ENABLED := $(call TOBOOL,$(USER_SCS_ENABLED))
 
-# pull in common arch specific user task settings
-BASE_XBIN_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) -z max-page-size=4096 -z separate-loadable-segments
+# Building trusty userspace
+TRUSTY_USERSPACE := true
+
+# Used by LTO, could be combined with TRUSTY_USERSPACE after this lands
+USER_TASK_MODULE := true
+
+ARCH := $(TRUSTY_USER_ARCH)
+# Re-derive the standard arch name using the new arch.
+$(eval $(call standard_name_for_arch,STANDARD_ARCH_NAME,$(ARCH),$(SUBARCH)))
+
+# Override tools for the userspace arch
+include arch/$(ARCH)/toolchain.mk
 
 include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 
@@ -76,11 +107,16 @@ ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)
 # sort and remove duplicates
 ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 
+TRUSTY_APP_BASE_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) -z max-page-size=4096 -z separate-loadable-segments
+TRUSTY_APP_ALIGNMENT := 4096
+TRUSTY_APP_MEMBASE :=
+TRUSTY_APP_SYMTAB_ENABLED := $(SYMTAB_ENABLED)
+
 #
 # Generate build rules for each user task
 #
 $(foreach t,$(ALL_USER_TASKS),\
-   $(call user-task-build-rule,$(t)))
+   $(eval $(call trusty-build-rule,$(t))))
 
 # Add any prebuilt apps to the build.
 
@@ -92,6 +128,30 @@ $(PREBUILT_OBJECTS_DEST): $(BUILDDIR)/user_tasks/%: %
 	cp $^ $(dir $@)/
 
 TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
+
+#
+# Generate loadable application packages
+#
+define loadable-app-build-rule
+$(eval APP_NAME := $(notdir $(1)))\
+$(eval APP_TOP_MODULE := $(1))\
+$(eval APP_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
+$(eval include make/loadable_app.mk)
+endef
+
+# Sort and remove duplicates
+TRUSTY_LOADABLE_USER_TASKS := $(sort $(TRUSTY_LOADABLE_USER_TASKS))
+
+#
+# Generate build rules for each application
+#
+$(foreach t,$(TRUSTY_LOADABLE_USER_TASKS),\
+   $(call loadable-app-build-rule,$(t)))
+
+# Restore kernel state
+ARCH := $(TRUSTY_KERNEL_SAVED_ARCH)
+ALLOW_FP_USE := $(TRUSTY_KERNEL_SAVED_ALLOW_FP_USE)
+SCS_ENABLED := $(TRUSTY_KERNEL_SAVED_SCS_ENABLED)
 
 #
 # Generate combined user task obj/bin if necessary
@@ -122,32 +182,17 @@ EXTRA_OBJS += $(BUILTIN_TASK_OBJS)
 
 endif
 
-#
-# Generate loadable application packages
-#
-define loadable-app-build-rule
-$(eval APP_NAME := $(notdir $(1)))\
-$(eval APP_TOP_MODULE := $(1))\
-$(eval APP_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
-$(eval include make/loadable_app.mk)
-endef
-
-# Sort and remove duplicates
-TRUSTY_LOADABLE_USER_TASKS := $(sort $(TRUSTY_LOADABLE_USER_TASKS))
-
-#
-# Generate build rules for each application
-#
-$(foreach t,$(TRUSTY_LOADABLE_USER_TASKS),\
-   $(call loadable-app-build-rule,$(t)))
-
-
-BASE_XBIN_LDFLAGS :=
-
-ALLOW_FP_USE := $(SAVED_ALLOW_FP_USE)
-SAVED_ALLOW_FP_USE :=
-
-SCS_ENABLED := $(SAVED_SCS_ENABLED)
-SAVED_SCS_ENABLED :=
-
-
+# Reset app variables
+TRUSTY_APP :=
+TRUSTY_APP_NAME :=
+TRUSTY_APP_BASE_LDFLAGS :=
+TRUSTY_APP_ARCH :=
+TRUSTY_APP_ALIGNMENT :=
+TRUSTY_APP_MEMBASE :=
+TRUSTY_APP_SYMTAB_ENABLED :=
+TRUSTY_TOP_LEVEL_BUILDDIR :=
+TRUSTY_USERSPACE :=
+TRUSTY_USERSPACE_SAVED_ARCH :=
+TRUSTY_USERSPACE_SAVED_ALLOW_FP_USE :=
+TRUSTY_USERSPACE_SAVED_SCS_ENABLED :=
+USER_TASK_MODULE :=

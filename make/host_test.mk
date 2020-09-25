@@ -38,10 +38,10 @@ $(error HOST_SRCS must be specified)
 endif
 
 # Select same builddir when included form user-space or kernel
-ifeq ($(SAVED_BUILDDIR), )
+ifeq ($(strip $(TRUSTY_TOP_LEVEL_BUILDDIR)),)
 HOST_TEST_BUILDDIR := $(BUILDDIR)
 else
-HOST_TEST_BUILDDIR := $(SAVED_BUILDDIR)
+HOST_TEST_BUILDDIR := $(TRUSTY_TOP_LEVEL_BUILDDIR)
 endif
 
 ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
