@@ -25,8 +25,16 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
+MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include
+
 MODULE_SRCS := \
 	$(LOCAL_DIR)/scnprintf.c \
 	$(LOCAL_DIR)/uuid.c \
 
-include make/module.mk
+# Avoid a dependency loop on libsancov which causes libc to not include the
+# libc-ext headers by the time sancov is being configured
+MODULE_DISABLE_COVERAGE := true
+
+# Needs to include the userspace library makefile, since userspace libc also
+# depends on this module.
+include make/library.mk

@@ -28,4 +28,8 @@ MODULE := $(LOCAL_DIR)
 MODULE_SRCS := \
 	$(LOCAL_DIR)/app_manifest.c \
 
-include make/module.mk
+MODULE_EXPORT_INCLUDES := $(LOCAL_DIR)/include
+
+# Needs to include the userspace library makefile, since userspace app loader
+# also depends on this module.
+include make/library.mk

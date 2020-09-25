@@ -25,10 +25,14 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-GLOBAL_INCLUDES += \
+MODULE_EXPORT_INCLUDES += \
 	$(LOCAL_DIR)/include \
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/ubsan.c \
 
-include make/module.mk
+MODULE_LIBRARY_DEPS := trusty/kernel/lib/libc-ext
+
+# Needs to include the userspace library makefile, since userspace libc also
+# depends on this module.
+include make/library.mk
