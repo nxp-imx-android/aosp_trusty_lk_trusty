@@ -439,6 +439,47 @@ test_abort:
     vmm_free_region(aspace, (vaddr_t)ptr1);
 }
 
+TEST(mmutest, find_slice_no_guard) {
+    int ret;
+    bool retb;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+    void* ptr[8];
+    size_t num_regions = countof(ptr);
+    size_t size = PAGE_SIZE * num_regions;
+    vaddr_t base;
+    uint vmm_flags = VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                     VMM_FLAG_NO_END_GUARD;
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
+
+    for (size_t i = 0; i < num_regions; i++) {
+        ptr[i] = NULL;
+    }
+
+    retb = vmm_find_spot(aspace, size, &base);
+    ASSERT_EQ(true, retb, "failed to find region for test\n");
+
+    for (int i = num_regions - 1; i >= 0; --i) {
+        ptr[i] = (void*)(base + PAGE_SIZE * i);
+        ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr[i], 0, vmm_flags, 0);
+        if (ret) {
+            ptr[i] = NULL;
+        }
+
+        if (ptr[i]) {
+            /* Test that we can find slice corresponding to allocated page. */
+            ret = vmm_get_obj(aspace, (vaddr_t)ptr[i], PAGE_SIZE, &slice);
+            ASSERT_EQ(NO_ERROR, ret);
+            vmm_obj_slice_release(&slice);
+        }
+    }
+
+test_abort:
+    for (size_t i = 0; i < num_regions; i++) {
+        vmm_free_region(aspace, (vaddr_t)ptr[i]);
+    }
+}
+
 TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_pnx)) {
     EXPECT_EQ(ERR_FAULT, mmutest_arch_rodata_pnx());
 }
