@@ -38,10 +38,16 @@
 #     LOADABLE_APP_LIST - list of loadable app locations
 
 # Build a loadable application
+ifeq ($(strip $(LOADABLE_APP_TOOL)),)
 LOADABLE_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
+endif
 
+ifeq ($(strip $(APP_ELF)),)
 APP_ELF := $(_MODULES_$(APP_TOP_MODULE)_TRUSTY_APP_ELF)
+endif
+ifeq ($(strip $(APP_MANIFEST)),)
 APP_MANIFEST := $(_MODULES_$(APP_TOP_MODULE)_TRUSTY_APP_MANIFEST_BIN)
+endif
 
 INITIAL_APP := $(patsubst %.elf,%.app.initial,$(APP_ELF))
 LOADABLE_APP := $(patsubst %.elf,%.app,$(APP_ELF))

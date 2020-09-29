@@ -68,8 +68,47 @@ endef
 
 TRUSTY_TOP_LEVEL_BUILDDIR := $(BUILDDIR)
 TRUSTY_APP_BUILDDIR := $(BUILDDIR)/user_tasks
+TRUSTY_SDK_DIR := $(BUILDDIR)/sdk
+TRUSTY_SDK_SYSROOT := $(TRUSTY_SDK_DIR)/sysroot/
+TRUSTY_SDK_INCLUDE_DIR := $(TRUSTY_SDK_SYSROOT)/usr/include
+TRUSTY_SDK_LIB_DIR := $(TRUSTY_SDK_SYSROOT)/usr/lib
 TRUSTY_LIBRARY_BUILDDIR := $(BUILDDIR)/lib
 TRUSTY_HOST_LIBRARY_BUILDDIR := $(BUILDDIR)/host_lib
+
+TRUSTY_SDK_MODULES := \
+	external/boringssl \
+	trusty/kernel/lib/libc-ext \
+	trusty/kernel/lib/ubsan \
+	trusty/user/base/interface/hwaes \
+	trusty/user/base/interface/hwkey \
+	trusty/user/base/interface/keymaster \
+	trusty/user/base/interface/spi \
+	trusty/user/base/interface/storage \
+	trusty/user/base/interface/system_state \
+	trusty/user/base/lib/googletest \
+	trusty/user/base/lib/hwaes \
+	trusty/user/base/lib/hwkey \
+	trusty/user/base/lib/keymaster \
+	trusty/user/base/lib/libc-trusty \
+	trusty/user/base/lib/libcxxabi-trusty \
+	trusty/user/base/lib/libstdc++-trusty \
+	trusty/user/base/lib/rng \
+	trusty/user/base/lib/spi/client \
+	trusty/user/base/lib/spi/common \
+	trusty/user/base/lib/storage \
+	trusty/user/base/lib/syscall-stubs \
+	trusty/user/base/lib/system_state \
+	trusty/user/base/lib/tipc \
+	trusty/user/base/lib/unittest \
+	$(EXTRA_TRUSTY_SDK_MODULES)
+
+ALL_SDK_EXTRA_FILES :=
+ALL_SDK_INCLUDES :=
+ALL_SDK_LIBS :=
+
+define TOSDKLIBNAME
+$(patsubst lib%,%,$(notdir $(1)))
+endef
 
 GLOBAL_HOST_RUSTFLAGS += -L $(RUST_HOST_LIBDIR) -L dependency=$(TRUSTY_HOST_LIBRARY_BUILDDIR)
 GLOBAL_USER_RUSTFLAGS += -L dependency=$(TRUSTY_LIBRARY_BUILDDIR)
@@ -127,6 +166,15 @@ TRUSTY_APP_SYMTAB_ENABLED := $(SYMTAB_ENABLED)
 
 $(info ALL_USER_TASKS: $(ALL_USER_TASKS))
 
+# Generate build rules for each sdk library, if they have not already been
+# generated.
+#
+# Rules are the first time a library is required, so libraries may already be
+# processed before we get to them in the list of SDK libraries.
+#
+$(foreach lib,$(TRUSTY_SDK_MODULES),\
+	$(if $(_MODULES_$(lib)),,$(eval $(call trusty-build-rule,$(lib)))))
+
 #
 # Generate build rules for each user task
 #
@@ -156,6 +204,9 @@ TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
 # Add rust crate tests to the list of built in apps
 RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
 TRUSTY_BUILTIN_USER_TASKS += $(RUST_USER_TEST_MODULES)
+
+# Ensure that includes and libs are installed
+all:: $(ALL_SDK_INCLUDES) $(ALL_SDK_LIBS) $(ALL_SDK_EXTRA_FILES)
 
 #
 # Generate loadable application packages
