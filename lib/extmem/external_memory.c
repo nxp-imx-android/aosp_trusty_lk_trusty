@@ -117,11 +117,6 @@ int ext_mem_obj_get_page(struct vmm_obj* obj,
 
     LTRACEF("offset %zd page_run_count %zd\n", offset, ext_obj->page_run_count);
 
-    if (!IS_PAGE_ALIGNED(offset)) {
-        TRACEF("invalid offset %zd\n", offset);
-        return ERR_INVALID_ARGS;
-    }
-
     page_offset = offset;
     index = 0;
     while (index < ext_obj->page_run_count &&
