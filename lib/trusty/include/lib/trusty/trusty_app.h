@@ -26,6 +26,7 @@
 #define __LIB_TRUSTY_APP_H
 
 #include <assert.h>
+#include <kernel/physmem.h>
 #include <kernel/thread.h>
 #include <kernel/usercopy.h>
 #include <kernel/vm.h>
@@ -49,6 +50,13 @@ struct manifest_port_entry {
     struct list_node node;
 };
 
+struct manifest_mmio_entry {
+    struct list_node node;
+    struct phys_mem_obj phys_mem_obj;
+    struct obj_ref phys_mem_obj_self_ref;
+    uint32_t id;
+};
+
 struct trusty_app_props {
     uuid_t uuid;
     uint32_t mgmt_flags;
@@ -58,6 +66,7 @@ struct trusty_app_props {
     uint32_t config_entry_cnt;
     uint32_t* config_blob;
     struct list_node port_entry_list;
+    struct list_node mmio_entry_list;
 };
 
 struct trusty_app_img {

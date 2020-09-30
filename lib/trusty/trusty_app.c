@@ -453,6 +453,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     const char* port_name;
     uint32_t port_name_size;
     uint32_t port_flags;
+    uint32_t mmio_id, mmio_offset, mmio_size;
+    struct manifest_mmio_entry* mmio_entry;
+    paddr_t tmp_paddr;
     u_int *config_blob, config_blob_size;
     u_int i;
     status_t ret;
@@ -542,8 +545,41 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                         trusty_app->app_id);
                 return ERR_NOT_VALID;
             }
+            mmio_id = trusty_app->props.config_blob[++i];
+            mmio_offset = trusty_app->props.config_blob[++i];
+            mmio_size = round_up(trusty_app->props.config_blob[++i], PAGE_SIZE);
             trusty_app->props.map_io_mem_cnt++;
-            i += 3;
+
+            if (!IS_PAGE_ALIGNED(mmio_offset)) {
+                dprintf(CRITICAL, "app %u mmio_id %u not page aligned\n",
+                        trusty_app->app_id, mmio_id);
+                return ERR_NOT_VALID;
+            }
+
+            if (!mmio_size || __builtin_add_overflow(mmio_offset, mmio_size - 1,
+                                                     &tmp_paddr)) {
+                dprintf(CRITICAL, "app %u mmio_id %u bad size\n",
+                        trusty_app->app_id, mmio_id);
+                return ERR_NOT_VALID;
+            }
+
+            mmio_entry = calloc(1, sizeof(struct manifest_mmio_entry));
+            if (!mmio_entry) {
+                dprintf(CRITICAL,
+                        "Failed to allocate memory for manifest mmio %d of app %u\n",
+                        mmio_id, trusty_app->app_id);
+                return ERR_NO_MEMORY;
+            }
+
+            phys_mem_obj_initialize(&mmio_entry->phys_mem_obj,
+                                    &mmio_entry->phys_mem_obj_self_ref,
+                                    mmio_offset, mmio_size,
+                                    ARCH_MMU_FLAG_UNCACHED_DEVICE |
+                                            ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+            mmio_entry->id = mmio_id;
+            list_add_tail(&trusty_app->props.mmio_entry_list,
+                          &mmio_entry->node);
+
             break;
         case TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS:
             /* MGMT_FLAGS takes 1 data value */
@@ -1014,6 +1050,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
         return ERR_NO_MEMORY;
     }
     list_initialize(&trusty_app->props.port_entry_list);
+    list_initialize(&trusty_app->props.mmio_entry_list);
 
     ehdr = (ELF_EHDR*)app_img->img_start;
     if (!address_range_within_img(ehdr, sizeof(ELF_EHDR), app_img)) {
@@ -1062,9 +1099,7 @@ status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
                                user_addr_t* uaddr_p,
                                uint32_t map_size) {
     status_t ret;
-    uint32_t i;
-    uint32_t id, offset, size;
-    uint32_t port_name_size;
+    struct manifest_mmio_entry* mmio_entry;
 
     /* Should only be called on the currently running app */
     DEBUG_ASSERT(trusty_app == current_trusty_app());
@@ -1072,46 +1107,23 @@ status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
     ASSERT(uaddr_p);
     void* va = (void*)(uintptr_t)(*uaddr_p);
 
-    /* step thru configuration blob looking for I/O mapping requests */
-    for (i = 0; i < trusty_app->props.config_entry_cnt; i++) {
-        switch (trusty_app->props.config_blob[i]) {
-        case TRUSTY_APP_CONFIG_KEY_MAP_MEM:
-            id = trusty_app->props.config_blob[++i];
-            offset = trusty_app->props.config_blob[++i];
-            size = round_up(trusty_app->props.config_blob[++i], PAGE_SIZE);
-
-            if (id != mmio_id)
-                continue;
-
-            map_size = round_up(map_size, PAGE_SIZE);
-            if (map_size > size)
-                return ERR_INVALID_ARGS;
-            ret = vmm_alloc_physical(
-                    trusty_app->aspace, "mmio", map_size, &va, PAGE_SIZE_SHIFT,
-                    offset, 0,
-                    ARCH_MMU_FLAG_UNCACHED_DEVICE | ARCH_MMU_FLAG_PERM_USER);
-            dprintf(SPEW, "mmio: vaddr %p, paddr 0x%x, ret %d\n", va, offset,
-                    ret);
-            if (ret == NO_ERROR) {
-                *uaddr_p = (user_addr_t)(uintptr_t)va;
-                DEBUG_ASSERT((void*)(uintptr_t)(*uaddr_p) == va);
-            }
-            return ret;
-        case TRUSTY_APP_CONFIG_KEY_START_PORT:
-            /* START_PORT takes 2 data values plus the aligned port name size */
-            port_name_size = trusty_app->props.config_blob[i + 2];
-            i += 2 + DIV_ROUND_UP(port_name_size, sizeof(uint32_t));
-            break;
-        case TRUSTY_APP_CONFIG_KEY_MIN_STACK_SIZE:
-        case TRUSTY_APP_CONFIG_KEY_MIN_HEAP_SIZE:
-        case TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS:
-            i++;
-            break;
-        default:
-            panic("unknown config key 0x%x at %p in config blob of app %d\n",
-                  trusty_app->props.config_blob[i],
-                  &trusty_app->props.config_blob[i], trusty_app->app_id);
+    list_for_every_entry(&trusty_app->props.mmio_entry_list, mmio_entry,
+                         struct manifest_mmio_entry, node) {
+        if (mmio_entry->id != mmio_id) {
+            continue;
         }
+
+        map_size = round_up(map_size, PAGE_SIZE);
+
+        ret = vmm_alloc_obj(
+                trusty_app->aspace, "mmio", &mmio_entry->phys_mem_obj.vmm_obj,
+                0, map_size, &va, 0, 0,
+                ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+        if (ret == NO_ERROR) {
+            *uaddr_p = (user_addr_t)(uintptr_t)va;
+            DEBUG_ASSERT((void*)(uintptr_t)(*uaddr_p) == va);
+        }
+        return ret;
     }
 
     return ERR_NOT_FOUND;
