@@ -453,7 +453,8 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     const char* port_name;
     uint32_t port_name_size;
     uint32_t port_flags;
-    uint32_t mmio_id, mmio_offset, mmio_size;
+    uint32_t mmio_id, mmio_arch_mmu_flags;
+    uint64_t mmio_offset, mmio_size;
     struct manifest_mmio_entry* mmio_entry;
     paddr_t tmp_paddr;
     u_int *config_blob, config_blob_size;
@@ -539,19 +540,35 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             trusty_app->props.min_heap_size = config_blob[++i];
             break;
         case TRUSTY_APP_CONFIG_KEY_MAP_MEM:
-            /* MAP_MEM takes 3 data values */
-            if ((trusty_app->props.config_entry_cnt - i) < 4) {
+            /* MAP_MEM takes 6 data values */
+            if ((trusty_app->props.config_entry_cnt - i) < 7) {
                 dprintf(CRITICAL, "app %u manifest missing MAP_MEM value\n",
                         trusty_app->app_id);
                 return ERR_NOT_VALID;
             }
             mmio_id = trusty_app->props.config_blob[++i];
+            /*
+             * TODO: add big endian support? The manifest_compiler wrote the
+             * next two entries as 64 bit numbers with the byte order of the
+             * build machine. The code below assumes the manifest data and
+             * device are both little-endian.
+             */
             mmio_offset = trusty_app->props.config_blob[++i];
+            mmio_offset |= (uint64_t)trusty_app->props.config_blob[++i] << 32;
             mmio_size = round_up(trusty_app->props.config_blob[++i], PAGE_SIZE);
+            mmio_size |= (uint64_t)trusty_app->props.config_blob[++i] << 32;
+            mmio_arch_mmu_flags = trusty_app->props.config_blob[++i];
             trusty_app->props.map_io_mem_cnt++;
 
             if (!IS_PAGE_ALIGNED(mmio_offset)) {
                 dprintf(CRITICAL, "app %u mmio_id %u not page aligned\n",
+                        trusty_app->app_id, mmio_id);
+                return ERR_NOT_VALID;
+            }
+
+            if ((paddr_t)mmio_offset != mmio_offset ||
+                (size_t)mmio_size != mmio_size) {
+                dprintf(CRITICAL, "app %u mmio_id %d address/size too large\n",
                         trusty_app->app_id, mmio_id);
                 return ERR_NOT_VALID;
             }
@@ -562,6 +579,20 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                         trusty_app->app_id, mmio_id);
                 return ERR_NOT_VALID;
             }
+
+            if (mmio_arch_mmu_flags &
+                        ~(ARCH_MMU_FLAG_CACHE_MASK | ARCH_MMU_FLAG_NS) ||
+                ((mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
+                         ARCH_MMU_FLAG_CACHED &&
+                 (mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
+                         ARCH_MMU_FLAG_UNCACHED &&
+                 (mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
+                         ARCH_MMU_FLAG_UNCACHED_DEVICE)) {
+                dprintf(CRITICAL, "app %u mmio_id %u bad arch_mmu_flags 0x%x\n",
+                        trusty_app->app_id, mmio_id, mmio_arch_mmu_flags);
+                return ERR_NOT_VALID;
+            }
+            mmio_arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
 
             mmio_entry = calloc(1, sizeof(struct manifest_mmio_entry));
             if (!mmio_entry) {
@@ -574,8 +605,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             phys_mem_obj_initialize(&mmio_entry->phys_mem_obj,
                                     &mmio_entry->phys_mem_obj_self_ref,
                                     mmio_offset, mmio_size,
-                                    ARCH_MMU_FLAG_UNCACHED_DEVICE |
-                                            ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+                                    mmio_arch_mmu_flags);
             mmio_entry->id = mmio_id;
             list_add_tail(&trusty_app->props.mmio_entry_list,
                           &mmio_entry->node);
