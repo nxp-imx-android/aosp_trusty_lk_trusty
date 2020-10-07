@@ -149,7 +149,7 @@ ifneq ($(ASLR), false)
 endif
 
 ifneq ($(strip $(CONSTANTS)),)
-GLOBAL_USER_INCLUDES += \
+GLOBAL_INCLUDES += \
 	$(BUILDDIR)/constants/include
 endif
 
