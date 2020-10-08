@@ -166,7 +166,7 @@ struct cfi_check_fail_data {
 };
 
 #define UBSAN_HANDLER(checkname, ...) \
-    void __ubsan_handle_##checkname(__VA_ARGS__)
+    __attribute__((noinline)) void __ubsan_handle_##checkname(__VA_ARGS__)
 
 UBSAN_HANDLER(type_mismatch,
               struct type_mismatch_data* data,
