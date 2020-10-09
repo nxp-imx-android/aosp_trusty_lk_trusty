@@ -61,7 +61,7 @@ SAVED_SCS_ENABLED = $(SCS_ENABLED)
 SCS_ENABLED := $(call TOBOOL,$(USER_SCS_ENABLED))
 
 # pull in common arch specific user task settings
-BASE_XBIN_LDFLAGS := --gc-sections -z max-page-size=4096 -z separate-loadable-segments
+BASE_XBIN_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) -z max-page-size=4096 -z separate-loadable-segments
 
 include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 
