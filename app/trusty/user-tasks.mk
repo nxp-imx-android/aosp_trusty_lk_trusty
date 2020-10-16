@@ -171,6 +171,13 @@ TRUSTY_APP_SYMTAB_ENABLED := $(SYMTAB_ENABLED)
 
 $(info ALL_USER_TASKS: $(ALL_USER_TASKS))
 
+# GLOBAL_CPPFLAGS comes before GLOBAL_INCLUDES on the compile command-line. This
+# is important because we need libcxx's math.h to be picked up before musl's
+# when building C++.
+GLOBAL_USER_CPPFLAGS += -I$(TRUSTY_SDK_INCLUDE_DIR)/c++/v1
+GLOBAL_USER_COMPILEFLAGS += --sysroot=$(TRUSTY_SDK_SYSROOT) -isystem $(TRUSTY_SDK_INCLUDE_DIR)
+TRUSTY_APP_BASE_LDFLAGS += -L$(TRUSTY_SDK_LIB_DIR)
+
 # Generate build rules for each sdk library, if they have not already been
 # generated.
 #
