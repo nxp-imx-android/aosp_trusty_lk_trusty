@@ -420,3 +420,18 @@ UBSAN_HANDLER(float_cast_overflow,
     log(&data->loc, "float cast overflow", "");
     UBSAN_FINISH;
 }
+
+UBSAN_HANDLER(cfi_check_fail_abort,
+              struct cfi_check_fail_data* data,
+              value_handle_t val,
+              uintptr_t vtable_is_valid) {
+    UBSAN_START;
+    char rendered_val[VALUE_RENDER_SIZE];
+    char details[DETAIL_RENDER_SIZE];
+
+    render_val(rendered_val, sizeof(rendered_val), data->type, val);
+    scnprintf(details, sizeof(details), "type of the value: %s  type name: %s",
+              rendered_val, data->type->name);
+    log(&data->loc, "cfi check fail abort", details);
+    UBSAN_FINISH;
+}

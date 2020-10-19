@@ -250,3 +250,8 @@ UBSAN_HANDLER(cfi_check_fail,
               struct cfi_check_fail_data* data,
               value_handle_t func,
               uintptr_t vtable_is_valid);
+
+UBSAN_HANDLER(cfi_check_fail_abort,
+              struct cfi_check_fail_data* data,
+              value_handle_t func,
+              uintptr_t vtable_is_valid);
