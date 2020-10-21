@@ -172,7 +172,10 @@ static void dump_backtrace_etc(struct thread* thread,
      * dump_backtrace_*() functions can only be called from kernel space.
      * Expect the first frame to be in kernel address space
      */
-    assert(is_kernel_address(frame->fp));
+    if (!is_kernel_address(frame->fp)) {
+        printf("Corrupt stack frame pointer! fp: 0x%lx\n", frame->fp);
+        return;
+    }
     int frame_state = dump_monotonic_backtrace(thread, frame, false);
 
     if (frame_state == FRAME_OK && is_user_address(frame->fp)) {
