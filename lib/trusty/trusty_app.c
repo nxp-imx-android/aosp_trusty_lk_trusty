@@ -315,8 +315,13 @@ static int trusty_thread_startup(void* arg) {
 
     thread_sleep_until_ns(trusty_thread->app->min_start_time);
 
-    arch_enter_uspace(trusty_thread->entry, stack_ptr, ENTER_USPACE_FLAGS,
-                      elf_tables);
+    user_addr_t shadow_stack_base = 0;
+#if USER_SCS_ENABLED
+    shadow_stack_base = trusty_thread->shadow_stack_base;
+#endif
+
+    arch_enter_uspace(trusty_thread->entry, stack_ptr, shadow_stack_base,
+                      ENTER_USPACE_FLAGS, elf_tables);
 
     __UNREACHABLE;
 }
@@ -336,6 +341,11 @@ void __NO_RETURN trusty_thread_exit(int retcode) {
     stack_bot = trusty_thread->stack_start - trusty_thread->stack_size;
 
     vmm_free_region(trusty_thread->app->aspace, stack_bot);
+
+#if USER_SCS_ENABLED
+    vmm_free_region(trusty_thread->app->aspace,
+                    trusty_thread->shadow_stack_base);
+#endif
 
     thread_exit(retcode);
 }
@@ -365,6 +375,20 @@ static struct trusty_thread* trusty_thread_create(
         goto err_stack;
     }
 
+#if USER_SCS_ENABLED
+    vaddr_t shadow_stack_base = 0;
+    err = vmm_alloc(trusty_app->aspace, "shadow stack",
+                    DEFAULT_SHADOW_STACK_SIZE, (void**)&shadow_stack_base,
+                    PAGE_SIZE_SHIFT, 0,
+                    ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+    if (err != NO_ERROR) {
+        dprintf(CRITICAL,
+                "failed(%d) to allocate shadow stack(0x%lx) for app %u\n", err,
+                shadow_stack_base, trusty_app->app_id);
+        goto err_shadow_stack;
+    }
+#endif
+
     trusty_thread->thread = thread_create(name, trusty_thread_startup, NULL,
                                           priority, DEFAULT_STACK_SIZE);
     if (!trusty_thread->thread)
@@ -372,14 +396,23 @@ static struct trusty_thread* trusty_thread_create(
 
     trusty_thread->app = trusty_app;
     trusty_thread->entry = entry;
-    trusty_thread->stack_start = stack_bot + stack_size;
+    trusty_thread->stack_start = stack_bot + stack_size; /* stack grows down */
     trusty_thread->stack_size = stack_size;
+#if USER_SCS_ENABLED
+    trusty_thread->shadow_stack_base =
+            shadow_stack_base; /* shadow stack grows up */
+    trusty_thread->shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
+#endif
     thread_tls_set(trusty_thread->thread, TLS_ENTRY_TRUSTY,
                    (uintptr_t)trusty_thread);
 
     return trusty_thread;
 
 err_thread:
+#if USER_SCS_ENABLED
+    vmm_free_region(trusty_app->aspace, shadow_stack_base);
+err_shadow_stack:
+#endif
     vmm_free_region(trusty_app->aspace, stack_bot);
 err_stack:
     free(trusty_thread);

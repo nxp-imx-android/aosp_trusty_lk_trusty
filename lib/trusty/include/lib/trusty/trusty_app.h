@@ -81,6 +81,10 @@ struct trusty_app;
 struct trusty_thread {
     vaddr_t stack_start;
     size_t stack_size;
+#if USER_SCS_ENABLED
+    vaddr_t shadow_stack_base;
+    size_t shadow_stack_size;
+#endif
     vaddr_t entry;
     thread_t* thread;
     struct trusty_app* app;

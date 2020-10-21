@@ -51,6 +51,10 @@ endef
 SAVED_ALLOW_FP_USE := $(ALLOW_FP_USE)
 ALLOW_FP_USE := true
 
+SAVED_SCS_ENABLED = $(SCS_ENABLED)
+# tell the arch-specific makefiles to set flags required for SCS if supported
+SCS_ENABLED := $(call TOBOOL,$(USER_SCS_ENABLED))
+
 # pull in common arch specific user task settings
 BASE_XBIN_LDFLAGS := --gc-sections -z max-page-size=4096 -z separate-loadable-segments
 
@@ -106,5 +110,8 @@ BASE_XBIN_LDFLAGS :=
 
 ALLOW_FP_USE := $(SAVED_ALLOW_FP_USE)
 SAVED_ALLOW_FP_USE :=
+
+SCS_ENABLED := $(SAVED_SCS_ENABLED)
+SAVED_SCS_ENABLED :=
 
 
