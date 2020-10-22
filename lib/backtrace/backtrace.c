@@ -178,6 +178,16 @@ static void dump_backtrace_etc(struct thread* thread,
         return;
     }
     int frame_state = dump_monotonic_backtrace(thread, frame, false);
+    if (frame_state == FRAME_NON_MONOTONIC) {
+        printf("Stack frame moved in wrong direction! Stack overflow likely\n");
+        /*
+         * Try dumping the stack before the stack overflow. This will be corrupt
+         * when it reaches the part of the stack that has been reused by the
+         * current exception, but it might have useful information before it
+         * gets to that point.
+         */
+        frame_state = dump_monotonic_backtrace(thread, frame, false);
+    }
 
     if (frame_state == FRAME_OK && is_user_address(frame->fp)) {
         frame_state = dump_monotonic_backtrace(thread, frame, true);
