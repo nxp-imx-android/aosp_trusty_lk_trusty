@@ -74,7 +74,8 @@ static void dump_kernel_function(struct stack_frame* frame) {
  */
 static void dump_function(thread_t* thread, struct stack_frame* frame) {
     if (is_user_address(frame->ret_addr)) {
-        dump_user_function(trusty_thread_get(thread)->app, frame);
+        struct trusty_thread* trusty_thread = trusty_thread_get(thread);
+        dump_user_function(trusty_thread ? trusty_thread->app : NULL, frame);
     } else if (is_kernel_address(frame->ret_addr)) {
         dump_kernel_function(frame);
     }
