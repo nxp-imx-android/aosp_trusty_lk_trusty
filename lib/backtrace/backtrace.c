@@ -22,21 +22,26 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <lib/backtrace/backtrace.h>
 #include <lib/backtrace/symbolize.h>
 #include <lib/trusty/trusty_app.h>
 
-static void print_function_info(uintptr_t pc,
+#if IS_64BIT
+#define PRI0xPTR "016" PRIxPTR
+#else
+#define PRI0xPTR "08" PRIxPTR
+#endif
+
+static void print_function_info(struct stack_frame* frame,
                                 uintptr_t load_bias,
                                 struct pc_symbol_info* info) {
     uintptr_t pc_offset;
+    uintptr_t pc = frame->ret_addr;
     __builtin_sub_overflow(pc, load_bias, &pc_offset);
 
-#if IS_64BIT
-    printf("0x%016lx/0x%016lx", pc, pc_offset);
-#else
-    printf("0x%08lx/0x%08lx", pc, pc_offset);
-#endif
+    printf("0x%" PRI0xPTR ": 0x%" PRI0xPTR "/0x%" PRI0xPTR, frame->fp, pc,
+           pc_offset);
 
     if (info) {
         printf(" %s+0x%lx/0x%lx\n", info->symbol, info->offset, info->size);
@@ -45,32 +50,33 @@ static void print_function_info(uintptr_t pc,
     }
 }
 
-static void dump_user_function(struct trusty_app* app, uintptr_t pc) {
+static void dump_user_function(struct trusty_app* app,
+                               struct stack_frame* frame) {
     uintptr_t load_bias = app ? app->load_bias : 0;
     struct pc_symbol_info info;
-    int rc = trusty_app_symbolize(app, pc, &info);
+    int rc = trusty_app_symbolize(app, frame->ret_addr, &info);
     if (rc == NO_ERROR) {
-        print_function_info(pc, load_bias, &info);
+        print_function_info(frame, load_bias, &info);
     } else {
-        print_function_info(pc, load_bias, NULL);
+        print_function_info(frame, load_bias, NULL);
     }
 }
 
-static void dump_kernel_function(uintptr_t pc) {
+static void dump_kernel_function(struct stack_frame* frame) {
     /* TODO(b/149918767): kernel instruction address symbolization */
-    print_function_info(pc, 0 /* load_bias */, NULL);
+    print_function_info(frame, 0 /* load_bias */, NULL);
 }
 
 /**
  * dump_function() - dump symbol info about function containing pc
  * @thread: thread containing the instruction
- * @pc: instruction address of the function being dumped
+ * @frame: instruction address of the function being dumped and next frame ptr
  */
-static void dump_function(thread_t* thread, uintptr_t pc) {
-    if (is_user_address(pc)) {
-        dump_user_function(trusty_thread_get(thread)->app, pc);
-    } else if (is_kernel_address(pc)) {
-        dump_kernel_function(pc);
+static void dump_function(thread_t* thread, struct stack_frame* frame) {
+    if (is_user_address(frame->ret_addr)) {
+        dump_user_function(trusty_thread_get(thread)->app, frame);
+    } else if (is_kernel_address(frame->ret_addr)) {
+        dump_kernel_function(frame);
     }
 }
 
@@ -139,7 +145,7 @@ static int dump_monotonic_backtrace(struct thread* thread,
     while (frame_state == FRAME_OK) {
         prev_fp = frame->fp;
         frame_state = step_frame(frame, user);
-        dump_function(thread, frame->ret_addr);
+        dump_function(thread, frame);
 
         if (is_on_stack(thread, frame->fp, !user)) {
             /* Transistion to a different stack */
