@@ -488,6 +488,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     uint32_t port_flags;
     uint32_t mmio_id, mmio_arch_mmu_flags;
     uint64_t mmio_offset, mmio_size;
+    uint32_t app_name_size;
     struct manifest_mmio_entry* mmio_entry;
     paddr_t tmp_paddr;
     u_int *config_blob, config_blob_size;
@@ -508,14 +509,18 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         return ERR_NOT_VALID;
     }
 
-    /* have to at least have a valid UUID */
-    if (manifest_size < sizeof(uuid_t)) {
-        dprintf(CRITICAL, "app %u manifest too small %zu\n", trusty_app->app_id,
-                manifest_size);
+    /*
+     * manifest data is expected to contain at least
+     * uuid, app_name_size and app_name
+     */
+    if (manifest_size < sizeof(trusty_app->props.uuid)) {
+        dprintf(CRITICAL, "app %u manifest too small %zu, missing uuid\n",
+                trusty_app->app_id, manifest_size);
         return ERR_NOT_VALID;
     }
 
-    memcpy(&trusty_app->props.uuid, (uuid_t*)manifest_data, sizeof(uuid_t));
+    memcpy(&trusty_app->props.uuid, (uuid_t*)manifest_data,
+           sizeof(trusty_app->props.uuid));
 
     PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
 
@@ -525,9 +530,48 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     }
 
     manifest_data += sizeof(trusty_app->props.uuid);
+    manifest_size -= sizeof(trusty_app->props.uuid);
+
+    if (manifest_size < sizeof(uint32_t)) {
+        dprintf(CRITICAL,
+                "app %u manifest too small %zu, missing app-name-size\n",
+                trusty_app->app_id, manifest_size);
+        return ERR_NOT_VALID;
+    }
+
+    app_name_size = *((uint32_t*)manifest_data);
+    manifest_data += sizeof(uint32_t);
+    manifest_size -= sizeof(uint32_t);
+
+    /* app name size with padding */
+    app_name_size =
+            DIV_ROUND_UP(app_name_size, sizeof(uint32_t)) * sizeof(uint32_t);
+    if (app_name_size == 0) {
+        dprintf(CRITICAL, "app %u invalid app-name-size 0x%x\n",
+                trusty_app->app_id, app_name_size);
+        return ERR_NOT_VALID;
+    }
+    if (manifest_size < app_name_size) {
+        dprintf(CRITICAL,
+                "app %u manifest too small %zu, missing app-name, app-name-size 0x%x\n",
+                trusty_app->app_id, manifest_size, app_name_size);
+        return ERR_NOT_VALID;
+    }
+    trusty_app->props.app_name = (const char*)manifest_data;
+    if (trusty_app->props.app_name[app_name_size - 1] != '\0') {
+        dprintf(CRITICAL,
+                "app %u app-name is not null terminated, app-name-size 0x%x\n",
+                trusty_app->app_id, app_name_size);
+        return ERR_NOT_VALID;
+    }
+    dprintf(SPEW, "trusty_app %u name: %s app-name-size: 0x%x\n",
+            trusty_app->app_id, trusty_app->props.app_name, app_name_size);
+
+    manifest_data += app_name_size;
+    manifest_size -= app_name_size;
 
     config_blob = (u_int*)manifest_data;
-    config_blob_size = (manifest_size - sizeof(uuid_t));
+    config_blob_size = manifest_size;
 
     trusty_app->props.config_entry_cnt = config_blob_size / sizeof(u_int);
 

@@ -59,6 +59,7 @@ struct manifest_mmio_entry {
 
 struct trusty_app_props {
     uuid_t uuid;
+    const char* app_name;
     uint32_t mgmt_flags;
     uint32_t min_stack_size;
     uint32_t min_heap_size;
