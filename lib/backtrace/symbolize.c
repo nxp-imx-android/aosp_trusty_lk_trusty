@@ -81,7 +81,7 @@ int trusty_app_symbolize(struct trusty_app* app,
         goto out_no_symbol;
     }
     /* pc must be within the app image */
-    struct trusty_app_img* app_img = app->app_img;
+    struct trusty_app_img* app_img = &app->app_img;
     if (app_img->img_end <= app_img->img_start) {
         goto out_no_symbol;
     }

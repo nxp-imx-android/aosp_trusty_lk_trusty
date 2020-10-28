@@ -102,12 +102,19 @@ STATIC_ASSERT(USER_ASPACE_BASE != 0);
 static u_int trusty_next_app_id;
 static struct list_node trusty_app_list = LIST_INITIAL_VALUE(trusty_app_list);
 
+struct trusty_builtin_app_img {
+    intptr_t manifest_start;
+    intptr_t manifest_end;
+    intptr_t img_start;
+    intptr_t img_end;
+};
+
 /* These symbols are linker defined and are declared as unsized arrays to
  * prevent compiler(clang) optimizations that break when the list is empty and
  * the symbols alias
  */
-extern struct trusty_app_img __trusty_app_list_start[];
-extern struct trusty_app_img __trusty_app_list_end[];
+extern struct trusty_builtin_app_img __trusty_app_list_start[];
+extern struct trusty_builtin_app_img __trusty_app_list_end[];
 
 static bool apps_started;
 static mutex_t apps_lock = MUTEX_INITIAL_VALUE(apps_lock);
@@ -554,7 +561,7 @@ static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
                                              size_t* size) {
     struct trusty_app_img* app_img;
 
-    app_img = trusty_app->app_img;
+    app_img = &trusty_app->app_img;
     if (!app_img->manifest_start) {
         dprintf(CRITICAL, "manifest section header not found\n");
         return ERR_NOT_VALID;
@@ -566,9 +573,8 @@ static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
             app_img->manifest_end - app_img->manifest_start,
             (void*)app_img->manifest_end);
 
-    *size = trusty_app->app_img->manifest_end -
-            trusty_app->app_img->manifest_start;
-    *manifest_data = (char*)(trusty_app->app_img->manifest_start);
+    *size = app_img->manifest_end - app_img->manifest_start;
+    *manifest_data = (char*)app_img->manifest_start;
 
     return NO_ERROR;
 }
@@ -924,8 +930,8 @@ static status_t select_load_bias(ELF_PHDR* phdr,
 static bool elf_vaddr_mapped(struct trusty_app* trusty_app,
                              size_t vaddr,
                              ssize_t offset) {
-    ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
-    void* trusty_app_image = (void*)trusty_app->app_img->img_start;
+    ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img.img_start;
+    void* trusty_app_image = (void*)trusty_app->app_img.img_start;
     ELF_PHDR* prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
     if (__builtin_add_overflow(vaddr, offset, &vaddr)) {
         return false;
@@ -943,17 +949,17 @@ static bool elf_vaddr_mapped(struct trusty_app* trusty_app,
 }
 
 static status_t alloc_address_map(struct trusty_app* trusty_app) {
-    ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
+    ELF_EHDR* elf_hdr = (ELF_EHDR*)trusty_app->app_img.img_start;
     void* trusty_app_image;
     ELF_PHDR* prg_hdr;
     u_int i;
     status_t ret;
-    trusty_app_image = (void*)trusty_app->app_img->img_start;
+    trusty_app_image = (void*)trusty_app->app_img.img_start;
 
     prg_hdr = (ELF_PHDR*)(trusty_app_image + elf_hdr->e_phoff);
 
     if (!address_range_within_img(prg_hdr, sizeof(ELF_PHDR) * elf_hdr->e_phnum,
-                                  trusty_app->app_img)) {
+                                  &trusty_app->app_img)) {
         dprintf(CRITICAL, "ELF program headers table out of bounds\n");
         return ERR_NOT_VALID;
     }
@@ -1037,7 +1043,7 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
             mapping_size = round_up(prg_hdr->p_memsz, PAGE_SIZE);
 
             if (!address_range_within_img((void*)img_kvaddr, prg_hdr->p_filesz,
-                                          trusty_app->app_img)) {
+                                          &trusty_app->app_img)) {
                 dprintf(CRITICAL, "ELF Program segment %u out of bounds\n", i);
                 return ERR_NOT_VALID;
             }
@@ -1078,7 +1084,7 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
             mapping_size = round_up(prg_hdr->p_filesz, PAGE_SIZE);
 
             if (!address_range_within_img((void*)img_kvaddr, mapping_size,
-                                          trusty_app->app_img)) {
+                                          &trusty_app->app_img)) {
                 dprintf(CRITICAL, "ELF Program segment %u out of bounds\n", i);
                 return ERR_NOT_VALID;
             }
@@ -1247,7 +1253,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     }
 
     trusty_app->app_id = trusty_next_app_id++;
-    trusty_app->app_img = app_img;
+    trusty_app->app_img = *app_img;
     trusty_app->state = APP_NOT_RUNNING;
     trusty_app->flags |= flags;
 
@@ -1415,7 +1421,7 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
         }
     }
 
-    elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
+    elf_hdr = (ELF_EHDR*)trusty_app->app_img.img_start;
     vaddr_t entry;
     __builtin_add_overflow(elf_hdr->e_entry, trusty_app->load_bias, &entry);
     trusty_thread = trusty_thread_create(
@@ -1662,16 +1668,37 @@ status_t trusty_app_request_start_by_port(const char* port_path,
     return ret;
 }
 
+/**
+ * prel_to_abs_ptr() - Convert a position-relative value to an absolute.
+ * @ptr: Pointer to a pointer-sized position-relative value.
+ * @result: Pointer to the location for the result.
+ *
+ * Return: %true in case of success, %false for overflow.
+ */
+static inline bool prel_to_abs_ptr(const intptr_t* ptr, uintptr_t* result) {
+    return !__builtin_add_overflow((uintptr_t)ptr, *ptr, result);
+}
+
 void trusty_app_init(void) {
-    struct trusty_app_img* app_img;
+    struct trusty_builtin_app_img* builtin_app_img;
 
     finalize_registration();
 
     app_mgr_init();
 
-    for (app_img = __trusty_app_list_start; app_img != __trusty_app_list_end;
-         app_img++) {
-        if (trusty_app_create(app_img, NULL, 0) != NO_ERROR)
+    for (builtin_app_img = __trusty_app_list_start;
+         builtin_app_img != __trusty_app_list_end; builtin_app_img++) {
+        struct trusty_app_img app_img;
+        if (!prel_to_abs_ptr(&builtin_app_img->manifest_start,
+                             &app_img.manifest_start) ||
+            !prel_to_abs_ptr(&builtin_app_img->manifest_end,
+                             &app_img.manifest_end) ||
+            !prel_to_abs_ptr(&builtin_app_img->img_start, &app_img.img_start) ||
+            !prel_to_abs_ptr(&builtin_app_img->img_end, &app_img.img_end)) {
+            panic("Invalid builtin function entry\n");
+        }
+
+        if (trusty_app_create(&app_img, NULL, 0) != NO_ERROR)
             panic("Failed to create builtin apps\n");
     }
 }

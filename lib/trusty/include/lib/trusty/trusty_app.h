@@ -152,7 +152,7 @@ struct trusty_app {
     vaddr_t end_brk;
     vaddr_t load_bias;
     struct trusty_app_props props;
-    struct trusty_app_img* app_img;
+    struct trusty_app_img app_img;
     struct trusty_thread* thread;
     /* app local storage */
     void** als;

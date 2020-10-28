@@ -39,7 +39,7 @@
 .task.manifest.end:
 
 .section .task.list, "a"
-DATA_PTR .task.manifest.start
-DATA_PTR .task.manifest.end
-DATA_PTR .task.body.start
-DATA_PTR .task.body.end
+DATA_PTR .task.manifest.start - .
+DATA_PTR .task.manifest.end - .
+DATA_PTR .task.body.start - .
+DATA_PTR .task.body.end - .
