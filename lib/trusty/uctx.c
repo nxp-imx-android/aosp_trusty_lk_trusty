@@ -93,7 +93,8 @@ static status_t _uctx_startup(struct trusty_app* app) {
 }
 
 static status_t _uctx_shutdown(struct trusty_app* app) {
-    LTRACEF("Destroying uctx for app:%d\n", app->app_id);
+    LTRACEF("Destroying uctx for app: %d, %s\n", app->app_id,
+            app->props.app_name);
     struct uctx* uctx;
     uctx = trusty_als_get(app, _uctx_slot_id);
 

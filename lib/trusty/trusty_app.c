@@ -370,8 +370,8 @@ static struct trusty_thread* trusty_thread_create(
                     ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (err != NO_ERROR) {
         dprintf(CRITICAL,
-                "failed(%d) to create thread stack(0x%lx) for app %u\n", err,
-                stack_bot, trusty_app->app_id);
+                "failed(%d) to create thread stack(0x%lx) for app %u, %s\n",
+                err, stack_bot, trusty_app->app_id, trusty_app->props.app_name);
         goto err_stack;
     }
 
@@ -595,14 +595,15 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             /* MIN_STACK_SIZE takes 1 data value */
             if ((trusty_app->props.config_entry_cnt - i) < 2) {
                 dprintf(CRITICAL,
-                        "app %u manifest missing MIN_STACK_SIZE value\n",
-                        trusty_app->app_id);
+                        "manifest missing MIN_STACK_SIZE value of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             trusty_app->props.min_stack_size = round_up(config_blob[++i], 4096);
             if (trusty_app->props.min_stack_size == 0) {
-                dprintf(CRITICAL, "app %u manifest MIN_STACK_SIZE is 0\n",
-                        trusty_app->app_id);
+                dprintf(CRITICAL,
+                        "manifest MIN_STACK_SIZE is 0 of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             break;
@@ -610,8 +611,8 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             /* MIN_HEAP_SIZE takes 1 data value */
             if ((trusty_app->props.config_entry_cnt - i) < 2) {
                 dprintf(CRITICAL,
-                        "app %u manifest missing MIN_HEAP_SIZE value\n",
-                        trusty_app->app_id);
+                        "manifest missing MIN_HEAP_SIZE value of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             trusty_app->props.min_heap_size = config_blob[++i];
@@ -619,8 +620,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         case TRUSTY_APP_CONFIG_KEY_MAP_MEM:
             /* MAP_MEM takes 6 data values */
             if ((trusty_app->props.config_entry_cnt - i) < 7) {
-                dprintf(CRITICAL, "app %u manifest missing MAP_MEM value\n",
-                        trusty_app->app_id);
+                dprintf(CRITICAL,
+                        "manifest missing MAP_MEM value of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             mmio_id = trusty_app->props.config_blob[++i];
@@ -638,22 +640,26 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             trusty_app->props.map_io_mem_cnt++;
 
             if (!IS_PAGE_ALIGNED(mmio_offset)) {
-                dprintf(CRITICAL, "app %u mmio_id %u not page aligned\n",
-                        trusty_app->app_id, mmio_id);
+                dprintf(CRITICAL, "mmio_id %u not page aligned of app %u, %s\n",
+                        mmio_id, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
             if ((paddr_t)mmio_offset != mmio_offset ||
                 (size_t)mmio_size != mmio_size) {
-                dprintf(CRITICAL, "app %u mmio_id %d address/size too large\n",
-                        trusty_app->app_id, mmio_id);
+                dprintf(CRITICAL,
+                        "mmio_id %d address/size too large of app %u, %s\n",
+                        mmio_id, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
             if (!mmio_size || __builtin_add_overflow(mmio_offset, mmio_size - 1,
                                                      &tmp_paddr)) {
-                dprintf(CRITICAL, "app %u mmio_id %u bad size\n",
-                        trusty_app->app_id, mmio_id);
+                dprintf(CRITICAL, "mmio_id %u bad size of app %u, %s\n",
+                        mmio_id, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
@@ -665,8 +671,10 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                          ARCH_MMU_FLAG_UNCACHED &&
                  (mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
                          ARCH_MMU_FLAG_UNCACHED_DEVICE)) {
-                dprintf(CRITICAL, "app %u mmio_id %u bad arch_mmu_flags 0x%x\n",
-                        trusty_app->app_id, mmio_id, mmio_arch_mmu_flags);
+                dprintf(CRITICAL,
+                        "mmio_id %u bad arch_mmu_flags 0x%x of app %u, %s\n",
+                        mmio_id, mmio_arch_mmu_flags, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             mmio_arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
@@ -674,8 +682,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             mmio_entry = calloc(1, sizeof(struct manifest_mmio_entry));
             if (!mmio_entry) {
                 dprintf(CRITICAL,
-                        "Failed to allocate memory for manifest mmio %d of app %u\n",
-                        mmio_id, trusty_app->app_id);
+                        "Failed to allocate memory for manifest mmio %d of app %u, %s\n",
+                        mmio_id, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NO_MEMORY;
             }
 
@@ -691,8 +700,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         case TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS:
             /* MGMT_FLAGS takes 1 data value */
             if (trusty_app->props.config_entry_cnt - i < 2) {
-                dprintf(CRITICAL, "app %u manifest missing MGMT_FLAGS value\n",
-                        trusty_app->app_id);
+                dprintf(CRITICAL,
+                        "manifest missing MGMT_FLAGS value of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             trusty_app->props.mgmt_flags = config_blob[++i];
@@ -700,8 +710,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         case TRUSTY_APP_CONFIG_KEY_START_PORT:
             /* START_PORT takes at least 3 data values */
             if (trusty_app->props.config_entry_cnt - i < 4) {
-                dprintf(CRITICAL, "app %u manifest missing START_PORT values\n",
-                        trusty_app->app_id);
+                dprintf(CRITICAL,
+                        "manifest missing START_PORT values of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
@@ -713,24 +724,26 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                                              config_blob,
                                              config_blob + config_blob_size)) {
                 dprintf(CRITICAL,
-                        "app %u manifest string out of bounds: %p size: 0x%x config_blob: %p config_blob_size: 0x%x\n",
-                        trusty_app->app_id, port_name, port_name_size,
-                        config_blob, config_blob_size);
+                        "manifest string out of bounds: %p size: 0x%x config_blob: %p config_blob_size: 0x%x of app %u, %s\n",
+                        port_name, port_name_size, config_blob,
+                        config_blob_size, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
             if (!port_name_size || port_name_size > IPC_PORT_PATH_MAX) {
                 dprintf(CRITICAL,
-                        "app %u manifest port name has invalid size:%#x\n",
-                        trusty_app->app_id, port_name_size);
+                        "manifest port name has invalid size:%#x of app %u, %s\n",
+                        port_name_size, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
             size_t bound_len = strnlen(port_name, IPC_PORT_PATH_MAX);
             if (!bound_len || bound_len == IPC_PORT_PATH_MAX) {
                 dprintf(CRITICAL,
-                        "app %u manifest port name is empty or not null-terminated\n",
-                        trusty_app->app_id);
+                        "manifest port name is empty or not null-terminated of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
@@ -745,8 +758,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             entry = calloc(1, sizeof(struct manifest_port_entry));
             if (!entry) {
                 dprintf(CRITICAL,
-                        "Failed to allocate memory for manifest port %s of app %u\n",
-                        port_name, trusty_app->app_id);
+                        "Failed to allocate memory for manifest port %s of app %u, %s\n",
+                        port_name, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ERR_NO_MEMORY;
             }
 
@@ -759,8 +773,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             break;
         default:
             dprintf(CRITICAL,
-                    "app %u manifest contains unknown config key %u at %p\n",
-                    trusty_app->app_id, config_blob[i], &config_blob[i]);
+                    "manifest contains unknown config key %u at %p for app %u, %s\n",
+                    config_blob[i], &config_blob[i], trusty_app->app_id,
+                    trusty_app->props.app_name);
             return ERR_NOT_VALID;
         }
     }
@@ -798,8 +813,9 @@ static status_t init_brk(struct trusty_app* trusty_app) {
                 ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
         if (status != NO_ERROR) {
-            dprintf(CRITICAL, "failed(%d) to create heap(0x%lx) for app %u\n",
-                    status, start_brk, trusty_app->app_id);
+            dprintf(CRITICAL,
+                    "failed(%d) to create heap(0x%lx) for app %u, %s\n", status,
+                    start_brk, trusty_app->app_id, trusty_app->props.app_name);
             return ERR_NO_MEMORY;
         }
     }
@@ -927,12 +943,13 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
         __builtin_add_overflow(prg_hdr->p_vaddr, trusty_app->load_bias,
                                &p_vaddr);
 
-        LTRACEF("trusty_app %d: ELF type 0x%x"
+        LTRACEF("trusty_app %d, %s: ELF type 0x%x"
                 ", vaddr 0x%08" PRIxELF_Addr ", paddr 0x%08" PRIxELF_Addr
                 ", rsize 0x%08" PRIxELF_Size ", msize 0x%08" PRIxELF_Size
                 ", flags 0x%08x\n",
-                trusty_app->app_id, prg_hdr->p_type, p_vaddr, prg_hdr->p_paddr,
-                prg_hdr->p_filesz, prg_hdr->p_memsz, prg_hdr->p_flags);
+                trusty_app->app_id, trusty_app->props.app_name, prg_hdr->p_type,
+                p_vaddr, prg_hdr->p_paddr, prg_hdr->p_filesz, prg_hdr->p_memsz,
+                prg_hdr->p_flags);
 
         if (prg_hdr->p_type != PT_LOAD)
             continue;
@@ -948,15 +965,16 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
 
         if (vaddr & PAGE_MASK) {
             dprintf(CRITICAL,
-                    "app %u segment %u load address 0x%lx in not page aligned\n",
-                    trusty_app->app_id, i, vaddr);
+                    "segment %u load address 0x%lx in not page aligned for app %u, %s\n",
+                    i, vaddr, trusty_app->app_id, trusty_app->props.app_name);
             return ERR_NOT_VALID;
         }
 
         if (img_kvaddr & PAGE_MASK) {
             dprintf(CRITICAL,
-                    "app %u segment %u image address 0x%lx in not page aligned\n",
-                    trusty_app->app_id, i, img_kvaddr);
+                    "segment %u image address 0x%lx in not page aligned for app %u, %s\n",
+                    i, img_kvaddr, trusty_app->app_id,
+                    trusty_app->props.app_name);
             return ERR_NOT_VALID;
         }
 
@@ -998,8 +1016,9 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
 
             if (ret != NO_ERROR) {
                 dprintf(CRITICAL,
-                        "failed(%d) to allocate data segment(0x%lx) %u for app %u\n",
-                        ret, vaddr, i, trusty_app->app_id);
+                        "failed(%d) to allocate data segment(0x%lx) %u for app %u, %s\n",
+                        ret, vaddr, i, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 return ret;
             }
 
@@ -1057,8 +1076,9 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
                     vmm_flags, arch_mmu_flags);
             if (ret != NO_ERROR) {
                 dprintf(CRITICAL,
-                        "failed(%d) to map RO segment(0x%lx) %u for app %u\n",
-                        ret, vaddr, i, trusty_app->app_id);
+                        "failed(%d) to map RO segment(0x%lx) %u for app %u, %s\n",
+                        ret, vaddr, i, trusty_app->app_id,
+                        trusty_app->props.app_name);
                 free(paddr_arr);
                 return ret;
             }
@@ -1067,11 +1087,11 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
             free(paddr_arr);
         }
 
-        LTRACEF("trusty_app %d: load vaddr 0x%08lx, paddr 0x%08lx"
+        LTRACEF("trusty_app %d, %s: load vaddr 0x%08lx, paddr 0x%08lx"
                 ", rsize 0x%08zx, msize 0x%08" PRIxELF_Size
                 ", access r%c%c, flags 0x%x\n",
-                trusty_app->app_id, vaddr, vaddr_to_paddr((void*)vaddr),
-                mapping_size, prg_hdr->p_memsz,
+                trusty_app->app_id, trusty_app->props.app_name, vaddr,
+                vaddr_to_paddr((void*)vaddr), mapping_size, prg_hdr->p_memsz,
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO ? '-' : 'w',
                 arch_mmu_flags & ARCH_MMU_FLAG_PERM_NO_EXECUTE ? '-' : 'x',
                 arch_mmu_flags);
@@ -1088,10 +1108,11 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
         return ret;
     }
 
-    dprintf(SPEW, "trusty_app %d: brk:  start 0x%08lx end 0x%08lx\n",
-            trusty_app->app_id, trusty_app->start_brk, trusty_app->end_brk);
-    dprintf(SPEW, "trusty_app %d: entry 0x%08" PRIxELF_Addr "\n",
-            trusty_app->app_id, elf_hdr->e_entry);
+    dprintf(SPEW, "trusty_app %d, %s: brk:  start 0x%08lx end 0x%08lx\n",
+            trusty_app->app_id, trusty_app->props.app_name,
+            trusty_app->start_brk, trusty_app->end_brk);
+    dprintf(SPEW, "trusty_app %d, %s: entry 0x%08" PRIxELF_Addr "\n",
+            trusty_app->app_id, trusty_app->props.app_name, elf_hdr->e_entry);
 
     return NO_ERROR;
 }
@@ -1338,7 +1359,7 @@ void trusty_app_exit(int status) {
 
     DEBUG_ASSERT(app->state == APP_RUNNING);
 
-    LTRACEF("app %u exiting...\n", app->app_id);
+    LTRACEF("exiting app %u, %s...\n", app->app_id, app->props.app_name);
 
     if (status) {
         TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
@@ -1359,8 +1380,8 @@ void trusty_app_exit(int status) {
 
         ret = notifier->shutdown(app);
         if (ret != NO_ERROR)
-            panic("shutdown notifier for app %u failed(%d)\n", app->app_id,
-                  ret);
+            panic("shutdown notifier failed(%d) for app %u, %s\n", ret,
+                  app->app_id, app->props.app_name);
     }
 
     free(app->als);
@@ -1383,7 +1404,7 @@ static status_t app_mgr_handle_starting(struct trusty_app* app) {
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
     DEBUG_ASSERT(app->state == APP_STARTING);
 
-    LTRACEF("starting app %u\n", app->app_id);
+    LTRACEF("starting app %u, %s\n", app->app_id, app->props.app_name);
 
     ret = trusty_app_start(app);
 
@@ -1401,7 +1422,8 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
     DEBUG_ASSERT(app->state == APP_TERMINATING);
 
-    LTRACEF("waiting for app %u to exit \n", app->app_id);
+    LTRACEF("waiting for app %u, %s to exit\n", app->app_id,
+            app->props.app_name);
 
     ret = thread_join(app->thread->thread, &retcode, INFINITE_TIME);
     ASSERT(ret == NO_ERROR);
@@ -1442,19 +1464,22 @@ static int app_mgr(void* arg) {
             case APP_TERMINATING:
                 ret = app_mgr_handle_terminating(app);
                 if (ret != NO_ERROR)
-                    panic("failed(%d) to terminate app %u\n", ret, app->app_id);
+                    panic("failed(%d) to terminate app %u, %s\n", ret,
+                          app->app_id, app->props.app_name);
                 break;
             case APP_NOT_RUNNING:
                 break;
             case APP_STARTING:
                 ret = app_mgr_handle_starting(app);
                 if (ret != NO_ERROR)
-                    panic("failed(%d) to start app %u\n", ret, app->app_id);
+                    panic("failed(%d) to start app %u, %s\n", ret, app->app_id,
+                          app->props.app_name);
                 break;
             case APP_RUNNING:
                 break;
             default:
-                panic("app %u in unknown state %u\n", app->app_id, app->state);
+                panic("unknown state %u for app %u, %s\n", app->state,
+                      app->app_id, app->props.app_name);
             }
         }
 
