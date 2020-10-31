@@ -72,9 +72,15 @@ TRUSTY_SDK_DIR := $(BUILDDIR)/sdk
 TRUSTY_SDK_SYSROOT := $(TRUSTY_SDK_DIR)/sysroot/
 TRUSTY_SDK_INCLUDE_DIR := $(TRUSTY_SDK_SYSROOT)/usr/include
 TRUSTY_SDK_LIB_DIR := $(TRUSTY_SDK_SYSROOT)/usr/lib
+TRUSTY_SDK_LICENSE_DIR := $(TRUSTY_SDK_DIR)/licenses
+TRUSTY_SDK_LICENSE := $(TRUSTY_SDK_DIR)/LICENSE
 TRUSTY_LIBRARY_BUILDDIR := $(BUILDDIR)/lib
 TRUSTY_HOST_LIBRARY_BUILDDIR := $(BUILDDIR)/host_lib
 
+# The license file construction assumes that all projects will contain the same
+# set of SDK modules and thus the same set of respective license files. If this
+# ever changes, SDK zip construction in build.py will need to be adjusted to
+# account for differing licenses across projects.
 TRUSTY_SDK_MODULES := \
 	external/boringssl \
 	trusty/kernel/lib/libc-ext \
@@ -110,6 +116,7 @@ TRUSTY_SDK_MODULES := \
 ALL_SDK_EXTRA_FILES :=
 ALL_SDK_INCLUDES :=
 ALL_SDK_LIBS :=
+ALL_SDK_LICENSES :=
 
 define TOSDKLIBNAME
 $(patsubst lib%,%,$(notdir $(1)))
@@ -187,6 +194,22 @@ TRUSTY_APP_BASE_LDFLAGS += -L$(TRUSTY_SDK_LIB_DIR)
 $(foreach lib,$(TRUSTY_SDK_MODULES),\
 	$(if $(_MODULES_$(lib)),,$(eval $(call trusty-build-rule,$(lib)))))
 
+ALL_SDK_LICENSES :=
+$(foreach lib,$(TRUSTY_SDK_MODULES),\
+	$(eval ALL_SDK_LICENSES += $(_MODULES_$(lib)_LICENSES)))
+
+$(TRUSTY_SDK_LICENSE): $(ALL_SDK_LICENSES)
+	@$(MKDIR)
+	@echo Generating SDK license
+	$(NOECHO)rm -f $@.tmp
+	$(NOECHO)cat trusty/user/base/sdk/LICENSE >> $@.tmp;
+	$(NOECHO)for license in $^; do \
+		echo -e "\n-------------------------------------------------------------------" >> $@.tmp;\
+		echo -e "Copied from $$license\n\n" >> $@.tmp;\
+		cat "$$license" >> $@.tmp;\
+		done
+	$(call TESTANDREPLACEFILE,$@.tmp,$@)
+
 #
 # Generate build rules for each user task
 #
@@ -218,7 +241,7 @@ RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
 TRUSTY_BUILTIN_USER_TASKS += $(RUST_USER_TEST_MODULES)
 
 # Ensure that includes and libs are installed
-all:: $(ALL_SDK_INCLUDES) $(ALL_SDK_LIBS) $(ALL_SDK_EXTRA_FILES)
+all:: $(ALL_SDK_INCLUDES) $(ALL_SDK_LIBS) $(ALL_SDK_EXTRA_FILES) $(TRUSTY_SDK_LICENSE)
 
 #
 # Generate loadable application packages
