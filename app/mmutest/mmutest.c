@@ -186,9 +186,18 @@ typedef struct {
 } mmutestvmm_t;
 
 TEST_F_SETUP(mmutestvmm) {
-    const size_t* allocation_size_p = GetParam();
+    int ret;
+    const void* const* params = GetParam();
+    const size_t* allocation_size_p = params[0];
+    const bool* is_kernel_aspace = params[1];
+
     _state->allocation_size = *allocation_size_p;
-    _state->aspace = vmm_get_kernel_aspace();
+    if (*is_kernel_aspace) {
+        _state->aspace = vmm_get_kernel_aspace();
+    } else {
+        ret = vmm_create_aspace(&_state->aspace, "mmutestvmm", 0);
+        ASSERT_EQ(0, ret);
+    }
 
     ASSERT_GE(_state->allocation_size, PAGE_SIZE);
     ASSERT_LT(_state->allocation_size, _state->aspace->size);
@@ -200,7 +209,11 @@ static size_t mmutestvmm_allocation_sizes[] = {
         2 * 1024 * 1024, /* large enough to use section/block mapping on arm */
 };
 
-TEST_F_TEARDOWN(mmutestvmm) {}
+TEST_F_TEARDOWN(mmutestvmm) {
+    if (!(_state->aspace->flags & VMM_ASPACE_FLAG_KERNEL)) {
+        vmm_free_aspace(_state->aspace);
+    }
+}
 
 /* Smoke test for vmm_alloc */
 TEST_P(mmutestvmm, vmm_alloc) {
@@ -226,6 +239,13 @@ TEST_P(mmutestvmm, vmm_alloc_contiguous) {
     ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
     EXPECT_EQ(0, ret, "vmm_free_region failed\n");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+        allocationsize,
+        mmutestvmm,
+        testing_Combine(testing_ValuesIn(mmutestvmm_allocation_sizes),
+                        /* user(false) and kernel(true) aspaces */
+                        testing_Bool()));
 
 static int mmutest_panic_thread_func(void* _unused) {
     panic("mmutest-panic");
@@ -328,10 +348,34 @@ TEST(mmutest, alloc_last_kernel_page) {
 test_abort:;
 }
 
-TEST(mmutest, guard_page) {
+typedef struct {
+    vmm_aspace_t* aspace;
+} mmutestaspace_t;
+
+TEST_F_SETUP(mmutestaspace) {
+    int ret;
+    const bool* is_kernel_aspace = GetParam();
+
+    if (*is_kernel_aspace) {
+        _state->aspace = vmm_get_kernel_aspace();
+    } else {
+        ret = vmm_create_aspace(&_state->aspace, "mmutestaspace", 0);
+        ASSERT_EQ(0, ret);
+    }
+
+test_abort:;
+}
+
+TEST_F_TEARDOWN(mmutestaspace) {
+    if (!(_state->aspace->flags & VMM_ASPACE_FLAG_KERNEL)) {
+        vmm_free_aspace(_state->aspace);
+    }
+}
+
+TEST_P(mmutestaspace, guard_page) {
     int ret;
     bool retb;
-    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+    vmm_aspace_t* aspace = _state->aspace;
     size_t size = PAGE_SIZE * 6;
     vaddr_t base;
     void* ptr1 = NULL;
@@ -515,10 +559,10 @@ test_abort:
     vmm_free_region(aspace, (vaddr_t)ptr1);
 }
 
-TEST(mmutest, find_slice_no_guard) {
+TEST_P(mmutestaspace, find_slice_no_guard) {
     int ret;
     bool retb;
-    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+    vmm_aspace_t* aspace = _state->aspace;
     void* ptr[8];
     size_t num_regions = countof(ptr);
     size_t size = PAGE_SIZE * num_regions;
@@ -555,6 +599,11 @@ test_abort:
         vmm_free_region(aspace, (vaddr_t)ptr[i]);
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(aspacetype,
+                         mmutestaspace,
+                         /* user(false) and kernel(true) aspaces */
+                         testing_Bool());
 
 TEST(mmutest, check_stack_guard_page_bad_ptr)
 __attribute__((no_sanitize("bounds"))) {
@@ -748,9 +797,5 @@ TEST_F(mmutest_slice, overflow) {
                           &_state->slice),
               ERR_INVALID_ARGS);
 }
-
-INSTANTIATE_TEST_SUITE_P(allocation_size,
-                         mmutestvmm,
-                         testing_ValuesIn(mmutestvmm_allocation_sizes));
 
 PORT_TEST(mmutest, "com.android.kernel.mmutest");
