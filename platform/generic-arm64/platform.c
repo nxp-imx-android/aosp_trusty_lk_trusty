@@ -41,6 +41,20 @@
 #define ARM_GENERIC_TIMER_INT \
     XARM_GENERIC_TIMER_INT_SELECTED(TIMER_ARM_GENERIC_SELECTED)
 
+#if GIC_VERSION <= 2
+#define GICC_SIZE (0x1000)
+#define GICD_SIZE (0x1000)
+#define GICR_SIZE (0)
+#else
+#define GICC_SIZE (0x10000)
+#define GICD_SIZE (0x10000)
+#if GIC_VERSION < 4
+#define GICR_SIZE (0x20000 * 8)
+#else
+#define GICR_SIZE (0x30000 * 8)
+#endif
+#endif
+
 /* initial memory mappings. parsed by start.S */
 struct mmu_initial_mapping mmu_initial_mappings[] = {
         /* Mark next entry as dynamic as it might be updated
@@ -81,21 +95,6 @@ void platform_init_mmu_mappings(void) {
     pmm_add_arena(&ram_arena);
 }
 
-static void generic_arm64_map_regs(const char* name,
-                                   vaddr_t vaddr,
-                                   paddr_t paddr,
-                                   size_t size) {
-    status_t ret;
-    void* vaddrp = (void*)vaddr;
-
-    ret = vmm_alloc_physical(vmm_get_kernel_aspace(), "gic", size, &vaddrp, 0,
-                             paddr, VMM_FLAG_VALLOC_SPECIFIC,
-                             ARCH_MMU_FLAG_UNCACHED_DEVICE);
-    if (ret) {
-        dprintf(CRITICAL, "%s: failed %d\n", __func__, ret);
-    }
-}
-
 static paddr_t generic_arm64_get_reg_base(int reg) {
 #if ARCH_ARM64
     return generic_arm64_smc(SMC_FC64_GET_REG_BASE, reg, 0, 0);
@@ -111,14 +110,16 @@ static void platform_after_vm_init(uint level) {
 
     dprintf(INFO, "gicc 0x%lx, gicd 0x%lx, gicr 0x%lx\n", gicc, gicd, gicr);
 
-    generic_arm64_map_regs("gicc", GICC_BASE_VIRT, gicc, GICC_SIZE);
-    generic_arm64_map_regs("gicd", GICD_BASE_VIRT, gicd, GICD_SIZE);
-#if GIC_VERSION > 2
-    generic_arm64_map_regs("gicr", GICR_BASE_VIRT, gicr, GICR_SIZE);
-#endif
-
     /* initialize the interrupt controller */
-    arm_gic_init();
+    struct arm_gic_init_info init_info = {
+            .gicc_paddr = gicc,
+            .gicc_size = GICC_SIZE,
+            .gicd_paddr = gicd,
+            .gicd_size = GICD_SIZE,
+            .gicr_paddr = gicr,
+            .gicr_size = GICR_SIZE,
+    };
+    arm_gic_init_map(&init_info);
 
     /* initialize the timer block */
     arm_generic_timer_init(ARM_GENERIC_TIMER_INT, 0);
