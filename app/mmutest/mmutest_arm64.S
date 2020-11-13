@@ -91,28 +91,28 @@ FUNCTION(mmutest_arch_store_uint32)
 	cbnz	x1, .Lmmutest_arch_store_uint32_user
 
 	set_fault_handler	.Lmmutest_setup_fault
-	ldr	x1, [x0]
-	neg	x1, x1
+	ldr	w1, [x0]
+	neg	w1, w1
 
 	set_fault_handler	.Lmmutest_fault
-	str	x1, [x0]
+	str	w1, [x0]
 
 	b	.Lmmutest_arch_store_uint32_str_done
 
 .Lmmutest_arch_store_uint32_user:
 	set_fault_handler	.Lmmutest_setup_fault
-	ldtr	x1, [x0]
-	neg	x1, x1
+	ldtr	w1, [x0]
+	neg	w1, w1
 
 	set_fault_handler	.Lmmutest_fault
-	sttr	x1, [x0]
+	sttr	w1, [x0]
 
 .Lmmutest_arch_store_uint32_str_done:
 
 	dmb	sy
 
-	ldr	x2, [x0]
-	cmp	x1, x2
+	ldr	w2, [x0]
+	cmp	w1, w2
 	bne	.Lmmutest_arch_store_uint32_cache_read_mismatch
 
 	push	x0, x1
@@ -122,8 +122,8 @@ FUNCTION(mmutest_arch_store_uint32)
 	pop	x2, x30
 	pop	x0, x1
 
-	ldr	x2, [x0]
-	cmp	x1, x2
+	ldr	w2, [x0]
+	cmp	w1, w2
 	bne	.Lmmutest_arch_store_uint32_memory_mismatch
 
 	mov	x0, xzr
