@@ -193,17 +193,21 @@ static struct list_node _test_list = LIST_INITIAL_VALUE(_test_list);
  */
 static struct list_node _test_param_list = LIST_INITIAL_VALUE(_test_param_list);
 
-static inline void trusty_unittest_print_status(const char* status) {
+static inline void trusty_unittest_print_status_name(const char* suite_name,
+                                                     const char* test_name,
+                                                     const char* status) {
     if (_test_context.test_param) {
-        trusty_unittest_printf(
-                "[ %s ] %s/%s.%s/%s\n", status, _test_context.inst_name,
-                _test_context.suite_name, _test_context.test_name,
-                _test_context.param_name);
+        trusty_unittest_printf("[ %s ] %s/%s.%s/%s\n", status,
+                               _test_context.inst_name, suite_name, test_name,
+                               _test_context.param_name);
     } else {
-        trusty_unittest_printf("[ %s ] %s.%s\n", status,
-                               _test_context.suite_name,
-                               _test_context.test_name);
+        trusty_unittest_printf("[ %s ] %s.%s\n", status, suite_name, test_name);
     }
+}
+
+static inline void trusty_unittest_print_status(const char* status) {
+    trusty_unittest_print_status_name(_test_context.suite_name,
+                                      _test_context.test_name, status);
 }
 
 static inline void TEST_BEGIN_FUNC(const char* suite_name,
@@ -482,20 +486,43 @@ static inline bool test_is_disabled(struct test_list_node* entry) {
            has_disabled_prefix(entry->name);
 }
 
+static bool test_suite_instantiated(const char* suite) {
+    struct test_param_list_node* param_entry;
+    list_for_every_entry(&_test_param_list, param_entry,
+                         struct test_param_list_node, node) {
+        if (!strcmp(suite, param_entry->suite)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void run_test_suite(const char* suite, bool needs_param) {
     struct test_list_node* entry;
+    bool valid_suite = false;
 
     list_for_every_entry(&_test_list, entry, struct test_list_node, node) {
         if ((!suite || !strcmp(suite, entry->suite)) &&
             (entry->needs_param == needs_param)) {
+            valid_suite = true;
             if (test_is_disabled(entry)) {
-                trusty_unittest_printf("[ DISABLED ] %s.%s\n", entry->suite,
-                                       entry->name);
+                trusty_unittest_print_status_name(entry->suite, entry->name,
+                                                  "DISABLED");
                 _test_context.tests_disabled++;
             } else {
                 entry->func();
             }
         }
+        if (!needs_param && entry->needs_param &&
+            !test_suite_instantiated(entry->suite)) {
+            trusty_unittest_print_status_name(entry->suite, entry->name,
+                                              "NO PARAM");
+            _test_context.tests_failed++;
+        }
+    }
+    if (needs_param && !valid_suite) {
+        trusty_unittest_print_status_name(suite, "[NO TESTS]", " FAILED ");
+        _test_context.tests_failed++;
     }
 }
 
