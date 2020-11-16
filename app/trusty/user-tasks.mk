@@ -28,9 +28,14 @@ TRUSTY_APP_DIR := $(GET_LOCAL_DIR)
 #
 # Input variables
 #
+#   TRUSTY_BUILTIN_USER_TASKS  - list of compiled from source user tasks to be included into final image
 #   TRUSTY_PREBUILT_USER_TASKS - list of precompiled user tasks to be included into final image
-#   TRUSTY_BUILTIN_USER_TASKS      - list of compiled from source user tasks to be included into final image
-#   TRUSTY_LOADABLE_USER_TASKS - list of loadable apps compiled from source
+#   	These prebuilt task modules must include a manifest binary and app elf binary, e.g.:
+#   		TRUSTY_PREBUILT_USER_TASKS += trusty/app/some_prebuilt_app
+#
+#			Add the following files from the pre-compiled app:
+#			- trusty/app/some_prebuilt_app/some_prebuilt_app.elf
+#			- trusty/app/some_prebuilt_app/some_prebuilt_app.manifest
 #
 
 # generate user task build rule: $(1): user task
@@ -76,6 +81,17 @@ ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 #
 $(foreach t,$(ALL_USER_TASKS),\
    $(call user-task-build-rule,$(t)))
+
+# Add any prebuilt apps to the build.
+
+PREBUILT_OBJECTS := $(foreach t,$(TRUSTY_PREBUILT_USER_TASKS),\
+	$(t)/$(notdir $(t)).manifest $(t)/$(notdir $(t)).elf)
+PREBUILT_OBJECTS_DEST := $(addprefix $(BUILDDIR)/user_tasks/,$(PREBUILT_OBJECTS))
+$(PREBUILT_OBJECTS_DEST): $(BUILDDIR)/user_tasks/%: %
+	$(MKDIR)
+	cp $^ $(dir $@)/
+
+TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
 
 #
 # Generate combined user task obj/bin if necessary
