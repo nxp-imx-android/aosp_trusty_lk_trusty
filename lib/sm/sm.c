@@ -213,7 +213,7 @@ static void sm_sched_nonsecure_fiq_loop(long ret, struct smc32_args* args) {
             ret = SM_ERR_PANIC;
         }
         sm_sched_nonsecure(ret, args);
-        if (atomic_load(&platform_halted)) {
+        if (atomic_load(&platform_halted) && args->smc_nr != SMC_FC_FIQ_ENTER) {
             continue;
         }
         if (SMC_IS_SMC64(args->smc_nr)) {
