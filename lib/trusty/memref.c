@@ -161,7 +161,7 @@ static status_t memref_mmap(struct handle* handle,
         return rc;
     }
 
-    *addr = (user_addr_t)vaddr;
+    *addr = (user_addr_t)((uintptr_t)vaddr);
 
     LTRACEF("success\n");
     return NO_ERROR;

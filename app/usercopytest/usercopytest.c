@@ -56,7 +56,7 @@
 
 #define START_PAGE_ADDR ((void*)(PAGE_SIZE * 0x10))
 #define TEST_BUF_ADDR \
-    ((user_addr_t)(START_PAGE_ADDR + PAGE_SIZE - TEST_BUF1_SIZE))
+    ((user_addr_t)((uintptr_t)(START_PAGE_ADDR + PAGE_SIZE - TEST_BUF1_SIZE)))
 
 static inline user_addr_t get_addr_param() {
     const void* const* param_arr = GetParam();
