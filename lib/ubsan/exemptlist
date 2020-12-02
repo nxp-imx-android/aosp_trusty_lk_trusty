@@ -21,6 +21,9 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 
+# Entries in this section disable sanitizers listed in enable.mk.
+[alignment|bool|builtin|bounds|enum|float-cast-overflow|float-divide-by-zero|implicit-unsigned-integer-truncation|implicit-signed-integer-truncation|implicit-integer-sign-change|integer-divide-by-zero|pointer-overflow|return|shift|signed-integer-overflow|unreachable|unsigned-integer-overflow|vla-bound]
+
 # dlmalloc is fragile enough that it isn't worth the risk to try to make it
 # UBSan clean
 src:*/dlmalloc.c
