@@ -112,6 +112,15 @@ struct trusty_app {
 void trusty_app_init(void);
 
 /**
+ * trusty_app_create_and_start() - Create and start a new Trusty application
+ * @app_img: metadata of the application to load.
+ *
+ * Return: ERR_NO_MEMORY if out of memory, ERR_NOT_VALID if
+ * the application ELF or manifest are not valid.
+ */
+status_t trusty_app_create_and_start(struct trusty_app_img* app_img);
+
+/**
  * trusty_app_is_startup_port() - Query if the specified port is a startup port
  * @port_path: path of the port to check.
  *

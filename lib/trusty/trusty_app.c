@@ -1151,9 +1151,10 @@ static status_t request_app_start_locked(struct trusty_app* app) {
 
 /*
  * Create a trusty_app from its memory image and add it to the global list of
- * apps
+ * apps. Returns the created app in out_trusty_app if not NULL.
  */
-static status_t trusty_app_create(struct trusty_app_img* app_img) {
+static status_t trusty_app_create(struct trusty_app_img* app_img,
+                                  struct trusty_app** out_trusty_app) {
     ELF_EHDR* ehdr;
     struct trusty_app* trusty_app;
     status_t ret;
@@ -1206,8 +1207,18 @@ static status_t trusty_app_create(struct trusty_app_img* app_img) {
 
     mutex_release(&apps_lock);
 
-    if (ret == NO_ERROR)
+    if (ret == NO_ERROR) {
+        if (out_trusty_app) {
+            /*
+             * TODO: this returns an app pointer without holding the lock; the
+             * app might get unloaded while the caller holds this pointer, so
+             * we need to handle this case correctly
+             */
+            *out_trusty_app = trusty_app;
+        }
+
         return ret;
+    }
 
     dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
 
@@ -1219,6 +1230,33 @@ err_load:
     }
 err_hdr:
     free(trusty_app);
+    return ret;
+}
+
+status_t trusty_app_create_and_start(struct trusty_app_img* app_img) {
+    status_t ret;
+    struct trusty_app* trusty_app;
+
+    ret = trusty_app_create(app_img, &trusty_app);
+    if (ret != NO_ERROR) {
+        return ret;
+    }
+
+    /* Loadable apps with deferred_start might have clients waiting for them */
+    if (!(trusty_app->props.mgmt_flags &
+          TRUSTY_APP_MGMT_FLAGS_DEFERRED_START) ||
+        has_waiting_connection(trusty_app)) {
+        mutex_acquire(&apps_lock);
+        ret = request_app_start_locked(trusty_app);
+        mutex_release(&apps_lock);
+        /*
+         * request_app_start_locked either returns NO_ERROR or
+         * ERR_ALREADY_STARTED, and the latter should never happen here
+         * because we would already return with ERR_ALREADY_EXISTS earlier
+         */
+        DEBUG_ASSERT(ret == NO_ERROR);
+    }
+
     return ret;
 }
 
@@ -1543,7 +1581,7 @@ void trusty_app_init(void) {
 
     for (app_img = __trusty_app_list_start; app_img != __trusty_app_list_end;
          app_img++) {
-        if (trusty_app_create(app_img) != NO_ERROR)
+        if (trusty_app_create(app_img, NULL) != NO_ERROR)
             panic("Failed to create builtin apps\n");
     }
 }
