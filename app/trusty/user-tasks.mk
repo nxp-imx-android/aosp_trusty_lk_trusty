@@ -122,6 +122,38 @@ EXTRA_OBJS += $(BUILTIN_TASK_OBJS)
 
 endif
 
+#
+# Generate loadable application packages
+#
+ifneq ($(strip $(TRUSTY_LOADABLE_USER_TASKS)),)
+
+LOADABLE_TASK_APP_TOOL := trusty/user/base/tools/app_package_tool.py
+
+LOADABLE_TASK_MANIFESTS_BINARY := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
+   $(addsuffix /$(notdir $(t)).manifest, $(t)))
+LOADABLE_TASK_MANIFESTS_BINARY := $(addprefix $(BUILDDIR)/user_tasks/, $(LOADABLE_TASK_MANIFESTS_BINARY))
+
+LOADABLE_TASK_ELFS := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
+   $(addsuffix /$(notdir $(t)).elf, $(t)))
+LOADABLE_TASK_ELFS := $(addprefix $(BUILDDIR)/user_tasks/, $(LOADABLE_TASK_ELFS))
+
+LOADABLE_TASK_APPS := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
+   $(addsuffix /$(notdir $(t)).app, $(t)))
+LOADABLE_TASK_APPS := $(addprefix $(BUILDDIR)/user_tasks/, $(LOADABLE_TASK_APPS))
+
+$(LOADABLE_TASK_APPS): LOADABLE_TASK_APP_TOOL := $(LOADABLE_TASK_APP_TOOL)
+$(LOADABLE_TASK_APPS): %.app: %.elf %.manifest
+	@$(MKDIR)
+	@echo building $@ from $<
+	$(NOECHO)$(LOADABLE_TASK_APP_TOOL) build $@ $^
+
+GENERATED += $(LOADABLE_TASK_APPS)
+
+all:: $(LOADABLE_TASK_APPS)
+
+endif
+
+
 BASE_XBIN_LDFLAGS :=
 
 ALLOW_FP_USE := $(SAVED_ALLOW_FP_USE)
