@@ -537,8 +537,8 @@ static int handle_chan_msg(struct tipc_dev* dev,
                     (struct iovec_kern[]){
                             [0] =
                                     {
-                                            .base = (void*)ns_data,
-                                            .len = len,
+                                            .iov_base = (void*)ns_data,
+                                            .iov_len = len,
                                     },
                     },
             .num_iov = 1,
@@ -672,14 +672,14 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
     }
 
     /* check message size */
-    if (buf->in_iovs.iovs[0].len < sizeof(struct tipc_hdr)) {
-        LTRACEF("msg too short %zu\n", buf->in_iovs.iovs[0].len);
+    if (buf->in_iovs.iovs[0].iov_len < sizeof(struct tipc_hdr)) {
+        LTRACEF("msg too short %zu\n", buf->in_iovs.iovs[0].iov_len);
         ret = ERR_INVALID_ARGS;
         goto done;
     }
 
-    ns_hdr = buf->in_iovs.iovs[0].base;
-    ns_data = buf->in_iovs.iovs[0].base + sizeof(struct tipc_hdr);
+    ns_hdr = buf->in_iovs.iovs[0].iov_base;
+    ns_data = buf->in_iovs.iovs[0].iov_base + sizeof(struct tipc_hdr);
     ns_shm_cnt = ns_hdr->shm_cnt;
     ns_shm_len = ns_shm_cnt * sizeof(*ns_shm);
     ns_data_len = ns_hdr->len - ns_shm_len;
@@ -688,9 +688,9 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
     dst_addr = ns_hdr->dst;
 
     if (ns_shm_len + ns_data_len + sizeof(struct tipc_hdr) !=
-        buf->in_iovs.iovs[0].len) {
+        buf->in_iovs.iovs[0].iov_len) {
         LTRACEF("malformed message len %zu shm_len %zu msglen %zu\n",
-                ns_data_len, ns_shm_len, buf->in_iovs.iovs[0].len);
+                ns_data_len, ns_shm_len, buf->in_iovs.iovs[0].iov_len);
         ret = ERR_INVALID_ARGS;
         goto done;
     }
@@ -1233,9 +1233,9 @@ static int tipc_send_data(struct tipc_dev* dev,
     }
 
     /* the first iovec should be large enough to hold header */
-    if (sizeof(struct tipc_hdr) > buf.out_iovs.iovs[0].len) {
+    if (sizeof(struct tipc_hdr) > buf.out_iovs.iovs[0].iov_len) {
         /* not enough space to even place header */
-        LTRACEF("buf is too small (%zu < %zu)\n", buf.out_iovs.iovs[0].len,
+        LTRACEF("buf is too small (%zu < %zu)\n", buf.out_iovs.iovs[0].iov_len,
                 ttl_len);
         ret = ERR_NOT_ENOUGH_BUFFER;
         goto done;
@@ -1245,7 +1245,7 @@ static int tipc_send_data(struct tipc_dev* dev,
     uint map_flags = ARCH_MMU_FLAG_PERM_NO_EXECUTE;
     ret = vqueue_map_iovs(dev->vd.client_id, &buf.out_iovs, map_flags);
     if (ret == NO_ERROR) {
-        struct tipc_hdr* hdr = buf.out_iovs.iovs[0].base;
+        struct tipc_hdr* hdr = buf.out_iovs.iovs[0].iov_base;
 
         hdr->src = local;
         hdr->dst = remote;
@@ -1253,12 +1253,12 @@ static int tipc_send_data(struct tipc_dev* dev,
         hdr->len = data_len;
         hdr->flags = 0;
 
-        if (ttl_len > buf.out_iovs.iovs[0].len) {
+        if (ttl_len > buf.out_iovs.iovs[0].iov_len) {
             /* not enough space to put the whole message
                so it will be truncated */
-            LTRACEF("buf is too small (%zu < %zu)\n", buf.out_iovs.iovs[0].len,
-                    ttl_len);
-            data_len = buf.out_iovs.iovs[0].len - sizeof(struct tipc_hdr);
+            LTRACEF("buf is too small (%zu < %zu)\n",
+                    buf.out_iovs.iovs[0].iov_len, ttl_len);
+            data_len = buf.out_iovs.iovs[0].iov_len - sizeof(struct tipc_hdr);
         }
 
         /* invoke data_cb to add actual data */

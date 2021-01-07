@@ -117,7 +117,7 @@ int unittest_printf(const char* fmt, ...) {
     slen = MIN(ret, (int)sizeof(buf) - 1 - 1);
 
     buf[0] = TEST_MESSAGE;
-    tx_iov.len = 1 + slen;
+    tx_iov.iov_len = 1 + slen;
     mutex_acquire(&unittest_lock);
     ret = send_msg_wait(ipc_printf_handle, &tx_msg);
     mutex_release(&unittest_lock);

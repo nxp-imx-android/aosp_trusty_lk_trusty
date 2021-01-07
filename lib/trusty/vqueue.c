@@ -184,8 +184,8 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
             iovlist = &iovbuf->in_iovs;
 
         if (iovlist->used < iovlist->cnt) {
-            /* .base will be set when we map this iov */
-            iovlist->iovs[iovlist->used].len = desc->len;
+            /* .iov_base will be set when we map this iov */
+            iovlist->iovs[iovlist->used].iov_len = desc->len;
             iovlist->shared_mem_id[iovlist->used] =
                     (ext_mem_obj_id_t)desc->addr;
             assert(iovlist->shared_mem_id[iovlist->used] == desc->addr);
@@ -223,11 +223,11 @@ int vqueue_map_iovs(ext_mem_client_id_t client_id,
     DEBUG_ASSERT(vqiovs->used <= vqiovs->cnt);
 
     for (i = 0; i < vqiovs->used; i++) {
-        vqiovs->iovs[i].base = NULL;
+        vqiovs->iovs[i].iov_base = NULL;
         ret = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "vqueue-buf",
                                  client_id, vqiovs->shared_mem_id[i], 0,
-                                 round_up(vqiovs->iovs[i].len, PAGE_SIZE),
-                                 &vqiovs->iovs[i].base, PAGE_SIZE_SHIFT, 0,
+                                 round_up(vqiovs->iovs[i].iov_len, PAGE_SIZE),
+                                 &vqiovs->iovs[i].iov_base, PAGE_SIZE_SHIFT, 0,
                                  flags);
         if (ret)
             goto err;
@@ -238,8 +238,9 @@ int vqueue_map_iovs(ext_mem_client_id_t client_id,
 err:
     while (i) {
         i--;
-        vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)vqiovs->iovs[i].base);
-        vqiovs->iovs[i].base = NULL;
+        vmm_free_region(vmm_get_kernel_aspace(),
+                        (vaddr_t)vqiovs->iovs[i].iov_base);
+        vqiovs->iovs[i].iov_base = NULL;
     }
     return ret;
 }
@@ -252,9 +253,10 @@ void vqueue_unmap_iovs(struct vqueue_iovs* vqiovs) {
 
     for (uint i = 0; i < vqiovs->used; i++) {
         /* base is expected to be set */
-        DEBUG_ASSERT(vqiovs->iovs[i].base);
-        vmm_free_region(vmm_get_kernel_aspace(), (vaddr_t)vqiovs->iovs[i].base);
-        vqiovs->iovs[i].base = NULL;
+        DEBUG_ASSERT(vqiovs->iovs[i].iov_base);
+        vmm_free_region(vmm_get_kernel_aspace(),
+                        (vaddr_t)vqiovs->iovs[i].iov_base);
+        vqiovs->iovs[i].iov_base = NULL;
     }
 }
 

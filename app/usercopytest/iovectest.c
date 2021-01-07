@@ -64,12 +64,12 @@ static int write_chunked_iovec(iovectest_t* _state, int size) {
     struct iovec_user uiov[sizeof(test_pattern)];
     unsigned int index = 0;
     for (unsigned int i = 0; i < sizeof(test_pattern); i += size, index += 1) {
-        uiov[index].base = _state->buffer_addr + i;
+        uiov[index].iov_base = _state->buffer_addr + i;
         int len = sizeof(test_pattern) - i;
         if (size < len) {
             len = size;
         }
-        uiov[index].len = len;
+        uiov[index].iov_len = len;
     }
 
     /* Copy into user space. */
@@ -146,40 +146,40 @@ TEST_F(iovectest, varied_chunk_sizes) {
 TEST_F(iovectest, zerolength) {
     struct iovec_user uiov[] = {
             {
-                    .base = _state->buffer_addr + 0,
-                    .len = 0,
+                    .iov_base = _state->buffer_addr + 0,
+                    .iov_len = 0,
             },
             {
-                    .base = 0,
-                    .len = 0,
+                    .iov_base = 0,
+                    .iov_len = 0,
             },
             {
-                    .base = _state->buffer_addr + 0,
-                    .len = 3,
+                    .iov_base = _state->buffer_addr + 0,
+                    .iov_len = 3,
             },
             {
-                    .base = _state->buffer_addr + 3,
-                    .len = 0,
+                    .iov_base = _state->buffer_addr + 3,
+                    .iov_len = 0,
             },
             {
-                    .base = 0,
-                    .len = 0,
+                    .iov_base = 0,
+                    .iov_len = 0,
             },
             {
-                    .base = _state->buffer_addr + 3,
-                    .len = 0,
+                    .iov_base = _state->buffer_addr + 3,
+                    .iov_len = 0,
             },
             {
-                    .base = _state->buffer_addr + 3,
-                    .len = 25,
+                    .iov_base = _state->buffer_addr + 3,
+                    .iov_len = 25,
             },
             {
-                    .base = _state->buffer_addr + 28,
-                    .len = 0,
+                    .iov_base = _state->buffer_addr + 28,
+                    .iov_len = 0,
             },
             {
-                    .base = 0,
-                    .len = 0,
+                    .iov_base = 0,
+                    .iov_len = 0,
             },
     };
     ASSERT_EQ(0, copy_to_user(_state->iovec_addr, uiov, sizeof(uiov)));
@@ -194,12 +194,12 @@ test_abort:;
 TEST_F(iovectest, swap_data) {
     struct iovec_user uiov[] = {
             {
-                    .base = _state->buffer_addr + 14,
-                    .len = 14,
+                    .iov_base = _state->buffer_addr + 14,
+                    .iov_len = 14,
             },
             {
-                    .base = _state->buffer_addr + 0,
-                    .len = 14,
+                    .iov_base = _state->buffer_addr + 0,
+                    .iov_len = 14,
             },
     };
     ASSERT_EQ(0, copy_to_user(_state->iovec_addr, uiov, sizeof(uiov)));

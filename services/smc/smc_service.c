@@ -113,8 +113,8 @@ static int smc_read_request(struct handle* channel, struct smc_msg* msg) {
     }
 
     struct iovec_kern iov = {
-            .base = (void*)msg,
-            .len = msg_len,
+            .iov_base = (void*)msg,
+            .iov_len = msg_len,
     };
     struct ipc_msg_kern ipc_msg = {
             .num_iov = 1,
@@ -141,8 +141,8 @@ static int smc_send_response(struct handle* channel, struct smc_msg* msg) {
     int rc;
     size_t msg_len = sizeof(struct smc_msg);
     struct iovec_kern iov = {
-            .base = (void*)msg,
-            .len = msg_len,
+            .iov_base = (void*)msg,
+            .iov_len = msg_len,
     };
     struct ipc_msg_kern ipc_msg = {
             .num_iov = 1,

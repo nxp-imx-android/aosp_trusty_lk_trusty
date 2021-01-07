@@ -28,13 +28,13 @@
 #include <sys/types.h>
 
 struct iovec_kern {
-    void* base;
-    size_t len;
+    void* iov_base;
+    size_t iov_len;
 };
 
 struct iovec_user {
-    user_addr_t base;
-    user_size_t len;
+    user_addr_t iov_base;
+    user_size_t iov_len;
 };
 
 struct iovec_iter {
