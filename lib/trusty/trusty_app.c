@@ -1363,10 +1363,10 @@ void trusty_app_exit(int status) {
 
     if (status) {
         TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
-        dump_backtrace();
         if (!(app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP)) {
             panic("Unclean exit from critical app\n");
         }
+        dump_backtrace();
         restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_FAILURE;
     } else {
         restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_SUCCESS;
