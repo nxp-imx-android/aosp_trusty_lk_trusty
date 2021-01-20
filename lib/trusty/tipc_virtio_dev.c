@@ -620,7 +620,7 @@ out:
     /* Tear down the successfully processed handles */
     while (shm_idx > 0) {
         shm_idx--;
-        if (ret != NO_ERROR) {
+        if (ret < 0) {
             LTRACEF("Suppressing handle release\n");
             suppress_handle(handles[shm_idx]);
         }
