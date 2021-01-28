@@ -48,6 +48,7 @@ static size_t ffa_buf_size;
 static void* ffa_tx;
 static void* ffa_rx;
 static uint16_t ffa_local_id;
+static bool supports_ns_bit = false;
 
 static void sm_mem_obj_compat_destroy(struct vmm_obj* vmm_obj) {
     struct ext_mem_obj* obj = containerof(vmm_obj, struct ext_mem_obj, vmm_obj);
@@ -334,7 +335,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
     /*
      * Set arch_mmu_flags based on mem_attr returned.
      */
-    switch (resp->memory_region_attributes) {
+    switch (resp->memory_region_attributes & ~FFA_MEM_ATTR_NONSECURE) {
     case FFA_MEM_ATTR_DEVICE_NGNRE:
         arch_mmu_flags = ARCH_MMU_FLAG_UNCACHED_DEVICE;
         break;
@@ -349,6 +350,13 @@ static int ffa_mem_retrieve(uint16_t sender_id,
                resp->memory_region_attributes);
         return ERR_NOT_SUPPORTED;
     }
+
+    if (!supports_ns_bit || (resp->memory_region_attributes & FFA_MEM_ATTR_NONSECURE)) {
+        arch_mmu_flags |= ARCH_MMU_FLAG_NS;
+    } else {
+        LTRACEF("secure memory path triggered\n");
+    }
+
     if (!(emad->mapd.memory_access_permissions & FFA_MEM_PERM_RW)) {
         arch_mmu_flags |= ARCH_MMU_FLAG_PERM_RO;
     }
@@ -376,7 +384,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
          * If the memory is lent (or donated) we assume non secure access has
          * been revoked by changing the memory to be secure.
          */
-        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE | ARCH_MMU_FLAG_NS;
+        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
     }
 
     /*
@@ -566,6 +574,9 @@ static void shared_mem_init(uint level) {
                __func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
         goto err_features;
     }
+
+    /* Whether NS bit is filled in on RETRIEVE */
+    supports_ns_bit = !!(smc_ret.r2 & FFA_FEATURES2_MEM_HAS_NS_BIT);
 
     if ((smc_ret.r3 & FFA_FEATURES3_MEM_RETRIEVE_REQ_REFCOUNT_MASK) < 63) {
         /*
