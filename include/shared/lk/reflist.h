@@ -59,6 +59,19 @@ static inline __ALWAYS_INLINE bool obj_has_ref(struct obj* obj) {
     return !list_is_empty(&obj->ref_list);
 }
 
+static inline __ALWAYS_INLINE bool obj_has_only_ref(struct obj* obj,
+                                                    struct obj_ref* ref) {
+    assert(obj_has_ref(obj));
+    assert(list_in_list(&ref->ref_node));
+    struct list_node* head = list_peek_head(&obj->ref_list);
+    struct list_node* tail = list_peek_tail(&obj->ref_list);
+    if (head == tail) {
+        assert(head == &ref->ref_node);
+        return head == &ref->ref_node;
+    }
+    return false;
+}
+
 /*
  * Only use if you are intentionally reusing a possibly unreferenced
  * object. A cache is an example of this use case, where the destroy
