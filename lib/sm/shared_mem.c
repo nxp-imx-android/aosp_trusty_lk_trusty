@@ -373,17 +373,17 @@ static int ffa_mem_retrieve(uint16_t sender_id,
     if ((resp->flags & FFA_MTD_FLAG_TYPE_MASK) ==
         FFA_MTD_FLAG_TYPE_SHARE_MEMORY) {
         /*
-         * If memory is shared, assume it is non-secure memory. The 1.0 EAC 1_0
-         * version of the FF-A spec does not have a flag that indicates if the
-         * memory is secure or not. To support sharing memory between secure
-         * partiton a secure flag coud be added to memory_region_attributes.
-         *
-         * Also set ARCH_MMU_FLAG_PERM_NO_EXECUTE as we do not want to allow
-         * executing code out if shared memory.
-         *
-         * If the memory is lent (or donated) we assume non secure access has
-         * been revoked by changing the memory to be secure.
+         * If memory is shared, assume it is not safe to execute out of. This
+         * specifically indicates that another party may have access to the
+         * memory.
          */
+        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+    }
+
+    /*
+     * Regardless of origin, we don't want to execute out of NS memory.
+     */
+    if (arch_mmu_flags & ARCH_MMU_FLAG_NS) {
         arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
     }
 
