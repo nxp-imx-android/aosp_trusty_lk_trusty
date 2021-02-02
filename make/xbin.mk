@@ -161,19 +161,6 @@ GLOBAL_INCLUDES += \
 	$(BUILDDIR)/constants/include
 endif
 
-ifeq ($(HWASAN_ENABLED), true)
-    ifeq ($(XBIN_APP),true)
-        # TODO(b/148877030): Sanitize globals
-        GLOBAL_COMPILEFLAGS += \
-            -fsanitize-blacklist=trusty/user/base/lib/hwasan/exemptlist \
-            -fsanitize=hwaddress \
-            -mllvm -hwasan-with-tls=0 \
-            -mllvm -hwasan-globals=0 \
-            -mllvm -hwasan-use-short-granules=0 \
-
-    endif
-endif
-
 # Set appropriate globals for all targets under $(BUILDDIR)
 $(BUILDDIR)/%: CC := $(XBIN_CC)
 $(BUILDDIR)/%: LD := $(XBIN_LD)
