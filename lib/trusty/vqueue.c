@@ -148,7 +148,7 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
     smp_rmb();
 
     next_idx = vq->vring.avail->ring[vq->last_avail_idx % vq->vring.num];
-    vq->last_avail_idx++;
+    __builtin_add_overflow(vq->last_avail_idx, 1, &vq->last_avail_idx);
 
     if (unlikely(next_idx >= vq->vring.num)) {
         /* index of the first descriptor in chain is out of range.
@@ -284,7 +284,7 @@ static int _vqueue_add_buf_locked(struct vqueue* vq,
     used->id = buf->head;
     used->len = len;
     smp_wmb();
-    vq->vring.used->idx++;
+    __builtin_add_overflow(vq->vring.used->idx, 1, &vq->vring.used->idx);
     return NO_ERROR;
 }
 
