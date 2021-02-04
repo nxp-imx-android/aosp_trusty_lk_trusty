@@ -68,6 +68,7 @@ struct trusty_app_props {
     uint32_t* config_blob;
     struct list_node port_entry_list;
     struct list_node mmio_entry_list;
+    int pinned_cpu;
 };
 
 struct trusty_app_img {

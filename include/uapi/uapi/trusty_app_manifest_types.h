@@ -48,6 +48,7 @@ enum {
     TRUSTY_APP_CONFIG_KEY_MAP_MEM = 3,
     TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS = 4,
     TRUSTY_APP_CONFIG_KEY_START_PORT = 5,
+    TRUSTY_APP_CONFIG_KEY_PINNED_CPU = 6,
 };
 
 #define TRUSTY_APP_MGMT_FLAGS_NONE 0u
@@ -57,3 +58,5 @@ enum {
 #define TRUSTY_APP_MGMT_FLAGS_DEFERRED_START (1u << 1)
 /* Exit application if application crashes or exit with a non-0 exit code */
 #define TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP (1u << 2)
+
+#define TRUSTY_APP_PINNED_CPU_NONE (-1)

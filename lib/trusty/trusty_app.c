@@ -406,6 +406,13 @@ static struct trusty_thread* trusty_thread_create(
     thread_tls_set(trusty_thread->thread, TLS_ENTRY_TRUSTY,
                    (uintptr_t)trusty_thread);
 
+    int pinned_cpu = trusty_app->props.pinned_cpu;
+    if (pinned_cpu != TRUSTY_APP_PINNED_CPU_NONE) {
+        thread_set_pinned_cpu(trusty_thread->thread, pinned_cpu);
+        dprintf(SPEW, "trusty_app %d, %s pinned to CPU: %u\n",
+                trusty_app->app_id, trusty_app->props.app_name, pinned_cpu);
+    }
+
     return trusty_thread;
 
 err_thread:
@@ -500,6 +507,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.min_heap_size = DEFAULT_HEAP_SIZE;
     trusty_app->props.min_stack_size = DEFAULT_STACK_SIZE;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
+    trusty_app->props.pinned_cpu = TRUSTY_APP_PINNED_CPU_NONE;
 
     manifest_data = NULL;
     manifest_size = 0;
@@ -770,6 +778,26 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
 
             list_add_tail(&trusty_app->props.port_entry_list, &entry->node);
 
+            break;
+        case TRUSTY_APP_CONFIG_KEY_PINNED_CPU:
+            /* PINNED_CPU takes 1 data value */
+            if ((trusty_app->props.config_entry_cnt - i) < 2) {
+                dprintf(CRITICAL,
+                        "manifest missing PINNED_CPU value of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
+                return ERR_NOT_VALID;
+            }
+            uint32_t pinned_cpu = config_blob[++i];
+
+            if (pinned_cpu >= SMP_MAX_CPUS) {
+                dprintf(CRITICAL,
+                        "pinned CPU index %u out of range, app %u, %s\n",
+                        pinned_cpu, trusty_app->app_id,
+                        trusty_app->props.app_name);
+                return ERR_NOT_VALID;
+            }
+
+            trusty_app->props.pinned_cpu = (int)pinned_cpu;
             break;
         default:
             dprintf(CRITICAL,
