@@ -30,4 +30,10 @@ MODULE_DEPS += \
 	trusty/kernel/lib/trusty \
 	trusty/user/base/interface/apploader \
 
+# We need to add the package tool as a dependency here, since there are very
+# few places where we can add a host tool, basically only kernel and project
+# build files
+MODULE_DEPS += \
+	trusty/user/base/app/apploader/package_tool \
+
 include make/module.mk

@@ -127,7 +127,7 @@ endif
 #
 ifneq ($(strip $(TRUSTY_LOADABLE_USER_TASKS)),)
 
-LOADABLE_TASK_APP_TOOL := trusty/user/base/tools/app_package_tool.py
+LOADABLE_TASK_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
 
 LOADABLE_TASK_MANIFESTS_BINARY := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
    $(addsuffix /$(notdir $(t)).manifest, $(t)))
@@ -142,10 +142,10 @@ LOADABLE_TASK_APPS := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
 LOADABLE_TASK_APPS := $(addprefix $(BUILDDIR)/user_tasks/, $(LOADABLE_TASK_APPS))
 
 $(LOADABLE_TASK_APPS): LOADABLE_TASK_APP_TOOL := $(LOADABLE_TASK_APP_TOOL)
-$(LOADABLE_TASK_APPS): %.app: %.elf %.manifest
+$(LOADABLE_TASK_APPS): %.app: %.elf %.manifest $(LOADABLE_TASK_APP_TOOL)
 	@$(MKDIR)
 	@echo building $@ from $<
-	$(NOECHO)$(LOADABLE_TASK_APP_TOOL) build $@ $^
+	$(NOECHO)$(LOADABLE_TASK_APP_TOOL) -m build $@ $(word 1,$^) $(word 2,$^)
 
 GENERATED += $(LOADABLE_TASK_APPS)
 
