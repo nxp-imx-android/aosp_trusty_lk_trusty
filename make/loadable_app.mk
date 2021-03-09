@@ -30,6 +30,9 @@
 # To sign the app with a different key than the default one from
 # APPLOADER_SIGN_KEY_ID, set the following variable in rules.mk:
 #     APPLOADER_SIGN_KEY_ID_FOR_$(MODULE)
+#
+# To encrypt an application, set the similar encryption variable:
+#     APPLOADER_ENCRYPT_KEY_ID_FOR_$(MODULE)
 
 # Build a loadable application
 LOADABLE_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
@@ -37,14 +40,36 @@ LOADABLE_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
 APP_ELF := $(APP_BUILDDIR)/$(APP_NAME).elf
 APP_MANIFEST := $(APP_BUILDDIR)/$(APP_NAME).manifest
 
-UNSIGNED_APP := $(APP_BUILDDIR)/$(APP_NAME).app.unsigned
+INITIAL_APP := $(APP_BUILDDIR)/$(APP_NAME).app.initial
 LOADABLE_APP := $(APP_BUILDDIR)/$(APP_NAME).app
 
-$(UNSIGNED_APP): LOADABLE_APP_TOOL := $(LOADABLE_APP_TOOL)
-$(UNSIGNED_APP): $(APP_ELF) $(APP_MANIFEST) $(LOADABLE_APP_TOOL)
+$(INITIAL_APP): LOADABLE_APP_TOOL := $(LOADABLE_APP_TOOL)
+$(INITIAL_APP): $(APP_ELF) $(APP_MANIFEST) $(LOADABLE_APP_TOOL)
 	@$(MKDIR)
 	@echo building $@ from $<
 	$(NOECHO)$(LOADABLE_APP_TOOL) -m build $@ $< $(word 2,$^)
+
+ifneq ($(APPLOADER_ENCRYPT_KEY_ID_FOR_$(APP_TOP_MODULE)),)
+APP_ENCRYPT_KEY_ID := $(APPLOADER_ENCRYPT_KEY_ID_FOR_$(APP_TOP_MODULE))
+APP_ENCRYPT_KEY_FILE := $(APPLOADER_ENCRYPT_KEY_$(APP_ENCRYPT_KEY_ID)_FILE)
+endif
+
+ifneq ($(APP_ENCRYPT_KEY_FILE),)
+ENCRYPTED_APP := $(APP_BUILDDIR)/$(APP_NAME).app.encrypted
+
+$(ENCRYPTED_APP): LOADABLE_APP_TOOL := $(LOADABLE_APP_TOOL)
+$(ENCRYPTED_APP): APP_ENCRYPT_KEY_FILE := $(APP_ENCRYPT_KEY_FILE)
+$(ENCRYPTED_APP): APP_ENCRYPT_KEY_ID := $(APP_ENCRYPT_KEY_ID)
+$(ENCRYPTED_APP): $(INITIAL_APP) $(APP_ENCRYPT_KEY_FILE) $(LOADABLE_APP_TOOL)
+	@$(MKDIR)
+	@echo building $@ from $<
+	$(NOECHO)$(LOADABLE_APP_TOOL) -m encrypt $@ $< \
+		$(APP_ENCRYPT_KEY_FILE) $(APP_ENCRYPT_KEY_ID)
+
+UNSIGNED_APP := $(ENCRYPTED_APP)
+else
+UNSIGNED_APP := $(INITIAL_APP)
+endif
 
 # If we have an app-specific key identifier then use it,
 # otherwise use the global default
@@ -92,8 +117,12 @@ LOADABLE_APP_TOOL :=
 APP_ELF :=
 APP_MANIFEST :=
 
+INITIAL_APP :=
 UNSIGNED_APP :=
+ENCRYPTED_APP :=
 LOADABLE_APP :=
 
 APP_SIGN_KEY_ID :=
 APP_SIGN_KEY_FILE :=
+APP_ENCRYPT_KEY_ID :=
+APP_ENCRYPT_KEY_FILE :=
