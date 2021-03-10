@@ -56,7 +56,7 @@ GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(BUILDDIR)/host_tools/obj/$(HOST_TOOL_NAME)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
-GENERIC_CPPFLAGS := -std=c++11
+GENERIC_CPPFLAGS := -std=c++17
 include make/generic_compile.mk
 
 # Link
