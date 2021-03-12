@@ -41,11 +41,27 @@ ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 # ASAN is not compatable with GDB.
+
+# When using clang, we need to always use the prebuilt libc++ library
+# because we can't be sure what version of libstdc++ the host system
+# has, or even if it exists at all.
+ifneq ($(filter stdc++ c++,$(HOST_LIBS)),)
+# Add the prebuilt libraries directory to the tool's rpath,
+# so it can use those libraries, e.g., libc++.so
+HOST_LIBCXX_PATH := $(shell $(HOST_CC) -print-file-name=libc++.so)
+HOST_LIBCXX_CPPFLAGS := -stdlib=libc++
+HOST_LIBCXX_LDFLAGS := -lc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+else
+HOST_LIBCXX_CPPFLAGS :=
+HOST_LIBCXX_LDFLAGS :=
+endif
 else
 # TODO: use hermetic version of GCC.
 # To do this, we'd need to compile boringssl from source rather than using a system library.
 HOST_CC := gcc
 HOST_SANITIZER_FLAGS :=
+HOST_LIBCXX_CPPFLAGS :=
+HOST_LIBCXX_LDFLAGS :=
 endif
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
@@ -56,13 +72,13 @@ GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(BUILDDIR)/host_tools/obj/$(HOST_TOOL_NAME)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
-GENERIC_CPPFLAGS := -std=c++17
+GENERIC_CPPFLAGS := -std=c++17 $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
 # Link
 HOST_TOOL_BIN := $(BUILDDIR)/host_tools/$(HOST_TOOL_NAME)
 $(HOST_TOOL_BIN): CC := $(HOST_CC)
-$(HOST_TOOL_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(addprefix -l, $(HOST_LIBS))
+$(HOST_TOOL_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
 $(HOST_TOOL_BIN): $(GENERIC_OBJS)
 	@echo linking $@
 	@$(MKDIR)
