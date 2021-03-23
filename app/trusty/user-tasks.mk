@@ -125,25 +125,21 @@ endif
 #
 # Generate loadable application packages
 #
-ifneq ($(strip $(TRUSTY_LOADABLE_USER_TASKS)),)
+define loadable-app-build-rule
+$(eval APP_NAME := $(notdir $(1)))\
+$(eval APP_TOP_MODULE := $(1))\
+$(eval APP_BUILDDIR := $(BUILDDIR)/user_tasks/$(1))\
+$(eval include make/loadable_app.mk)
+endef
 
-LOADABLE_TASK_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
+# Sort and remove duplicates
+TRUSTY_LOADABLE_USER_TASKS := $(sort $(TRUSTY_LOADABLE_USER_TASKS))
 
-LOADABLE_TASK_APPS := $(foreach t, $(TRUSTY_LOADABLE_USER_TASKS),\
-   $(addsuffix /$(notdir $(t)).app, $(t)))
-LOADABLE_TASK_APPS := $(addprefix $(BUILDDIR)/user_tasks/, $(LOADABLE_TASK_APPS))
-
-$(LOADABLE_TASK_APPS): LOADABLE_TASK_APP_TOOL := $(LOADABLE_TASK_APP_TOOL)
-$(LOADABLE_TASK_APPS): %.app: %.elf %.manifest $(LOADABLE_TASK_APP_TOOL)
-	@$(MKDIR)
-	@echo building $@ from $<
-	$(NOECHO)$(LOADABLE_TASK_APP_TOOL) -m build $@ $(word 1,$^) $(word 2,$^)
-
-GENERATED += $(LOADABLE_TASK_APPS)
-
-all:: $(LOADABLE_TASK_APPS)
-
-endif
+#
+# Generate build rules for each application
+#
+$(foreach t,$(TRUSTY_LOADABLE_USER_TASKS),\
+   $(call loadable-app-build-rule,$(t)))
 
 
 BASE_XBIN_LDFLAGS :=
