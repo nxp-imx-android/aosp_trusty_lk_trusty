@@ -24,6 +24,7 @@
 #include <err.h>
 #include <kernel/thread.h>
 #include <kernel/vm.h>
+#include <lib/mmutest/mmutest.h>
 #include <lib/unittest/unittest.h>
 #include <lk/init.h>
 #include <pow2.h>
@@ -31,14 +32,8 @@
 #include <stdio.h>
 #include <string.h>
 
-int mmutest_arch_rodata_pnx(void);
-int mmutest_arch_data_pnx(void);
-int mmutest_arch_rodata_ro(void);
-
-int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
-
 /*
- * These below declarations are made to avoid issues wth CFI
+ * These below declarations are made to avoid issues with CFI
  * while copying heap allocated method, this is to reduce the
  * probability of it breaking in future toolchain versions
  */
