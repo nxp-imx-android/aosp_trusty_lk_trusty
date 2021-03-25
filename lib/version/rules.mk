@@ -46,6 +46,9 @@ MODULE_CFLAGS += \
 	-DBUILDID=$(BUILDID)
 endif
 
+MODULE_CFLAGS += \
+	-DVERSION_PROJECT=\"$(PROJECT)\"
+
 include make/module.mk
 
 EXTRA_BUILDRULES += lib/version/version.mk
