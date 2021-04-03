@@ -157,6 +157,14 @@ bool app_manifest_iterator_next(struct app_manifest_iterator* iterator,
             goto error;
         }
         break;
+    case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
+        entry->value.min_shadow_stack_size = app_manifest_read_entry(iterator);
+        if (iterator->error != NO_ERROR) {
+            TLOGE("manifest missing MIN_SHADOW_STACK_SIZE value of app %s\n",
+                  iterator->app_name);
+            goto error;
+        }
+        break;
 
     case APP_MANIFEST_CONFIG_KEY_MIN_HEAP_SIZE:
         entry->value.min_heap_size = app_manifest_read_entry(iterator);

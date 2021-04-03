@@ -356,6 +356,7 @@ static struct trusty_thread* trusty_thread_create(
         vaddr_t entry,
         int priority,
         size_t stack_size,
+        size_t shadow_stack_size,
         struct trusty_app* trusty_app) {
     struct trusty_thread* trusty_thread;
     status_t err;
@@ -378,9 +379,8 @@ static struct trusty_thread* trusty_thread_create(
 
 #if USER_SCS_ENABLED
     vaddr_t shadow_stack_base = 0;
-    err = vmm_alloc(trusty_app->aspace, "shadow stack",
-                    DEFAULT_SHADOW_STACK_SIZE, (void**)&shadow_stack_base,
-                    PAGE_SIZE_SHIFT, 0,
+    err = vmm_alloc(trusty_app->aspace, "shadow stack", shadow_stack_size,
+                    (void**)&shadow_stack_base, PAGE_SIZE_SHIFT, 0,
                     ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (err != NO_ERROR) {
         dprintf(CRITICAL,
@@ -402,7 +402,7 @@ static struct trusty_thread* trusty_thread_create(
 #if USER_SCS_ENABLED
     trusty_thread->shadow_stack_base =
             shadow_stack_base; /* shadow stack grows up */
-    trusty_thread->shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
+    trusty_thread->shadow_stack_size = shadow_stack_size;
 #endif
     thread_tls_set(trusty_thread->thread, TLS_ENTRY_TRUSTY,
                    (uintptr_t)trusty_thread);
@@ -512,6 +512,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.app_name = unknown_app_name;
     trusty_app->props.min_heap_size = DEFAULT_HEAP_SIZE;
     trusty_app->props.min_stack_size = DEFAULT_STACK_SIZE;
+    trusty_app->props.min_shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
     trusty_app->props.pinned_cpu = APP_MANIFEST_PINNED_CPU_NONE;
 
@@ -667,6 +668,16 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             }
 
             trusty_app->props.pinned_cpu = manifest_entry.value.pinned_cpu;
+            break;
+        case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
+            trusty_app->props.min_shadow_stack_size =
+                    manifest_entry.value.min_shadow_stack_size;
+            if (trusty_app->props.min_shadow_stack_size == 0) {
+                dprintf(CRITICAL,
+                        "manifest MIN_SHADOW_STACK_SIZE is 0 of app %u, %s\n",
+                        trusty_app->app_id, trusty_app->props.app_name);
+                return ERR_NOT_VALID;
+            }
             break;
         case APP_MANIFEST_CONFIG_KEY_UUID:
             memcpy(&trusty_app->props.uuid, &manifest_entry.value.uuid,
@@ -1278,9 +1289,9 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
     elf_hdr = (ELF_EHDR*)trusty_app->app_img->img_start;
     vaddr_t entry;
     __builtin_add_overflow(elf_hdr->e_entry, trusty_app->load_bias, &entry);
-    trusty_thread =
-            trusty_thread_create(name, entry, DEFAULT_PRIORITY,
-                                 trusty_app->props.min_stack_size, trusty_app);
+    trusty_thread = trusty_thread_create(
+            name, entry, DEFAULT_PRIORITY, trusty_app->props.min_stack_size,
+            trusty_app->props.min_shadow_stack_size, trusty_app);
     if (!trusty_thread) {
         dprintf(CRITICAL, "failed to allocate trusty thread for %s\n", name);
         ret = ERR_NO_MEMORY;

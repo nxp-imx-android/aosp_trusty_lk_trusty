@@ -40,6 +40,7 @@ __BEGIN_CDECLS
  * @APP_MANIFEST_CONFIG_KEY_START_PORT: Key for "start_ports"
  * @APP_MANIFEST_CONFIG_KEY_PINNED_CPU: Key for "pinned_cpu"
  * @APP_MANIFEST_CONFIG_KEY_VERSION: Key for "version"
+ * @APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE: Key for "min_shadow_stack"
  * @APP_MANIFEST_CONFIG_KEY_UUID: Pseudo-key for "uuid"
  * @APP_MANIFEST_CONFIG_KEY_APP_NAME: Pseudo-key for name of application
  */
@@ -51,6 +52,7 @@ enum app_manifest_config_key {
     APP_MANIFEST_CONFIG_KEY_START_PORT = 5,
     APP_MANIFEST_CONFIG_KEY_PINNED_CPU = 6,
     APP_MANIFEST_CONFIG_KEY_VERSION = 7,
+    APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8,
 
     /* Pseudo-keys for required entries */
     APP_MANIFEST_CONFIG_KEY_UUID = 0xfffffffeU,
@@ -105,6 +107,7 @@ struct app_manifest_config_entry {
         uuid_t uuid;
         const char* app_name;
         uint32_t min_stack_size;
+        uint32_t min_shadow_stack_size;
         uint32_t min_heap_size;
         struct {
             uint32_t id;
