@@ -26,3 +26,6 @@
 
 /* uuid assigned to non-secure connections */
 extern const struct uuid zero_uuid;
+
+/* uuid assigned to kernel code */
+extern const struct uuid kernel_uuid;

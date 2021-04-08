@@ -36,3 +36,10 @@ typedef struct uuid {
     {                            \
         0, 0, 0, { 0 }           \
     }
+
+/* UUID: {3c06d579-6cbc-476f-9363-503262d21b23} */
+#define UUID_KERNEL_VALUE                                         \
+    {                                                             \
+        0x3c06d579, 0x6cbc, 0x476f,                               \
+                {0x93, 0x63, 0x50, 0x32, 0x62, 0xd2, 0x1b, 0x23}, \
+    }

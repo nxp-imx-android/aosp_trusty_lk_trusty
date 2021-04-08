@@ -88,8 +88,7 @@ static void busy_test_init(uint level) {
     thread_t* thread;
     struct handle* phandle;
 
-    const uuid_t uuid = UUID_INITIAL_VALUE(uuid);
-    ret = ipc_port_create(&uuid, "com.android.kernel.busy-test", 1, 1,
+    ret = ipc_port_create(&kernel_uuid, "com.android.kernel.busy-test", 1, 1,
                           IPC_PORT_ALLOW_NS_CONNECT, &phandle);
     if (ret) {
         goto err_port_create;

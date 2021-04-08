@@ -24,3 +24,5 @@
 #include <lib/trusty/uuid.h>
 
 const struct uuid zero_uuid = UUID_INITIAL_VALUE(zero_uuid);
+
+const struct uuid kernel_uuid = UUID_KERNEL_VALUE;

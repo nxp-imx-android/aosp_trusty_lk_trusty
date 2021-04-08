@@ -67,14 +67,6 @@ static const struct uuid apploader_unittest_uuid = {
 };
 #endif
 
-/* UUID: {e91d669a-3fa7-4246-a0a6-21758cc27115} */
-static const struct uuid apploader_service_uuid = {
-        0xe91d669a,
-        0x3fa7,
-        0x4246,
-        {0xa0, 0xa6, 0x21, 0x75, 0x8c, 0xc2, 0x71, 0x15},
-};
-
 struct apploader_secure_req {
     struct apploader_secure_header hdr;
     union {
@@ -536,7 +528,7 @@ static int apploader_service_thread(void* arg) {
         goto err_hset_create;
     }
 
-    rc = ipc_port_create(&apploader_service_uuid, APPLOADER_SECURE_PORT, 1,
+    rc = ipc_port_create(&kernel_uuid, APPLOADER_SECURE_PORT, 1,
                          sizeof(union apploader_longest_secure_msg),
                          IPC_PORT_ALLOW_TA_CONNECT, &ctx.port);
     if (rc) {

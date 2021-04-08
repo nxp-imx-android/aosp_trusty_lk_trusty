@@ -45,14 +45,6 @@ struct smc_channel_ctx {
     struct smc_access_policy policy;
 };
 
-/* UUID: {4ae225ec-20f2-4264-9a3f-935f90a42ddc} */
-static const struct uuid smc_service_uuid = {
-        0x4ae225ec,
-        0x20f2,
-        0x4264,
-        {0x9a, 0x3f, 0x93, 0x5f, 0x90, 0xa4, 0x2d, 0xdc},
-};
-
 /**
  * struct smc_regs - Struct representing input/output registers of an SMC
  * @r0-3: registers r0-3/x0-3 for 32/64 bit respectively
@@ -352,7 +344,7 @@ static int smc_service_thread(void* arg) {
         goto err_hset_create;
     }
 
-    rc = ipc_port_create(&smc_service_uuid, SMC_SERVICE_PORT, 1,
+    rc = ipc_port_create(&kernel_uuid, SMC_SERVICE_PORT, 1,
                          sizeof(struct smc_msg), IPC_PORT_ALLOW_TA_CONNECT,
                          &ctx.port);
     if (rc) {
