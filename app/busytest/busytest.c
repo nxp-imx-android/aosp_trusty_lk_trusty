@@ -120,7 +120,7 @@ err_port_create:
 LK_INIT_HOOK(busy_test_init, busy_test_init, LK_INIT_LEVEL_APPS);
 
 static int busy_test_busy_func(void* arg) {
-    TRACEF("cpu %d ready\n", arch_curr_cpu_num());
+    LTRACEF("cpu %d ready\n", arch_curr_cpu_num());
     while (true) {
         event_wait(&busy_test_event);
     }
