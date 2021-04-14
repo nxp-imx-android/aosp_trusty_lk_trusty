@@ -204,7 +204,7 @@ static struct smc32_entity trusty_sm_entity = {
 static void trusty_sm_init(uint level) {
     int err;
 
-    dprintf(INFO, "Initializing Trusted OS SMC handler\n");
+    dprintf(SPEW, "Initializing Trusted OS SMC handler\n");
 
     err = sm_register_entity(SMC_ENTITY_TRUSTED_OS, &trusty_sm_entity);
     if (err) {
