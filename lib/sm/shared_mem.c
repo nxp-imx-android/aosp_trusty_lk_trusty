@@ -301,6 +301,16 @@ static int ffa_mem_retrieve(uint16_t sender_id,
      */
     if (resp->emad_count != 1) {
         TRACEF("unexpected response count %d != 1\n", resp->emad_count);
+    }
+
+    switch (resp->flags & FFA_MTD_FLAG_TYPE_MASK) {
+    case FFA_MTD_FLAG_TYPE_SHARE_MEMORY:
+    case FFA_MTD_FLAG_TYPE_LEND_MEMORY:
+        break;
+    default:
+        /* Donate or an unknown sharing type */
+        TRACEF("Unknown transfer kind: 0x%x\n",
+               resp->flags & FFA_MTD_FLAG_TYPE_MASK);
         return ERR_IO;
     }
 
