@@ -131,8 +131,8 @@ static status_t map_rb(ext_mem_client_id_t client_id,
                        size_t sz,
                        vaddr_t* va) {
     return ext_mem_map_obj_id(vmm_get_kernel_aspace(), "logmem", client_id,
-                              mem_obj_id, 0, sz, (void**)va, PAGE_SIZE_SHIFT, 0,
-                              ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+                              mem_obj_id, 0, 0, sz, (void**)va, PAGE_SIZE_SHIFT,
+                              0, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 }
 
 static ext_mem_obj_id_t args_get_id(struct smc32_args* args) {

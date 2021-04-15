@@ -260,7 +260,7 @@ static long dev_create(ext_mem_client_id_t client_id,
     dev->ns_sz = buf_sz;
     dev->ns_mmu_flags = buf_mmu_flags;
     res = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "tipc", client_id, buf_id,
-                             0, round_up(buf_sz, PAGE_SIZE), &dev->ns_va,
+                             0, 0, round_up(buf_sz, PAGE_SIZE), &dev->ns_va,
                              PAGE_SIZE_SHIFT, 0, buf_mmu_flags);
     if (res != NO_ERROR) {
         LTRACEF("failed (%d) to map shared buffer\n", res);

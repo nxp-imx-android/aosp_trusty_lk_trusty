@@ -107,7 +107,7 @@ static status_t sm_mem_compat_get_vmm_obj(ext_mem_client_id_t client_id,
     }
 
     arch_mmu_flags |= ARCH_MMU_FLAG_NS | ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-    ext_mem_obj_initialize(obj, obj_ref, mem_obj_id, &sm_mem_obj_compat_ops,
+    ext_mem_obj_initialize(obj, obj_ref, mem_obj_id, 0, &sm_mem_obj_compat_ops,
                            arch_mmu_flags, 1);
     obj->page_runs[0].paddr = paddr;
     obj->page_runs[0].size = size;
@@ -175,6 +175,7 @@ static struct vmm_obj_ops sm_mem_obj_ops = {
  * sm_mem_alloc_obj - Allocate and initialize memory object.
  * @sender_id:      FF-A vm id of sender.
  * @mem_id:         Id of object.
+ * @tag:            Tag of the object
  * @page_run_count: Number of page runs to allocate for object.
  * @arch_mmu_flags: Memory type and permissions.
  * @obj_ref:        Reference to returned object.
@@ -183,6 +184,7 @@ static struct vmm_obj_ops sm_mem_obj_ops = {
  */
 static struct sm_mem_obj* sm_mem_alloc_obj(uint16_t sender_id,
                                            ext_mem_obj_id_t mem_id,
+                                           uint64_t tag,
                                            size_t page_run_count,
                                            uint arch_mmu_flags,
                                            struct obj_ref* obj_ref) {
@@ -191,8 +193,8 @@ static struct sm_mem_obj* sm_mem_alloc_obj(uint16_t sender_id,
     if (!obj) {
         return NULL;
     }
-    ext_mem_obj_initialize(&obj->ext_mem_obj, obj_ref, mem_id, &sm_mem_obj_ops,
-                           arch_mmu_flags, page_run_count);
+    ext_mem_obj_initialize(&obj->ext_mem_obj, obj_ref, mem_id, tag,
+                           &sm_mem_obj_ops, arch_mmu_flags, page_run_count);
     obj->sender_id = sender_id;
 
     return obj;
@@ -208,7 +210,8 @@ static struct sm_mem_obj* sm_mem_alloc_obj(uint16_t sender_id,
  * Return: &struct smc_ret8.
  */
 static struct smc_ret8 ffa_mem_retrieve_req(uint16_t sender_id,
-                                            uint64_t handle) {
+                                            uint64_t handle,
+                                            uint64_t tag) {
     struct ffa_mtd* req = ffa_tx;
 
     DEBUG_ASSERT(is_mutex_held(&sm_mem_ffa_lock));
@@ -222,11 +225,8 @@ static struct smc_ret8 ffa_mem_retrieve_req(uint16_t sender_id,
     req->flags = 0;
     req->handle = handle;
 
-    /*
-     * Trusty does not use the tag value. The sender sets the tag to 0, like
-     * other unused fields. We must use the same value here.
-     */
-    req->tag = 0;
+    /* We must use the same tag as the one used by the sender to retrieve. */
+    req->tag = tag;
     req->reserved_24_27 = 0;
 
     /*
@@ -265,6 +265,7 @@ static struct smc_ret8 ffa_mem_retrieve_req(uint16_t sender_id,
  */
 static int ffa_mem_retrieve(uint16_t sender_id,
                             uint64_t handle,
+                            uint64_t tag,
                             struct vmm_obj** objp,
                             struct obj_ref* obj_ref) {
     struct smc_ret8 smc_ret;
@@ -285,7 +286,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
         return ERR_NOT_READY;
     }
 
-    smc_ret = ffa_mem_retrieve_req(sender_id, handle);
+    smc_ret = ffa_mem_retrieve_req(sender_id, handle, tag);
     if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_MEM_RETRIEVE_RESP) {
         TRACEF("bad reply: 0x%lx 0x%lx 0x%lx\n", smc_ret.r0, smc_ret.r1,
                smc_ret.r2);
@@ -427,8 +428,9 @@ static int ffa_mem_retrieve(uint16_t sender_id,
             address_range_descriptor_count);
 
     /* Allocate a new shared memory object. */
-    obj = sm_mem_alloc_obj(sender_id, handle, address_range_descriptor_count,
-                           arch_mmu_flags, &tmp_obj_ref);
+    obj = sm_mem_alloc_obj(sender_id, handle, tag,
+                           address_range_descriptor_count, arch_mmu_flags,
+                           &tmp_obj_ref);
     if (!obj) {
         return ERR_NO_MEMORY;
     }
@@ -511,12 +513,14 @@ err_bad_data:
  */
 status_t ext_mem_get_vmm_obj(ext_mem_client_id_t client_id,
                              ext_mem_obj_id_t mem_obj_id,
+                             uint64_t tag,
                              size_t size,
                              struct vmm_obj** objp,
                              struct obj_ref* obj_ref) {
     int ret;
 
-    if (client_id == 0 && sm_get_api_version() < TRUSTY_API_VERSION_MEM_OBJ) {
+    if (client_id == 0 && tag == 0 &&
+        sm_get_api_version() < TRUSTY_API_VERSION_MEM_OBJ) {
         /* If client is not running under a hypervisor allow using old api. */
         return sm_mem_compat_get_vmm_obj(client_id, mem_obj_id, size, objp,
                                          obj_ref);
@@ -524,7 +528,7 @@ status_t ext_mem_get_vmm_obj(ext_mem_client_id_t client_id,
 
     mutex_acquire(&sm_mem_ffa_lock);
 
-    ret = ffa_mem_retrieve((uint16_t)client_id, mem_obj_id, objp, obj_ref);
+    ret = ffa_mem_retrieve((uint16_t)client_id, mem_obj_id, tag, objp, obj_ref);
 
     mutex_release(&sm_mem_ffa_lock);
 

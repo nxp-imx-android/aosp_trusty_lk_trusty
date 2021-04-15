@@ -105,6 +105,7 @@ struct tipc_dev {
 struct tipc_shm {
     uint64_t obj_id;
     uint64_t size;
+    uint64_t tag;
 } __PACKED;
 
 struct tipc_hdr {
@@ -572,7 +573,7 @@ static int handle_chan_msg(struct tipc_dev* dev,
 
         status_t ret =
                 ext_mem_get_vmm_obj(dev->vd.client_id, shm[shm_idx].obj_id,
-                                    size, &shm_obj, &shm_ref);
+                                    shm[shm_idx].tag, size, &shm_obj, &shm_ref);
         if (ret < 0) {
             LTRACEF("Failed to create ext_mem object\n");
             goto out;

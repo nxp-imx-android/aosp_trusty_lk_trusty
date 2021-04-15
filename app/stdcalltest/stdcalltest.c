@@ -64,7 +64,7 @@ static long stdcalltest_sharedmem_rw(ext_mem_client_id_t client_id,
         return SM_ERR_INVALID_PARAMETERS;
     }
 
-    ret = ext_mem_map_obj_id(aspace, "stdcalltest", client_id, mem_obj_id, 0,
+    ret = ext_mem_map_obj_id(aspace, "stdcalltest", client_id, mem_obj_id, 0, 0,
                              size, &va, PAGE_SIZE_SHIFT, 0,
                              ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (ret != NO_ERROR) {

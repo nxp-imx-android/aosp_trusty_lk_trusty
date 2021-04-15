@@ -46,10 +46,12 @@ static int ext_mem_obj_cmp(struct bst_node* a_bst, struct bst_node* b_bst) {
 void ext_mem_obj_initialize(struct ext_mem_obj* obj,
                             struct obj_ref* ref,
                             ext_mem_obj_id_t id,
+                            uint64_t tag,
                             struct vmm_obj_ops* ops,
                             uint arch_mmu_flags,
                             size_t page_run_count) {
     obj->id = id;
+    obj->tag = tag;
     obj->vmm_obj.ops = ops;
     obj->arch_mmu_flags = arch_mmu_flags;
     obj->page_run_count = page_run_count;
@@ -143,6 +145,7 @@ status_t ext_mem_map_obj_id(vmm_aspace_t* aspace,
                             const char* name,
                             ext_mem_client_id_t client_id,
                             ext_mem_obj_id_t mem_obj_id,
+                            uint64_t tag,
                             size_t offset,
                             size_t size,
                             void** ptr,
@@ -155,8 +158,8 @@ status_t ext_mem_map_obj_id(vmm_aspace_t* aspace,
 
     DEBUG_ASSERT(IS_PAGE_ALIGNED(size));
 
-    err = ext_mem_get_vmm_obj(client_id, mem_obj_id, size + offset, &vmm_obj,
-                              &vmm_obj_ref);
+    err = ext_mem_get_vmm_obj(client_id, mem_obj_id, tag, size + offset,
+                              &vmm_obj, &vmm_obj_ref);
     if (err) {
         TRACEF("failed to get object, 0x%llx:0x%llx, to map for %s\n",
                client_id, mem_obj_id, name);

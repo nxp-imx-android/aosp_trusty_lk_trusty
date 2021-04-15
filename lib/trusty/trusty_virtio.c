@@ -74,7 +74,7 @@ static status_t map_descr(ext_mem_client_id_t client_id,
                           ns_size_t sz,
                           uint buf_mmu_flags) {
     return ext_mem_map_obj_id(vmm_get_kernel_aspace(), "virtio", client_id,
-                              buf_id, 0, round_up(sz, PAGE_SIZE), buf_va,
+                              buf_id, 0, 0, round_up(sz, PAGE_SIZE), buf_va,
                               PAGE_SIZE_SHIFT, 0, buf_mmu_flags);
 }
 

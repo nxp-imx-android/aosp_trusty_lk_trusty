@@ -62,6 +62,7 @@ struct ext_mem_page_run {
 /**
  * struct ext_mem_obj - Memory object for external sources.
  * @id:             Unique id used for lookup.
+ * @tag:            Metadata used by some systems. Set to 0 if unused.
  * @vmm_obj:        VMM object.
  * @node:           Search tree node.
  * @arch_mmu_flags: Memory type and required permission flags.
@@ -70,6 +71,7 @@ struct ext_mem_page_run {
  */
 struct ext_mem_obj {
     ext_mem_obj_id_t id;
+    uint64_t tag;
     struct vmm_obj vmm_obj;
     struct bst_node node;
     uint arch_mmu_flags;
@@ -96,6 +98,7 @@ static inline size_t ext_mem_obj_page_runs_size(size_t page_run_count) {
  * @obj:            Object to initialize.
  * @ref:            Initial reference.
  * @id:             Unique id used by ext_mem_insert and ext_mem_lookup.
+ * @tag:            Extra metadata used by some systems. Set to 0 if unused.
  * @ops:            Pointer to &struct vmm_obj_ops. @ops->check_flags can point
  *                  directly to ext_mem_obj_check_flags. @ops->get_page can
  *                  point directly to ext_mem_obj_get_page. @ops->destroy must
@@ -106,6 +109,7 @@ static inline size_t ext_mem_obj_page_runs_size(size_t page_run_count) {
 void ext_mem_obj_initialize(struct ext_mem_obj* obj,
                             struct obj_ref* ref,
                             ext_mem_obj_id_t id,
+                            uint64_t tag,
                             struct vmm_obj_ops* ops,
                             uint arch_mmu_flags,
                             size_t page_run_count);
@@ -158,7 +162,7 @@ struct ext_mem_obj* ext_mem_lookup(struct bst_root* objs, ext_mem_obj_id_t id);
  * restrictive than @arch_mmu_flags. Copy memory type flags from
  * &ext_mem_obj->arch_mmu_flags to @arch_mmu_flags.
  *
- * Return 0 on success, error code on failure.
+ * Return: 0 on success, error code on failure.
  */
 int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags);
 
@@ -173,7 +177,7 @@ int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags);
  * Get single page or physically contiguous region at @offset bytes from
  * start of @obj.
  *
- * Return 0 on success, error code on failure.
+ * Return: 0 on success, error code on failure.
  */
 int ext_mem_obj_get_page(struct vmm_obj* obj,
                          size_t offset,
@@ -186,6 +190,7 @@ int ext_mem_obj_get_page(struct vmm_obj* obj,
  * @name:           Pass-through to vmm_alloc_obj.
  * @client_id:      Id of external entity where the memory originated.
  * @mem_obj_id:     Id of shared memory object to lookup and map.
+ * @tag:            Tag of the memory. If a non-FF-A object, use 0.
  * @offset:         Pass-through to vmm_alloc_obj.
  * @size:           Pass-through to vmm_alloc_obj.
  * @ptr:            Pass-through to vmm_alloc_obj.
@@ -199,6 +204,7 @@ status_t ext_mem_map_obj_id(struct vmm_aspace* aspace,
                             const char* name,
                             ext_mem_client_id_t client_id,
                             ext_mem_obj_id_t mem_obj_id,
+                            uint64_t tag,
                             size_t offset,
                             size_t size,
                             void** ptr,
@@ -210,6 +216,7 @@ status_t ext_mem_map_obj_id(struct vmm_aspace* aspace,
  * ext_mem_get_vmm_obj - Lookup shared memory object.
  * @client_id:      Id of external entity where the memory originated.
  * @mem_obj_id:     Id of shared memory opbject to lookup and return.
+ * @tag:            Tag of the memory. If a non-FF-A object, use 0.
  * @size:           Size hint for object. Caller expects an object at least this
  *                  big.
  * @objp:           Pointer to return object in.
@@ -221,6 +228,7 @@ status_t ext_mem_map_obj_id(struct vmm_aspace* aspace,
  */
 status_t ext_mem_get_vmm_obj(ext_mem_client_id_t client_id,
                              ext_mem_obj_id_t mem_obj_id,
+                             uint64_t tag,
                              size_t size,
                              struct vmm_obj** objp,
                              struct obj_ref* obj_ref);

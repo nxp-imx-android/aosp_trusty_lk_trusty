@@ -58,7 +58,7 @@ int vqueue_init(struct vqueue* vq,
 
     vq->vring_sz = vring_size(num, align);
     ret = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "vqueue", client_id,
-                             shared_mem_id, 0,
+                             shared_mem_id, 0, 0,
                              round_up(vq->vring_sz, PAGE_SIZE), &vptr,
                              PAGE_SIZE_SHIFT, 0, ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (ret != NO_ERROR) {
@@ -225,7 +225,7 @@ int vqueue_map_iovs(ext_mem_client_id_t client_id,
     for (i = 0; i < vqiovs->used; i++) {
         vqiovs->iovs[i].iov_base = NULL;
         ret = ext_mem_map_obj_id(vmm_get_kernel_aspace(), "vqueue-buf",
-                                 client_id, vqiovs->shared_mem_id[i], 0,
+                                 client_id, vqiovs->shared_mem_id[i], 0, 0,
                                  round_up(vqiovs->iovs[i].iov_len, PAGE_SIZE),
                                  &vqiovs->iovs[i].iov_base, PAGE_SIZE_SHIFT, 0,
                                  flags);
