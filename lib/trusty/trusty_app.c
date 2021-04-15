@@ -1408,9 +1408,11 @@ err_notifier:
     }
 
     free(trusty_app->als);
+    trusty_app->als = NULL;
 err_alloc:
 err_map:
     vmm_free_aspace(trusty_app->aspace);
+    trusty_app->aspace = NULL;
 err_aspace:
     return ret;
 }
@@ -1451,7 +1453,7 @@ void trusty_app_exit(int status) {
     }
 
     free(app->als);
-
+    app->als = NULL;
     mutex_acquire(&apps_lock);
     app->state = APP_TERMINATING;
     mutex_release(&apps_lock);
@@ -1494,8 +1496,9 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     ret = thread_join(app->thread->thread, &retcode, INFINITE_TIME);
     ASSERT(ret == NO_ERROR);
     free(app->thread);
+    app->thread = NULL;
     ret = vmm_free_aspace(app->aspace);
-
+    app->aspace = NULL;
     /*
      * Drop the lock to call into ipc to check for connections. This is safe
      * since the app is in the APP_TERMINANTING state so it cannot be removed.
