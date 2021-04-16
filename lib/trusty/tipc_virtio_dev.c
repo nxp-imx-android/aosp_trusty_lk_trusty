@@ -178,10 +178,10 @@ static int tipc_ext_mem_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
     return tem->ext_mem->ops->check_flags(tem->ext_mem, arch_mmu_flags);
 }
 
-int tipc_ext_mem_get_page(struct vmm_obj* obj,
-                          size_t offset,
-                          paddr_t* paddr,
-                          size_t* paddr_size) {
+static int tipc_ext_mem_get_page(struct vmm_obj* obj,
+                                 size_t offset,
+                                 paddr_t* paddr,
+                                 size_t* paddr_size) {
     struct tipc_ext_mem* tem = containerof(obj, struct tipc_ext_mem, vmm_obj);
     return tem->ext_mem->ops->get_page(tem->ext_mem, offset, paddr, paddr_size);
 }
@@ -220,6 +220,14 @@ static struct tipc_ext_mem* vmm_obj_to_tipc_ext_mem(struct vmm_obj* obj) {
     } else {
         return NULL;
     }
+}
+
+struct vmm_obj* tipc_ext_mem_vmm_obj_to_ext_mem_vmm_obj(struct vmm_obj* obj) {
+    struct tipc_ext_mem* tem = vmm_obj_to_tipc_ext_mem(obj);
+    if (!tem) {
+        return NULL;
+    }
+    return tem->ext_mem;
 }
 
 static void tipc_ext_mem_initialize(struct tipc_ext_mem* tem,

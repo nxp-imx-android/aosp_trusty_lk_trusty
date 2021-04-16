@@ -88,3 +88,15 @@ status_t create_tipc_device(const struct tipc_vdev_descr* descr,
                             size_t descr_sz,
                             const uuid_t* uuid,
                             struct tipc_dev** dev_ptr);
+
+/**
+ * tipc_ext_mem_vmm_obj_to_ext_mem_vmm_obj - Get inner ext_mem vmm_obj
+ * @obj: Pointer to a vmm_obj believed to point to external memory.
+ *
+ * Reflects through the tipc_ext_mem vmm_obj to find an ext_mem vmm_obj and
+ * returns it if possible.
+ *
+ * Return: If the provided vmm_obj is a tipc wrapped external memory object,
+ * returns the external memory vmm_obj pointer. Otherwise, returns NULL.
+ */
+struct vmm_obj* tipc_ext_mem_vmm_obj_to_ext_mem_vmm_obj(struct vmm_obj* obj);
