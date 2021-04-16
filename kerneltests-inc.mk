@@ -30,5 +30,6 @@ MODULES += \
 	trusty/kernel/app/stdcalltest \
 	trusty/kernel/app/uirqtest \
 	trusty/kernel/app/usercopytest \
+	trusty/kernel/app/userscstest \
 
 include external/lk/kerneltests-inc.mk
