@@ -37,14 +37,14 @@
 
 #define LOCAL_TRACE (0)
 
-#define APP_NAME_MAX_SIZE 256
 /*
  * Format of the payload is "<UUID>:<app name>", with neither UUID nor app name
  * being null-terminated. However, unlike APP_NAME_MAX_SIZE, UUID_STR_SIZE
- * counts the null character. Hence, the maximum size of the payload is
- * UUID_STR_SIZE + APP_NAME_MAX_SIZE.
+ * counts the null character. Hence, the maximum size of an app name is
+ * METRICS_MAX_APP_ID_LEN - UUID_STR_SIZE.
  */
-#define CRASH_PAYLOAD_MAX_SIZE (UUID_STR_SIZE + APP_NAME_MAX_SIZE)
+static_assert(UUID_STR_SIZE <= METRICS_MAX_APP_ID_LEN);
+#define APP_NAME_MAX_SIZE (METRICS_MAX_APP_ID_LEN - UUID_STR_SIZE)
 
 /**
  * enum chan_state - states of the metrics consumer channel event handler
@@ -151,7 +151,7 @@ static int report_crash(struct handle* chan, struct trusty_app* app) {
     int rc;
     struct metrics_req req;
     struct metrics_report_crash_req args;
-    char payload[CRASH_PAYLOAD_MAX_SIZE];
+    char payload[METRICS_MAX_APP_ID_LEN];
     size_t uuid_str_len;
     size_t app_name_len;
     size_t payload_len;
@@ -159,7 +159,7 @@ static int report_crash(struct handle* chan, struct trusty_app* app) {
 
     DEBUG_ASSERT(is_mutex_held(&ctx_lock));
 
-    memset(payload, 0, CRASH_PAYLOAD_MAX_SIZE);
+    memset(payload, 0, METRICS_MAX_APP_ID_LEN);
 
     /* Format of the payload is "<UUID>:<app name>". */
     uuid_to_str(&app->props.uuid, payload);
@@ -172,6 +172,7 @@ static int report_crash(struct handle* chan, struct trusty_app* app) {
     app_name_len = strnlen(app->props.app_name, APP_NAME_MAX_SIZE);
     memcpy(&payload[UUID_STR_SIZE], app->props.app_name, app_name_len);
     payload_len = UUID_STR_SIZE + app_name_len;
+    assert(payload_len <= METRICS_MAX_APP_ID_LEN);
 
     req.cmd = METRICS_CMD_REPORT_CRASH;
     args.app_id_len = payload_len;
