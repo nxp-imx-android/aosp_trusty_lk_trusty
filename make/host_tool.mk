@@ -39,8 +39,11 @@ endif
 
 ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
-HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 # ASAN is not compatable with GDB.
+HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
+
+# We should use the prebuilt linker rather than the host linker
+HOST_LDFLAGS := -B$(CLANG_BINDIR) -fuse-ld=lld
 
 # When using clang, we need to always use the prebuilt libc++ library
 # because we can't be sure what version of libstdc++ the host system
@@ -48,9 +51,11 @@ HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 ifneq ($(filter stdc++ c++,$(HOST_LIBS)),)
 # Add the prebuilt libraries directory to the tool's rpath,
 # so it can use those libraries, e.g., libc++.so
-HOST_LIBCXX_PATH := $(shell $(HOST_CC) -print-file-name=libc++.so)
-HOST_LIBCXX_CPPFLAGS := -stdlib=libc++
-HOST_LIBCXX_LDFLAGS := -lc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
+HOST_LIBCXX_CPPFLAGS := -stdlib=libc++ -isystem$(CLANG_BINDIR)/../include/c++/v1
+HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+# Add relative path inside the SDK package to RPATH
+HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../toolchain/clang/lib64'
 else
 HOST_LIBCXX_CPPFLAGS :=
 HOST_LIBCXX_LDFLAGS :=
@@ -78,7 +83,7 @@ include make/generic_compile.mk
 # Link
 HOST_TOOL_BIN := $(BUILDDIR)/host_tools/$(HOST_TOOL_NAME)
 $(HOST_TOOL_BIN): CC := $(HOST_CC)
-$(HOST_TOOL_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
+$(HOST_TOOL_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LDFLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
 $(HOST_TOOL_BIN): $(GENERIC_OBJS)
 	@echo linking $@
 	@$(MKDIR)
