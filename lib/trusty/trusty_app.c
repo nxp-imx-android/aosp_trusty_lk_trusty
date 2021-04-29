@@ -31,9 +31,11 @@
 #include <compiler.h>
 #include <debug.h>
 #include <err.h>
+#include <inttypes.h>
 #include <kernel/event.h>
 #include <kernel/mutex.h>
 #include <kernel/thread.h>
+#include <lib/app_manifest/app_manifest.h>
 #include <lib/rand/rand.h>
 #include <lib/trusty/ipc.h>
 #include <lk/init.h>
@@ -490,20 +492,18 @@ static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
 static status_t load_app_config_options(struct trusty_app* trusty_app) {
     char* manifest_data;
     size_t manifest_size;
-    const char* port_name;
-    uint32_t port_name_size;
-    uint32_t port_flags;
-    uint32_t mmio_id, mmio_arch_mmu_flags;
-    uint64_t mmio_offset, mmio_size;
-    uint32_t app_name_size;
+    uint32_t mmio_arch_mmu_flags;
+    uint64_t mmio_size;
     struct manifest_mmio_entry* mmio_entry;
     paddr_t tmp_paddr;
-    u_int *config_blob, config_blob_size;
-    u_int i;
     status_t ret;
     struct manifest_port_entry* entry;
+    struct app_manifest_iterator manifest_iter;
+    struct app_manifest_config_entry manifest_entry;
+    const char* unknown_app_name = "<unknown>";
 
     /* init default config options before parsing manifest */
+    trusty_app->props.app_name = unknown_app_name;
     trusty_app->props.min_heap_size = DEFAULT_HEAP_SIZE;
     trusty_app->props.min_stack_size = DEFAULT_STACK_SIZE;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
@@ -518,96 +518,23 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     }
 
     /*
-     * manifest data is expected to contain at least
-     * uuid, app_name_size and app_name
-     */
-    if (manifest_size < sizeof(trusty_app->props.uuid)) {
-        dprintf(CRITICAL, "app %u manifest too small %zu, missing uuid\n",
-                trusty_app->app_id, manifest_size);
-        return ERR_NOT_VALID;
-    }
-
-    memcpy(&trusty_app->props.uuid, (uuid_t*)manifest_data,
-           sizeof(trusty_app->props.uuid));
-
-    PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
-
-    if (trusty_app_find_by_uuid_locked(&trusty_app->props.uuid)) {
-        dprintf(CRITICAL, "app already registered\n");
-        return ERR_ALREADY_EXISTS;
-    }
-
-    manifest_data += sizeof(trusty_app->props.uuid);
-    manifest_size -= sizeof(trusty_app->props.uuid);
-
-    if (manifest_size < sizeof(uint32_t)) {
-        dprintf(CRITICAL,
-                "app %u manifest too small %zu, missing app-name-size\n",
-                trusty_app->app_id, manifest_size);
-        return ERR_NOT_VALID;
-    }
-
-    app_name_size = *((uint32_t*)manifest_data);
-    manifest_data += sizeof(uint32_t);
-    manifest_size -= sizeof(uint32_t);
-
-    /* app name size with padding */
-    app_name_size =
-            DIV_ROUND_UP(app_name_size, sizeof(uint32_t)) * sizeof(uint32_t);
-    if (app_name_size == 0) {
-        dprintf(CRITICAL, "app %u invalid app-name-size 0x%x\n",
-                trusty_app->app_id, app_name_size);
-        return ERR_NOT_VALID;
-    }
-    if (manifest_size < app_name_size) {
-        dprintf(CRITICAL,
-                "app %u manifest too small %zu, missing app-name, app-name-size 0x%x\n",
-                trusty_app->app_id, manifest_size, app_name_size);
-        return ERR_NOT_VALID;
-    }
-    trusty_app->props.app_name = (const char*)manifest_data;
-    if (trusty_app->props.app_name[app_name_size - 1] != '\0') {
-        dprintf(CRITICAL,
-                "app %u app-name is not null terminated, app-name-size 0x%x\n",
-                trusty_app->app_id, app_name_size);
-        return ERR_NOT_VALID;
-    }
-    dprintf(SPEW, "trusty_app %u name: %s app-name-size: 0x%x\n",
-            trusty_app->app_id, trusty_app->props.app_name, app_name_size);
-
-    manifest_data += app_name_size;
-    manifest_size -= app_name_size;
-
-    config_blob = (u_int*)manifest_data;
-    config_blob_size = manifest_size;
-
-    trusty_app->props.config_entry_cnt = config_blob_size / sizeof(u_int);
-
-    /* if no config options we're done */
-    if (trusty_app->props.config_entry_cnt == 0) {
-        return NO_ERROR;
-    }
-
-    /* save off configuration blob start so it can be accessed later */
-    trusty_app->props.config_blob = config_blob;
-
-    /*
      * Step thru configuration blob.
      *
      * Save off some configuration data while we are here but
      * defer processing of other data until it is needed later.
      */
-    for (i = 0; i < trusty_app->props.config_entry_cnt; i++) {
-        switch (config_blob[i]) {
-        case TRUSTY_APP_CONFIG_KEY_MIN_STACK_SIZE:
-            /* MIN_STACK_SIZE takes 1 data value */
-            if ((trusty_app->props.config_entry_cnt - i) < 2) {
-                dprintf(CRITICAL,
-                        "manifest missing MIN_STACK_SIZE value of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-            trusty_app->props.min_stack_size = round_up(config_blob[++i], 4096);
+    ret = app_manifest_iterator_reset(&manifest_iter, manifest_data,
+                                      manifest_size);
+    if (ret != NO_ERROR) {
+        dprintf(CRITICAL, "error parsing manifest for app %u\n",
+                trusty_app->app_id);
+        return ret;
+    }
+    while (app_manifest_iterator_next(&manifest_iter, &manifest_entry, &ret)) {
+        switch (manifest_entry.key) {
+        case APP_MANIFEST_CONFIG_KEY_MIN_STACK_SIZE:
+            trusty_app->props.min_stack_size =
+                    manifest_entry.value.min_stack_size;
             if (trusty_app->props.min_stack_size == 0) {
                 dprintf(CRITICAL,
                         "manifest MIN_STACK_SIZE is 0 of app %u, %s\n",
@@ -615,74 +542,54 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                 return ERR_NOT_VALID;
             }
             break;
-        case TRUSTY_APP_CONFIG_KEY_MIN_HEAP_SIZE:
-            /* MIN_HEAP_SIZE takes 1 data value */
-            if ((trusty_app->props.config_entry_cnt - i) < 2) {
-                dprintf(CRITICAL,
-                        "manifest missing MIN_HEAP_SIZE value of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-            trusty_app->props.min_heap_size = config_blob[++i];
+        case APP_MANIFEST_CONFIG_KEY_MIN_HEAP_SIZE:
+            trusty_app->props.min_heap_size =
+                    manifest_entry.value.min_heap_size;
             break;
-        case TRUSTY_APP_CONFIG_KEY_MAP_MEM:
-            /* MAP_MEM takes 6 data values */
-            if ((trusty_app->props.config_entry_cnt - i) < 7) {
-                dprintf(CRITICAL,
-                        "manifest missing MAP_MEM value of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-            mmio_id = trusty_app->props.config_blob[++i];
-            /*
-             * TODO: add big endian support? The manifest_compiler wrote the
-             * next two entries as 64 bit numbers with the byte order of the
-             * build machine. The code below assumes the manifest data and
-             * device are both little-endian.
-             */
-            mmio_offset = trusty_app->props.config_blob[++i];
-            mmio_offset |= (uint64_t)trusty_app->props.config_blob[++i] << 32;
-            mmio_size = round_up(trusty_app->props.config_blob[++i], PAGE_SIZE);
-            mmio_size |= (uint64_t)trusty_app->props.config_blob[++i] << 32;
-            mmio_arch_mmu_flags = trusty_app->props.config_blob[++i];
+        case APP_MANIFEST_CONFIG_KEY_MAP_MEM:
+            mmio_arch_mmu_flags = manifest_entry.value.mem_map.arch_mmu_flags;
+            mmio_size = round_up(manifest_entry.value.mem_map.size, PAGE_SIZE);
             trusty_app->props.map_io_mem_cnt++;
 
-            if (!IS_PAGE_ALIGNED(mmio_offset)) {
+            if (!IS_PAGE_ALIGNED(manifest_entry.value.mem_map.offset)) {
                 dprintf(CRITICAL, "mmio_id %u not page aligned of app %u, %s\n",
-                        mmio_id, trusty_app->app_id,
+                        manifest_entry.value.mem_map.id, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
-            if ((paddr_t)mmio_offset != mmio_offset ||
+            if ((paddr_t)manifest_entry.value.mem_map.offset !=
+                        manifest_entry.value.mem_map.offset ||
                 (size_t)mmio_size != mmio_size) {
                 dprintf(CRITICAL,
                         "mmio_id %d address/size too large of app %u, %s\n",
-                        mmio_id, trusty_app->app_id,
+                        manifest_entry.value.mem_map.id, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
-            if (!mmio_size || __builtin_add_overflow(mmio_offset, mmio_size - 1,
-                                                     &tmp_paddr)) {
+            if (!mmio_size ||
+                __builtin_add_overflow(manifest_entry.value.mem_map.offset,
+                                       mmio_size - 1, &tmp_paddr)) {
                 dprintf(CRITICAL, "mmio_id %u bad size of app %u, %s\n",
-                        mmio_id, trusty_app->app_id,
+                        manifest_entry.value.mem_map.id, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
-            if (mmio_arch_mmu_flags &
+            if (manifest_entry.value.mem_map.arch_mmu_flags &
                         ~(ARCH_MMU_FLAG_CACHE_MASK | ARCH_MMU_FLAG_NS) ||
-                ((mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
-                         ARCH_MMU_FLAG_CACHED &&
-                 (mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
-                         ARCH_MMU_FLAG_UNCACHED &&
-                 (mmio_arch_mmu_flags & ARCH_MMU_FLAG_CACHE_MASK) !=
-                         ARCH_MMU_FLAG_UNCACHED_DEVICE)) {
+                ((manifest_entry.value.mem_map.arch_mmu_flags &
+                  ARCH_MMU_FLAG_CACHE_MASK) != ARCH_MMU_FLAG_CACHED &&
+                 (manifest_entry.value.mem_map.arch_mmu_flags &
+                  ARCH_MMU_FLAG_CACHE_MASK) != ARCH_MMU_FLAG_UNCACHED &&
+                 (manifest_entry.value.mem_map.arch_mmu_flags &
+                  ARCH_MMU_FLAG_CACHE_MASK) != ARCH_MMU_FLAG_UNCACHED_DEVICE)) {
                 dprintf(CRITICAL,
                         "mmio_id %u bad arch_mmu_flags 0x%x of app %u, %s\n",
-                        mmio_id, mmio_arch_mmu_flags, trusty_app->app_id,
-                        trusty_app->props.app_name);
+                        manifest_entry.value.mem_map.id,
+                        manifest_entry.value.mem_map.arch_mmu_flags,
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
             mmio_arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
@@ -691,75 +598,39 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             if (!mmio_entry) {
                 dprintf(CRITICAL,
                         "Failed to allocate memory for manifest mmio %d of app %u, %s\n",
-                        mmio_id, trusty_app->app_id,
+                        manifest_entry.value.mem_map.id, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ERR_NO_MEMORY;
             }
 
             phys_mem_obj_initialize(&mmio_entry->phys_mem_obj,
                                     &mmio_entry->phys_mem_obj_self_ref,
-                                    mmio_offset, mmio_size,
-                                    mmio_arch_mmu_flags);
-            mmio_entry->id = mmio_id;
+                                    manifest_entry.value.mem_map.offset,
+                                    mmio_size, mmio_arch_mmu_flags);
+            mmio_entry->id = manifest_entry.value.mem_map.id;
             list_add_tail(&trusty_app->props.mmio_entry_list,
                           &mmio_entry->node);
 
             break;
-        case TRUSTY_APP_CONFIG_KEY_MGMT_FLAGS:
-            /* MGMT_FLAGS takes 1 data value */
-            if (trusty_app->props.config_entry_cnt - i < 2) {
-                dprintf(CRITICAL,
-                        "manifest missing MGMT_FLAGS value of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-            trusty_app->props.mgmt_flags = config_blob[++i];
+        case APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS:
+            trusty_app->props.mgmt_flags = manifest_entry.value.mgmt_flags;
             break;
-        case TRUSTY_APP_CONFIG_KEY_START_PORT:
-            /* START_PORT takes at least 3 data values */
-            if (trusty_app->props.config_entry_cnt - i < 4) {
+        case APP_MANIFEST_CONFIG_KEY_START_PORT:
+            if (manifest_entry.value.start_port.name_size > IPC_PORT_PATH_MAX) {
                 dprintf(CRITICAL,
-                        "manifest missing START_PORT values of app %u, %s\n",
+                        "manifest port name %s too long:%#" PRIx32
+                        " of app %u, %s\n",
+                        manifest_entry.value.start_port.name,
+                        manifest_entry.value.start_port.name_size,
                         trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
-            port_flags = config_blob[++i];
-            port_name_size = config_blob[++i];
-            port_name = (const char*)&config_blob[++i];
-
-            if (!address_range_within_bounds(port_name, port_name_size,
-                                             config_blob,
-                                             config_blob + config_blob_size)) {
-                dprintf(CRITICAL,
-                        "manifest string out of bounds: %p size: 0x%x config_blob: %p config_blob_size: 0x%x of app %u, %s\n",
-                        port_name, port_name_size, config_blob,
-                        config_blob_size, trusty_app->app_id,
-                        trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-
-            if (!port_name_size || port_name_size > IPC_PORT_PATH_MAX) {
-                dprintf(CRITICAL,
-                        "manifest port name has invalid size:%#x of app %u, %s\n",
-                        port_name_size, trusty_app->app_id,
-                        trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-
-            size_t bound_len = strnlen(port_name, IPC_PORT_PATH_MAX);
-            if (!bound_len || bound_len == IPC_PORT_PATH_MAX) {
-                dprintf(CRITICAL,
-                        "manifest port name is empty or not null-terminated of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-
-            i += DIV_ROUND_UP(port_name_size, sizeof(uint32_t)) - 1;
-
-            entry = find_manifest_port_entry_locked(port_name, NULL);
+            entry = find_manifest_port_entry_locked(
+                    manifest_entry.value.start_port.name, NULL);
             if (entry) {
-                dprintf(CRITICAL, "Port %s is already registered\n", port_name);
+                dprintf(CRITICAL, "Port %s is already registered\n",
+                        manifest_entry.value.start_port.name);
                 return ERR_ALREADY_EXISTS;
             }
 
@@ -767,46 +638,57 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             if (!entry) {
                 dprintf(CRITICAL,
                         "Failed to allocate memory for manifest port %s of app %u, %s\n",
-                        port_name, trusty_app->app_id,
-                        trusty_app->props.app_name);
+                        manifest_entry.value.start_port.name,
+                        trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NO_MEMORY;
             }
 
-            entry->flags = port_flags;
-            entry->path_len = port_name_size;
-            entry->path = port_name;
+            entry->flags = manifest_entry.value.start_port.flags;
+            entry->path_len = manifest_entry.value.start_port.name_size;
+            entry->path = manifest_entry.value.start_port.name;
 
             list_add_tail(&trusty_app->props.port_entry_list, &entry->node);
 
             break;
-        case TRUSTY_APP_CONFIG_KEY_PINNED_CPU:
-            /* PINNED_CPU takes 1 data value */
-            if ((trusty_app->props.config_entry_cnt - i) < 2) {
-                dprintf(CRITICAL,
-                        "manifest missing PINNED_CPU value of app %u, %s\n",
-                        trusty_app->app_id, trusty_app->props.app_name);
-                return ERR_NOT_VALID;
-            }
-            uint32_t pinned_cpu = config_blob[++i];
-
-            if (pinned_cpu >= SMP_MAX_CPUS) {
+        case APP_MANIFEST_CONFIG_KEY_PINNED_CPU:
+            if (manifest_entry.value.pinned_cpu >= SMP_MAX_CPUS) {
                 dprintf(CRITICAL,
                         "pinned CPU index %u out of range, app %u, %s\n",
-                        pinned_cpu, trusty_app->app_id,
+                        manifest_entry.value.pinned_cpu, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
 
-            trusty_app->props.pinned_cpu = (int)pinned_cpu;
+            trusty_app->props.pinned_cpu = manifest_entry.value.pinned_cpu;
             break;
-        default:
-            dprintf(CRITICAL,
-                    "manifest contains unknown config key %u at %p for app %u, %s\n",
-                    config_blob[i], &config_blob[i], trusty_app->app_id,
-                    trusty_app->props.app_name);
-            return ERR_NOT_VALID;
+        case APP_MANIFEST_CONFIG_KEY_UUID:
+            memcpy(&trusty_app->props.uuid, &manifest_entry.value.uuid,
+                   sizeof(uuid_t));
+            break;
+        case APP_MANIFEST_CONFIG_KEY_APP_NAME:
+            trusty_app->props.app_name = manifest_entry.value.app_name;
+            break;
         }
     }
+    if (ret != NO_ERROR) {
+        dprintf(CRITICAL, "error parsing manifest for app %u\n",
+                trusty_app->app_id);
+        return ret;
+    }
+    if (trusty_app->props.app_name == unknown_app_name) {
+        dprintf(CRITICAL, "app-name missing for app %u\n", trusty_app->app_id);
+        return ERR_NOT_VALID;
+    }
+
+    PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
+
+    if (trusty_app_find_by_uuid_locked(&trusty_app->props.uuid)) {
+        dprintf(CRITICAL, "app already registered\n");
+        return ERR_ALREADY_EXISTS;
+    }
+
+    dprintf(SPEW, "trusty_app %u name: %s\n", trusty_app->app_id,
+            trusty_app->props.app_name);
 
     LTRACEF("trusty_app %p: stack_sz=0x%x\n", trusty_app,
             trusty_app->props.min_stack_size);

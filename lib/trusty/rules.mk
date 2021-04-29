@@ -81,6 +81,7 @@ GLOBAL_INCLUDES += \
 
 MODULE_DEPS += \
 	lib/syscall \
+	trusty/kernel/lib/app_manifest \
 	trusty/kernel/lib/backtrace \
 	trusty/kernel/lib/libc-ext \
 	trusty/kernel/lib/rand \

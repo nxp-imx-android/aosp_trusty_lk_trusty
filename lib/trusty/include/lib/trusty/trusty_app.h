@@ -64,8 +64,6 @@ struct trusty_app_props {
     uint32_t min_stack_size;
     uint32_t min_heap_size;
     uint32_t map_io_mem_cnt;
-    uint32_t config_entry_cnt;
-    uint32_t* config_blob;
     struct list_node port_entry_list;
     struct list_node mmio_entry_list;
     int pinned_cpu;
