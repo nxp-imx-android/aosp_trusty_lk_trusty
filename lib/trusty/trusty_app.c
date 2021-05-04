@@ -667,6 +667,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         case APP_MANIFEST_CONFIG_KEY_APP_NAME:
             trusty_app->props.app_name = manifest_entry.value.app_name;
             break;
+        case APP_MANIFEST_CONFIG_KEY_VERSION:
+            /* Handled by apploader */
+            break;
         }
     }
     if (ret != NO_ERROR) {

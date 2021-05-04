@@ -39,6 +39,7 @@ __BEGIN_CDECLS
  * @APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS: Key for "mgmt_flags"
  * @APP_MANIFEST_CONFIG_KEY_START_PORT: Key for "start_ports"
  * @APP_MANIFEST_CONFIG_KEY_PINNED_CPU: Key for "pinned_cpu"
+ * @APP_MANIFEST_CONFIG_KEY_VERSION: Key for "version"
  * @APP_MANIFEST_CONFIG_KEY_UUID: Pseudo-key for "uuid"
  * @APP_MANIFEST_CONFIG_KEY_APP_NAME: Pseudo-key for name of application
  */
@@ -49,6 +50,7 @@ enum app_manifest_config_key {
     APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS = 4,
     APP_MANIFEST_CONFIG_KEY_START_PORT = 5,
     APP_MANIFEST_CONFIG_KEY_PINNED_CPU = 6,
+    APP_MANIFEST_CONFIG_KEY_VERSION = 7,
 
     /* Pseudo-keys for required entries */
     APP_MANIFEST_CONFIG_KEY_UUID = 0xfffffffeU,
@@ -95,6 +97,7 @@ enum app_manifest_mgmt_flags {
  * @value.start_port.flags: Encoded value of "start_ports[...].flags"
  * @value.start_port.name: Value of "start_ports[...].name"
  * @value.pinned_cpu: Value of "pinned_cpu"
+ * @value.version: Value of "version"
  */
 struct app_manifest_config_entry {
     enum app_manifest_config_key key;
@@ -116,6 +119,7 @@ struct app_manifest_config_entry {
             const char* name;
         } start_port;
         int pinned_cpu;
+        uint32_t version;
     } value;
 };
 
