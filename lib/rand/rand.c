@@ -21,7 +21,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <assert.h>
 #include <lib/rand/rand.h>
+#include <platform/random.h>
 #include <rand.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -39,16 +41,8 @@ size_t rand_get_size(size_t max) {
     return rand_size % (max + 1);
 }
 
-/*TODO: replace the current fake with implementation*/
 int rand_get_bytes(uint8_t* buf, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        buf[i] = (uint8_t)rand();
-    }
-    return 0;
-}
-
-/*TODO: replace the current fake with implementation*/
-int rand_add_entropy(const uint8_t* buf, size_t len) {
-    libc_trusty_rand_add_entropy(buf, len);
+    DEBUG_ASSERT(buf);
+    platform_random_get_bytes(buf, len);
     return 0;
 }
