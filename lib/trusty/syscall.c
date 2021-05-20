@@ -33,6 +33,7 @@
 #include <string.h>
 #include <trace.h>
 #include <uapi/mm.h>
+#include <uapi/time.h>
 
 #include <lib/trusty/memref.h>
 #include <lib/trusty/sys_fd.h>
@@ -209,7 +210,15 @@ long sys_nanosleep(uint32_t clock_id, uint32_t flags, uint64_t sleep_time) {
 }
 #endif
 
+extern uint32_t monotonic_time_s(void);
+
 long sys_gettime(uint32_t clock_id, uint32_t flags, user_addr_t time) {
+#if USE_IMX_MONOTONIC_TIME
+    if (clock_id == CLOCK_MONOTONIC) {
+        int64_t monotonic_t_64 = (int64_t)monotonic_time_s();
+        return copy_to_user(time, &monotonic_t_64, sizeof(int64_t));
+    }
+#endif
     // return time in nanoseconds
     lk_time_ns_t t = current_time_ns();
 
