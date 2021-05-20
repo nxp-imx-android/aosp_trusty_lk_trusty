@@ -502,7 +502,7 @@ void platform_halt(platform_halt_action suggested_action,
 
     arch_disable_fiqs();
     while (true)
-        sm_sched_nonsecure(SM_ERR_PANIC, &args);
+        sm_sched_nonsecure_fiq_loop(SM_ERR_PANIC, &args);
 }
 
 status_t sm_get_boot_args(void** boot_argsp, size_t* args_sizep) {
