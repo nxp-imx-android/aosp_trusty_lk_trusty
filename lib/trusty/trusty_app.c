@@ -488,6 +488,13 @@ static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
     return NO_ERROR;
 }
 
+static void destroy_app_phys_mem(struct phys_mem_obj* obj) {
+    struct manifest_mmio_entry* mmio_entry;
+    mmio_entry = containerof(obj, struct manifest_mmio_entry, phys_mem_obj);
+    assert(!list_in_list(&mmio_entry->node));
+    free(mmio_entry);
+}
+
 static status_t load_app_config_options(struct trusty_app* trusty_app) {
     char* manifest_data;
     size_t manifest_size;
@@ -602,10 +609,11 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                 return ERR_NO_MEMORY;
             }
 
-            phys_mem_obj_initialize(&mmio_entry->phys_mem_obj,
-                                    &mmio_entry->phys_mem_obj_self_ref,
-                                    manifest_entry.value.mem_map.offset,
-                                    mmio_size, mmio_arch_mmu_flags);
+            phys_mem_obj_dynamic_initialize(&mmio_entry->phys_mem_obj,
+                                            &mmio_entry->phys_mem_obj_self_ref,
+                                            manifest_entry.value.mem_map.offset,
+                                            mmio_size, mmio_arch_mmu_flags,
+                                            destroy_app_phys_mem);
             mmio_entry->id = manifest_entry.value.mem_map.id;
             list_add_tail(&trusty_app->props.mmio_entry_list,
                           &mmio_entry->node);
@@ -1070,8 +1078,10 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     ELF_EHDR* ehdr;
     struct trusty_app* trusty_app;
     status_t ret;
-    struct manifest_port_entry* entry;
-    struct manifest_port_entry* tmp_entry;
+    struct manifest_port_entry* port_entry;
+    struct manifest_port_entry* tmp_port_entry;
+    struct manifest_mmio_entry* mmio_entry;
+    struct manifest_mmio_entry* tmp_mmio_entry;
 
     if (app_img->img_start & PAGE_MASK || app_img->img_end & PAGE_MASK) {
         dprintf(CRITICAL,
@@ -1135,10 +1145,18 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     dprintf(CRITICAL, "manifest processing failed(%d)\n", ret);
 
 err_load:
-    list_for_every_entry_safe(&trusty_app->props.port_entry_list, entry,
-                              tmp_entry, struct manifest_port_entry, node) {
-        list_delete(&entry->node);
-        free(entry);
+    list_for_every_entry_safe(&trusty_app->props.port_entry_list, port_entry,
+                              tmp_port_entry, struct manifest_port_entry,
+                              node) {
+        list_delete(&port_entry->node);
+        free(port_entry);
+    }
+    list_for_every_entry_safe(&trusty_app->props.mmio_entry_list, mmio_entry,
+                              tmp_mmio_entry, struct manifest_mmio_entry,
+                              node) {
+        list_delete(&mmio_entry->node);
+        vmm_obj_del_ref(&mmio_entry->phys_mem_obj.vmm_obj,
+                        &mmio_entry->phys_mem_obj_self_ref);
     }
 err_hdr:
     free(trusty_app);
