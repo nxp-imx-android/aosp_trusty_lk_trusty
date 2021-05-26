@@ -27,7 +27,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <uapi/trusty_app_manifest_types.h>
+#include <uapi/trusty_uuid.h>
 
 __BEGIN_CDECLS
 
@@ -56,6 +56,26 @@ enum app_manifest_config_key {
 };
 
 /**
+ * enum app_manifest_mgmt_flags - Masks for mgmt_flags configuration value
+ * @APP_MANIFEST_MGMT_FLAGS_NONE:
+ *      No flags
+ * @APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT:
+ *      Restart the application on exit
+ * @APP_MANIFEST_MGMT_FLAGS_DEFERRED_START:
+ *      Don't start the application at boot
+ * @APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP:
+ *      Exit application if application crashes or exit with a non-0 exit code
+ */
+enum app_manifest_mgmt_flags {
+    APP_MANIFEST_MGMT_FLAGS_NONE = 0u,
+    APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT = (1u << 0),
+    APP_MANIFEST_MGMT_FLAGS_DEFERRED_START = (1u << 1),
+    APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP = (1u << 2),
+};
+
+#define APP_MANIFEST_PINNED_CPU_NONE (-1)
+
+/**
  * struct app_manifest_config_entry - Manifest configuration entry
  * @key: Key for this entry, one of &enum app_manifest_config_key
  * @value: The value for this key
@@ -68,7 +88,8 @@ enum app_manifest_config_key {
  * @value.mem_map.arch_mmu_flags: Flags for memory mapping
  * @value.mem_map.offset: Value of "mem_map.addr"
  * @value.mem_map.size: Value of "mem_map.size"
- * @value.mgmt_flags: Encoded value of "mgmt_flags"
+ * @value.mgmt_flags: Encoded value of "mgmt_flags", bitwise OR
+ *                    of values from &enum app_manifest_mgmt_flags
  * @value.start_port: Values for "start_port" key
  * @value.start_port.name_size: Size of @start_port.name
  * @value.start_port.flags: Encoded value of "start_ports[...].flags"

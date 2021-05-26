@@ -46,11 +46,10 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
-#include <uapi/trusty_app_manifest_types.h>
 
 #define LOCAL_TRACE 0
 
-#define DEFAULT_MGMT_FLAGS TRUSTY_APP_MGMT_FLAGS_NONE
+#define DEFAULT_MGMT_FLAGS APP_MANIFEST_MGMT_FLAGS_NONE
 
 #define TRUSTY_APP_RESTART_TIMEOUT_SUCCESS (10ULL * 1000ULL * 1000ULL)
 #define TRUSTY_APP_RESTART_TIMEOUT_FAILURE (5ULL * 1000ULL * 1000ULL * 1000ULL)
@@ -409,7 +408,7 @@ static struct trusty_thread* trusty_thread_create(
                    (uintptr_t)trusty_thread);
 
     int pinned_cpu = trusty_app->props.pinned_cpu;
-    if (pinned_cpu != TRUSTY_APP_PINNED_CPU_NONE) {
+    if (pinned_cpu != APP_MANIFEST_PINNED_CPU_NONE) {
         thread_set_pinned_cpu(trusty_thread->thread, pinned_cpu);
         dprintf(SPEW, "trusty_app %d, %s pinned to CPU: %u\n",
                 trusty_app->app_id, trusty_app->props.app_name, pinned_cpu);
@@ -507,7 +506,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.min_heap_size = DEFAULT_HEAP_SIZE;
     trusty_app->props.min_stack_size = DEFAULT_STACK_SIZE;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
-    trusty_app->props.pinned_cpu = TRUSTY_APP_PINNED_CPU_NONE;
+    trusty_app->props.pinned_cpu = APP_MANIFEST_PINNED_CPU_NONE;
 
     manifest_data = NULL;
     manifest_size = 0;
@@ -1154,7 +1153,7 @@ status_t trusty_app_create_and_start(struct trusty_app_img* app_img) {
 
     /* Loadable apps with deferred_start might have clients waiting for them */
     if (!(trusty_app->props.mgmt_flags &
-          TRUSTY_APP_MGMT_FLAGS_DEFERRED_START) ||
+          APP_MANIFEST_MGMT_FLAGS_DEFERRED_START) ||
         has_waiting_connection(trusty_app)) {
         mutex_acquire(&apps_lock);
         ret = request_app_start_locked(trusty_app);
@@ -1313,7 +1312,8 @@ void trusty_app_exit(int status) {
 
     if (status) {
         TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
-        if (!(app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_NON_CRITICAL_APP)) {
+        if (!(app->props.mgmt_flags &
+              APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP)) {
             panic("Unclean exit from critical app\n");
         }
         dump_backtrace();
@@ -1389,7 +1389,7 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     has_connection = has_waiting_connection(app);
     mutex_acquire(&apps_lock);
 
-    if (app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_RESTART_ON_EXIT ||
+    if (app->props.mgmt_flags & APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT ||
         has_connection) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
@@ -1519,7 +1519,8 @@ static void start_apps(uint level) {
     mutex_acquire(&apps_lock);
     list_for_every_entry(&trusty_app_list, trusty_app, struct trusty_app,
                          node) {
-        if (trusty_app->props.mgmt_flags & TRUSTY_APP_MGMT_FLAGS_DEFERRED_START)
+        if (trusty_app->props.mgmt_flags &
+            APP_MANIFEST_MGMT_FLAGS_DEFERRED_START)
             continue;
 
         request_app_start_locked(trusty_app);
