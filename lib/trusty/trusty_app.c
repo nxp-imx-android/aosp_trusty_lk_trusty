@@ -344,8 +344,12 @@ void __NO_RETURN trusty_thread_exit(int retcode) {
     vmm_free_region(trusty_thread->app->aspace, stack_bot);
 
 #if USER_SCS_ENABLED
-    vmm_free_region(trusty_thread->app->aspace,
-                    trusty_thread->shadow_stack_base);
+    if (trusty_thread->shadow_stack_base) {
+        vmm_free_region(trusty_thread->app->aspace,
+                        trusty_thread->shadow_stack_base);
+    } else {
+        DEBUG_ASSERT(trusty_thread->app->props.min_shadow_stack_size == 0);
+    }
 #endif
 
     thread_exit(retcode);
@@ -379,14 +383,17 @@ static struct trusty_thread* trusty_thread_create(
 
 #if USER_SCS_ENABLED
     vaddr_t shadow_stack_base = 0;
-    err = vmm_alloc(trusty_app->aspace, "shadow stack", shadow_stack_size,
-                    (void**)&shadow_stack_base, PAGE_SIZE_SHIFT, 0,
-                    ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
-    if (err != NO_ERROR) {
-        dprintf(CRITICAL,
-                "failed(%d) to allocate shadow stack(0x%lx) for app %u\n", err,
-                shadow_stack_base, trusty_app->app_id);
-        goto err_shadow_stack;
+    if (shadow_stack_size) {
+        err = vmm_alloc(
+                trusty_app->aspace, "shadow stack", shadow_stack_size,
+                (void**)&shadow_stack_base, PAGE_SIZE_SHIFT, 0,
+                ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+        if (err != NO_ERROR) {
+            dprintf(CRITICAL,
+                    "failed(%d) to allocate shadow stack(0x%lx) for app %u\n",
+                    err, shadow_stack_base, trusty_app->app_id);
+            goto err_shadow_stack;
+        }
     }
 #endif
 
@@ -418,7 +425,9 @@ static struct trusty_thread* trusty_thread_create(
 
 err_thread:
 #if USER_SCS_ENABLED
-    vmm_free_region(trusty_app->aspace, shadow_stack_base);
+    if (shadow_stack_size) {
+        vmm_free_region(trusty_app->aspace, shadow_stack_base);
+    }
 err_shadow_stack:
 #endif
     vmm_free_region(trusty_app->aspace, stack_bot);
@@ -512,7 +521,8 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.app_name = unknown_app_name;
     trusty_app->props.min_heap_size = DEFAULT_HEAP_SIZE;
     trusty_app->props.min_stack_size = DEFAULT_STACK_SIZE;
-    trusty_app->props.min_shadow_stack_size = DEFAULT_SHADOW_STACK_SIZE;
+    /* binary manifest must specify the min shadow stack size */
+    trusty_app->props.min_shadow_stack_size = 0;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
     trusty_app->props.pinned_cpu = APP_MANIFEST_PINNED_CPU_NONE;
 
@@ -670,14 +680,18 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             trusty_app->props.pinned_cpu = manifest_entry.value.pinned_cpu;
             break;
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
-            trusty_app->props.min_shadow_stack_size =
-                    manifest_entry.value.min_shadow_stack_size;
-            if (trusty_app->props.min_shadow_stack_size == 0) {
+#if !USER_SCS_ENABLED
+            if (manifest_entry.value.min_shadow_stack_size) {
                 dprintf(CRITICAL,
-                        "manifest MIN_SHADOW_STACK_SIZE is 0 of app %u, %s\n",
+                        "Shadow call stack requested by app %u, %s. Kernel "
+                        "was not built to support user shadow call stacks\n",
                         trusty_app->app_id, trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
+#endif
+            trusty_app->props.min_shadow_stack_size =
+                    manifest_entry.value.min_shadow_stack_size;
+            /* min_shadow_stack_size == 0 means app opted out of shadow stack */
             break;
         case APP_MANIFEST_CONFIG_KEY_UUID:
             memcpy(&trusty_app->props.uuid, &manifest_entry.value.uuid,
