@@ -78,13 +78,16 @@ static void __memlog_write(struct memlog* log, const char* str, size_t len) {
     struct log_rb* rb = log->rb;
 
     log_offset = rb->alloc;
-    rb->alloc += len;
+
+    __builtin_add_overflow(rb->alloc, len, &rb->alloc);
 
     /* Updates to alloc should be visible before the data is written. */
     wmb();
 
     for (i = 0; i < len; i++) {
-        uint32_t offset = (log_offset + i) & (log->rb_sz - 1);
+        uint32_t offset;
+        __builtin_add_overflow(log_offset, i, &offset);
+        offset &= (log->rb_sz - 1);
         volatile char* ptr = &rb->data[offset];
         *ptr = str[i];
     }
