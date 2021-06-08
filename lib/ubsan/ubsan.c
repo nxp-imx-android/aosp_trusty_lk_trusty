@@ -155,10 +155,7 @@ static bool start() {
 
 static void finish() {
     assert(in_ubsan_get());
-#ifdef UBSAN_HARD_FAIL
-    ubsan_fail("UBSAN_HARD_FAIL");
-#endif
-    in_ubsan_set(false);
+    ubsan_fail("UBSan violation");
 }
 
 /*
@@ -173,8 +170,8 @@ static void finish() {
 
 /*
  * UBSAN_FINISH should be used at the end of each ubsan handler.
- * It will mark us as having left the handler, and if UBSAN_HARD_FAIL is
- * defined, terminate due to the error report.
+ * It will mark us as having left the handler, and terminate due to the error
+ * report.
  */
 #define UBSAN_FINISH finish();
 

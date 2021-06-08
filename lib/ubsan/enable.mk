@@ -30,12 +30,6 @@
 # Userspace apps do not need to worry about this as this runtime is already
 # being pulled in by libc when needed.
 #
-# By default, UBSan will be in hard-fail mode. This means that if a UBSan
-# violation is encountered, the module involved will attempt to terminate
-# itself (panic, nullderef, etc.).
-# To avoid this behavior set UBSAN_HARD_FAIL to false *before* including
-# enable.mk
-#
 # Modules wishing to opt out of UBSan can do so by adding
 # the contents of UBSAN_DISABLE to their MODULE_CFLAGS/MODULE_CPPFLAGS or by
 # adding to trusty/kernel/lib/ubsan/exemptlist.
@@ -93,10 +87,6 @@ UBSAN_DISABLE := \
     $(foreach san,$(UBSAN_SANITIZERS),-fno-sanitize=$(san))
 
 GLOBAL_SHARED_COMPILEFLAGS += $(UBSAN_ENABLE) -DUBSAN_ENABLED
-
-ifneq ($(UBSAN_HARD_FAIL),false)
-    GLOBAL_SHARED_COMPILEFLAGS += -DUBSAN_HARD_FAIL
-endif
 
 MODULES += trusty/kernel/lib/ubsan
 UBSAN_ENABLED := true
