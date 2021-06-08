@@ -345,8 +345,14 @@ void __NO_RETURN trusty_thread_exit(int retcode) {
 
 #if USER_SCS_ENABLED
     if (trusty_thread->shadow_stack_base) {
+        /*
+         * revert the adjustment of shadow_stack_base to reconstruct pointer
+         * returned by vmm_alloc.
+         */
+        size_t size = trusty_thread->shadow_stack_size;
+        size_t adjustment = round_up(size, PAGE_SIZE) - size;
         vmm_free_region(trusty_thread->app->aspace,
-                        trusty_thread->shadow_stack_base);
+                        trusty_thread->shadow_stack_base - adjustment);
     } else {
         DEBUG_ASSERT(trusty_thread->app->props.min_shadow_stack_size == 0);
     }
@@ -407,8 +413,15 @@ static struct trusty_thread* trusty_thread_create(
     trusty_thread->stack_start = stack_bot + stack_size; /* stack grows down */
     trusty_thread->stack_size = stack_size;
 #if USER_SCS_ENABLED
-    trusty_thread->shadow_stack_base =
-            shadow_stack_base; /* shadow stack grows up */
+    /* make shadow stack hit guard page if too small */
+    size_t adjustment =
+            round_up(shadow_stack_size, PAGE_SIZE) - shadow_stack_size;
+
+    /* we only make an adjustment iff app has shadow call stacks enabled */
+    DEBUG_ASSERT(shadow_stack_size > 0 || adjustment == 0);
+
+    /* shadow stack grows up */
+    trusty_thread->shadow_stack_base = shadow_stack_base + adjustment;
     trusty_thread->shadow_stack_size = shadow_stack_size;
 #endif
     thread_tls_set(trusty_thread->thread, TLS_ENTRY_TRUSTY,
