@@ -271,7 +271,7 @@ static int apploader_service_handle_cmd_load_application(
         goto err_trusty_app_overflow;
     }
 
-    rc = trusty_app_create_and_start(app_img);
+    rc = trusty_app_create_and_start(app_img, APP_FLAGS_LOADABLE);
     if (rc < 0) {
         TRACEF("%s: error (%d) creating Trusty app\n", __func__, rc);
         if (rc == ERR_NOT_VALID) {

@@ -1112,7 +1112,8 @@ static status_t request_app_start_locked(struct trusty_app* app) {
  * apps. Returns the created app in out_trusty_app if not NULL.
  */
 static status_t trusty_app_create(struct trusty_app_img* app_img,
-                                  struct trusty_app** out_trusty_app) {
+                                  struct trusty_app** out_trusty_app,
+                                  uint32_t flags) {
     ELF_EHDR* ehdr;
     struct trusty_app* trusty_app;
     status_t ret;
@@ -1120,6 +1121,8 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     struct manifest_port_entry* tmp_port_entry;
     struct manifest_mmio_entry* mmio_entry;
     struct manifest_mmio_entry* tmp_mmio_entry;
+
+    DEBUG_ASSERT(!(flags & ~(uint32_t)APP_FLAGS_CREATION_MASK));
 
     if (app_img->img_start & PAGE_MASK || app_img->img_end & PAGE_MASK) {
         dprintf(CRITICAL,
@@ -1157,6 +1160,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     trusty_app->app_id = trusty_next_app_id++;
     trusty_app->app_img = app_img;
     trusty_app->state = APP_NOT_RUNNING;
+    trusty_app->flags |= flags;
 
     mutex_acquire(&apps_lock);
 
@@ -1201,11 +1205,12 @@ err_hdr:
     return ret;
 }
 
-status_t trusty_app_create_and_start(struct trusty_app_img* app_img) {
+status_t trusty_app_create_and_start(struct trusty_app_img* app_img,
+                                     uint32_t flags) {
     status_t ret;
     struct trusty_app* trusty_app;
 
-    ret = trusty_app_create(app_img, &trusty_app);
+    ret = trusty_app_create(app_img, &trusty_app, flags);
     if (ret != NO_ERROR) {
         return ret;
     }
@@ -1553,7 +1558,7 @@ void trusty_app_init(void) {
 
     for (app_img = __trusty_app_list_start; app_img != __trusty_app_list_end;
          app_img++) {
-        if (trusty_app_create(app_img, NULL) != NO_ERROR)
+        if (trusty_app_create(app_img, NULL, 0) != NO_ERROR)
             panic("Failed to create builtin apps\n");
     }
 }

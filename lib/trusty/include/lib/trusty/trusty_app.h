@@ -42,6 +42,17 @@ enum app_state {
     APP_TERMINATING,
 };
 
+/**
+ * enum app_flags - Flags for Trusty applications
+ * @APP_FLAGS_LOADABLE: This is a loadable application.
+ * @APP_FLAGS_CREATION_MASK: Flags allowed during app creation.
+ */
+enum app_flags {
+    APP_FLAGS_LOADABLE = (1 << 0),
+
+    APP_FLAGS_CREATION_MASK = APP_FLAGS_LOADABLE,
+};
+
 struct manifest_port_entry {
     uint32_t flags;
     uint32_t path_len;
@@ -95,6 +106,7 @@ struct trusty_app {
     /* corresponds to the order in which the apps were started */
     u_int app_id;
     enum app_state state;
+    uint32_t flags;
     lk_time_ns_t min_start_time;
     vmm_aspace_t* aspace;
     vaddr_t start_brk;
@@ -114,11 +126,13 @@ void trusty_app_init(void);
 /**
  * trusty_app_create_and_start() - Create and start a new Trusty application
  * @app_img: metadata of the application to load.
+ * @flags: Creation flags, values from &enum app_flags.
  *
  * Return: ERR_NO_MEMORY if out of memory, ERR_NOT_VALID if
  * the application ELF or manifest are not valid.
  */
-status_t trusty_app_create_and_start(struct trusty_app_img* app_img);
+status_t trusty_app_create_and_start(struct trusty_app_img* app_img,
+                                     uint32_t flags);
 
 /**
  * trusty_app_is_startup_port() - Query if the specified port is a startup port
