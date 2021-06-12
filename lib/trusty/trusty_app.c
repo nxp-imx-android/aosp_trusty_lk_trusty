@@ -116,6 +116,9 @@ uint als_slot_cnt;
 static event_t app_mgr_event =
         EVENT_INITIAL_VALUE(app_mgr_event, 0, EVENT_FLAG_AUTOUNSIGNAL);
 
+static struct list_node allowed_mmio_ranges_list =
+        LIST_INITIAL_VALUE(allowed_mmio_ranges_list);
+
 #define PRINT_TRUSTY_APP_UUID(tid, u)                                          \
     dprintf(SPEW,                                                              \
             "trusty_app %d uuid: 0x%x 0x%x 0x%x 0x%x%x 0x%x%x%x%x%x%x\n", tid, \
@@ -165,6 +168,19 @@ static inline bool address_range_within_img(
     return address_range_within_bounds(range_start, range_size,
                                        (const void*)appimg->img_start,
                                        (const void*)appimg->img_end);
+}
+
+void trusty_app_allow_mmio_range(struct trusty_app_mmio_allowed_range* range) {
+    DEBUG_ASSERT(range);
+
+    if (!range->size) {
+        dprintf(CRITICAL, "Allowed mmio range is empty\n");
+        return;
+    }
+
+    mutex_acquire(&apps_lock);
+    list_add_tail(&allowed_mmio_ranges_list, &range->node);
+    mutex_release(&apps_lock);
 }
 
 static bool compare_section_name(ELF_SHDR* shdr,

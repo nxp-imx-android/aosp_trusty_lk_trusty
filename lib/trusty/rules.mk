@@ -90,4 +90,9 @@ MODULE_DEPS += \
 GLOBAL_DEFINES += \
 	WITH_SYSCALL_TABLE=1 \
 
+ifneq ($(TEST_BUILD),)
+MODULE_SRCS += \
+	$(LOCAL_DIR)/apploader_mmio_test_apps.c
+endif
+
 include make/module.mk

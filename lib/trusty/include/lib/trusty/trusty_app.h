@@ -88,6 +88,44 @@ struct trusty_app_img {
     uintptr_t img_end;
 };
 
+/**
+ * struct trusty_app_mmio_allowed_range - Allowed MMIO range for loadable apps.
+ * @node:  Internal list node, should be initialized to
+ *         %LIST_INITIAL_CLEARED_VALUE.
+ * @uuid:  The UUID of this application.
+ * @start: Start address of this range.
+ * @size:  Size of this range.
+ */
+struct trusty_app_mmio_allowed_range {
+    struct list_node node;
+    uuid_t uuid;
+    paddr_t start;
+    size_t size;
+};
+
+#define TRUSTY_APP_MMIO_ALLOWED_RANGE(_name, _uuid, _start, _size) \
+    static struct trusty_app_mmio_allowed_range _name = {          \
+            .node = LIST_INITIAL_CLEARED_VALUE,                    \
+            .uuid = _uuid,                                         \
+            .start = (_start),                                     \
+            .size = (_size),                                       \
+    };
+
+/**
+ * trusty_app_allow_mmio_range() - Add a new allowed MMIO range
+ * @range: Pointer to the range to add.
+ *
+ * Adds a memory mapping to the internal list of allowed memory ranges.
+ * The underlying structure will be added to a permanent linked list,
+ * so it must not be a temporary value, e.g., on the stack.
+ * The best option is to pass in a structure created with the
+ * %TRUSTY_APP_MMIO_ALLOWED_RANGE macro.
+ *
+ * This function should be called before any loadable app is started,
+ * e.g., at init level LK_INIT_LEVEL_APPS - 1.
+ */
+void trusty_app_allow_mmio_range(struct trusty_app_mmio_allowed_range* range);
+
 struct trusty_app;
 
 struct trusty_thread {
