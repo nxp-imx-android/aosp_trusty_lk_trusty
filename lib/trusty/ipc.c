@@ -69,6 +69,9 @@ static void chan_shutdown(struct ipc_chan* chan);
 static void chan_add_ref(struct ipc_chan* conn, struct obj_ref* ref);
 static void chan_del_ref(struct ipc_chan* conn, struct obj_ref* ref);
 
+static void remove_from_waiting_for_port_list_locked(struct ipc_chan* client,
+                                                     struct obj_ref* ref);
+
 static struct handle_ops ipc_port_handle_ops = {
         .poll = port_poll,
         .destroy = port_handle_destroy,
@@ -103,6 +106,23 @@ bool ipc_connection_waiting_for_port(const char* path, uint32_t flags) {
     mutex_release(&ipc_port_lock);
 
     return found;
+}
+
+void ipc_remove_connection_waiting_for_port(const char* path, uint32_t flags) {
+    struct ipc_chan *chan, *temp;
+    struct obj_ref tmp_chan_ref = OBJ_REF_INITIAL_VALUE(tmp_chan_ref);
+
+    mutex_acquire(&ipc_port_lock);
+    list_for_every_entry_safe(&waiting_for_port_chan_list, chan, temp,
+                              struct ipc_chan, node) {
+        if (!strncmp(path, chan->path, IPC_PORT_PATH_MAX) &&
+            ipc_port_check_access(flags, chan->uuid) == NO_ERROR) {
+            remove_from_waiting_for_port_list_locked(chan, &tmp_chan_ref);
+            chan_shutdown(chan);
+            chan_del_ref(chan, &tmp_chan_ref); /* drop local ref */
+        }
+    }
+    mutex_release(&ipc_port_lock);
 }
 
 /*

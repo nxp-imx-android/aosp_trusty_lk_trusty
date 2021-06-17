@@ -152,6 +152,14 @@ int ipc_port_accept(struct handle* phandle,
  */
 bool ipc_connection_waiting_for_port(const char* path, uint32_t flags);
 
+/**
+ * ipc_remove_connection_waiting_for_port () - Remove all valid connections
+ * waiting for a given port path.
+ * @path: port for the query
+ * @flags: flags to validate connections against
+ */
+void ipc_remove_connection_waiting_for_port(const char* path, uint32_t flags);
+
 /* client requests a connection to a port */
 #define IPC_CONNECT_WAIT_FOR_PORT 0x1U
 #define IPC_CONNECT_ASYNC 0x2U

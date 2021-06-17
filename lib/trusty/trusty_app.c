@@ -1160,6 +1160,21 @@ static bool has_waiting_connection(struct trusty_app* app) {
     return false;
 }
 
+static void kill_waiting_connections(struct trusty_app* app) {
+    struct manifest_port_entry* entry;
+
+    /*
+     * Don't hold the apps lock when calling into other subsystems with calls
+     * that may grab additional locks.
+     */
+    DEBUG_ASSERT(!is_mutex_held(&apps_lock));
+
+    list_for_every_entry(&app->props.port_entry_list, entry,
+                         struct manifest_port_entry, node) {
+        ipc_remove_connection_waiting_for_port(entry->path, entry->flags);
+    }
+}
+
 /* Must be called with the apps_lock held */
 static status_t request_app_start_locked(struct trusty_app* app) {
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
@@ -1488,9 +1503,18 @@ static status_t app_mgr_handle_starting(struct trusty_app* app) {
 
     ret = trusty_app_start(app);
 
-    if (ret != NO_ERROR)
-        app->state = APP_NOT_RUNNING;
+    if (ret != NO_ERROR) {
+        /*
+         * Drop the lock to call into ipc to kill waiting connections. This is
+         * safe since the app is in the APP_STARTING state so it cannot be
+         * removed.
+         */
+        mutex_release(&apps_lock);
+        kill_waiting_connections(app);
+        mutex_acquire(&apps_lock);
 
+        app->state = APP_NOT_RUNNING;
+    }
     return ret;
 }
 
@@ -1552,9 +1576,15 @@ static int app_mgr(void* arg) {
                 break;
             case APP_STARTING:
                 ret = app_mgr_handle_starting(app);
-                if (ret != NO_ERROR)
-                    panic("failed(%d) to start app %u, %s\n", ret, app->app_id,
-                          app->props.app_name);
+                if (ret != NO_ERROR) {
+                    if (!(app->props.mgmt_flags &
+                          APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP)) {
+                        panic("failed(%d) to start app %u, %s\n", ret,
+                              app->app_id, app->props.app_name);
+                    }
+                    TRACEF("failed(%d) to start app %u, %s\n", ret, app->app_id,
+                           app->props.app_name);
+                }
                 break;
             case APP_RUNNING:
                 break;
