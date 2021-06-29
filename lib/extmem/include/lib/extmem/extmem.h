@@ -63,6 +63,11 @@ struct ext_mem_page_run {
  * struct ext_mem_obj - Memory object for external sources.
  * @id:             Unique id used for lookup.
  * @tag:            Metadata used by some systems. Set to 0 if unused.
+ * @match_tag:      Metadata used by some systems. Set to 0 if unused.
+ *                  Must match @tag before the object can be mapped. An object
+ *                  attached to an ipc message can be created before sending it
+ *                  to the app but only be mapable after the tag has been
+ *                  matched.
  * @vmm_obj:        VMM object.
  * @node:           Search tree node.
  * @arch_mmu_flags: Memory type and required permission flags.
@@ -72,6 +77,7 @@ struct ext_mem_page_run {
 struct ext_mem_obj {
     ext_mem_obj_id_t id;
     uint64_t tag;
+    uint64_t match_tag;
     struct vmm_obj vmm_obj;
     struct bst_node node;
     uint arch_mmu_flags;

@@ -52,6 +52,7 @@ void ext_mem_obj_initialize(struct ext_mem_obj* obj,
                             size_t page_run_count) {
     obj->id = id;
     obj->tag = tag;
+    obj->match_tag = 0;
     obj->vmm_obj.ops = ops;
     obj->arch_mmu_flags = arch_mmu_flags;
     obj->page_run_count = page_run_count;
@@ -75,6 +76,12 @@ int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
 
     LTRACEF("obj 0x%llx, obj arch_mmu_flags 0x%x, arch_mmu_flags 0x%x\n",
             ext_obj->id, ext_obj->arch_mmu_flags, *arch_mmu_flags);
+
+    if (ext_obj->match_tag != ext_obj->tag) {
+        TRACEF("WARNING: tag mismatch: 0x%llx != 0x%llx\n", ext_obj->match_tag,
+               ext_obj->tag);
+        /* TODO: return ERR_ACCESS_DENIED; */
+    }
 
     if (!(*arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO) &&
         (ext_obj->arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO)) {
