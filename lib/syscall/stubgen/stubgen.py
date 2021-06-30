@@ -175,6 +175,9 @@ syscall_pat = (
 
 syscall_re = re.compile(syscall_pat)
 
+syscall_rust_proto = '    pub fn _trusty_%(sys_fn)s(%(rust_args)s) -> %(rust_rt)s;\n'
+beg_rust = 'extern "C" {\n'
+end_rust = '}\n'
 
 def fatal_parse_error(line, err_str):
     sys.stderr.write("Error processing line %r:\n%s\n" % (line, err_str))
@@ -186,6 +189,19 @@ for i in [8, 16, 32, 64]:
     BUILTIN_TYPES.add('int%d_t' % i)
     BUILTIN_TYPES.add('uint%d_t' % i)
 
+def reformat_c_to_rust(arg):
+    m = re.match(r"(const )?(struct )?(.*?)\s*( ?\* ?)?$", arg)
+    is_const = m.group(1) is not None
+    ty = m.group(3)
+    is_ptr = m.group(4) is not None
+    rust_arg = ''
+    if '*' in ty:
+        fatal_parse_error(line, "Rust arg reformatting needs to be "
+                          "extended to handle double indirection.")
+    if is_ptr:
+        rust_arg += '*%s ' % ('const' if is_const else 'mut')
+    rust_arg += ty
+    return rust_arg
 
 def parse_check_def(line, struct_types):
     """
@@ -228,6 +244,16 @@ def parse_check_def(line, struct_types):
                               "type: %r. Don't use typedefs." % arg)
         struct_types.add(arg)
 
+    # Reformat arguments into Rust syntax
+    rust_args = []
+    for arg in sys_args_list:
+        m = re.match(r"(.*?)(\w+)$", arg)
+        ty = m.group(1)
+        name = m.group(2)
+        rust_args.append('%s: %s' % (name, reformat_c_to_rust(ty)))
+    gd['rust_args'] = ', '.join(rust_args)
+    gd['rust_rt'] = reformat_c_to_rust(gd['sys_rt'])
+
     # In C, a forward declaration with an empty list of arguments has an
     # unknown number of arguments. Set it to 'void' to declare there are
     # zero arguments.
@@ -237,7 +263,7 @@ def parse_check_def(line, struct_types):
     return gd
 
 
-def process_table(table_file, std_file, stubs_file, verify, arch):
+def process_table(table_file, std_file, stubs_file, rust_file, verify, arch):
     """
     Process a syscall table and generate:
     1. A sycall stubs file
@@ -247,6 +273,7 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
     define_lines = ""
     proto_lines = "\n"
     stub_lines = ""
+    rust_lines = ""
 
     struct_types = set()
 
@@ -265,6 +292,7 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
             define_lines += syscall_define % params
             proto_lines += syscall_proto % params
             stub_lines += arch.syscall_stub % params
+            rust_lines += syscall_rust_proto % params
 
 
     tbl.close()
@@ -292,6 +320,13 @@ def process_table(table_file, std_file, stubs_file, verify, arch):
             stubs.writelines(includes_header % "trusty_syscalls.h")
             stubs.writelines(stub_lines)
 
+    if rust_file is not None:
+        with open(rust_file, "w") as rust:
+            rust.writelines(copyright_header + autogen_header)
+            rust.writelines(beg_rust)
+            rust.writelines(rust_lines)
+            rust.writelines(end_rust)
+
 
 def main():
 
@@ -307,6 +342,9 @@ def main():
     op.add_option("-s", "--stubs-file", type="string",
             dest="stub_file", default=None,
             help="path to syscall assembly stubs file.")
+    op.add_option("-r", "--rust-file", type="string",
+            dest="rust_file", default=None,
+            help="path to rust declarations file")
     op.add_option("-a", "--arch", type="string",
             dest="arch", default="arm",
             help="arch of stub assembly files: " + str(arch_dict.keys()))
@@ -322,8 +360,8 @@ def main():
             op.print_help()
             sys.exit(1)
 
-    process_table(args[0], opts.std_file, opts.stub_file, opts.verify,
-            arch_dict[opts.arch])
+    process_table(args[0], opts.std_file, opts.stub_file, opts.rust_file,
+                  opts.verify, arch_dict[opts.arch])
 
 
 if __name__ == '__main__':
