@@ -165,8 +165,12 @@ static void trusty_app_callback(struct trusty_app* ta, void* failures) {
 
         ASSERT_EQ(NO_ERROR, translate_uspace_ptr(uspace, tt->shadow_stack_base,
                                                  &elem_translated));
-        EXPECT_NE(0, *(vaddr_t*)elem_translated,
-                  "Expected first element of shadow stack to be non-zero "
+        /*
+         * The link register is initially zero so when shadow call stacks are
+         * enabled for libc, the second element holds the first non-zero entry
+         */
+        EXPECT_NE(0, *(vaddr_t*)elem_translated + sizeof(vaddr_t),
+                  "Expected second element of shadow stack to be non-zero "
                   "(used)");
     }
 
