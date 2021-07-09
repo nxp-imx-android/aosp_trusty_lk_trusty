@@ -183,6 +183,45 @@ void trusty_app_allow_mmio_range(struct trusty_app_mmio_allowed_range* range) {
     mutex_release(&apps_lock);
 }
 
+/**
+ * app_mmio_is_allowed() - Check whether an app is allowed to map a given
+ *                         physical memory range.
+ * @trusty_app: The application to check.
+ * @mmio_start: The start of the physical memory range to map.
+ * @mmio_size:  The size of the physical memory range.
+ *
+ * For security reasons, we do not want to allow any loadable app to map
+ * physical memory by default. However, some specific apps need to
+ * map device memory, so we maintain an allowlist of per-app ranges that
+ * can be mapped. This function checks a given physical memory range for the
+ * loadable app at @trusty_app against the allowlist. Each project can add its
+ * own allowlist entries using @trusty_app_allow_mmio_range.
+ */
+static bool app_mmio_is_allowed(struct trusty_app* trusty_app,
+                                paddr_t mmio_start,
+                                size_t mmio_size) {
+    if (!(trusty_app->flags & APP_FLAGS_LOADABLE)) {
+        return true;
+    }
+
+    DEBUG_ASSERT(mmio_size);
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
+
+    paddr_t mmio_end = mmio_start + (mmio_size - 1);
+    const struct trusty_app_mmio_allowed_range* range;
+    list_for_every_entry(&allowed_mmio_ranges_list, range,
+                         struct trusty_app_mmio_allowed_range, node) {
+        DEBUG_ASSERT(range->size);
+        paddr_t range_end = range->start + (range->size - 1);
+        if (!memcmp(&range->uuid, &trusty_app->props.uuid, sizeof(uuid_t)) &&
+            mmio_start >= range->start && mmio_end <= range_end) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool compare_section_name(ELF_SHDR* shdr,
                                  const char* name,
                                  char* shstbl,
@@ -639,6 +678,17 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                 return ERR_NOT_VALID;
             }
             mmio_arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+
+            if (!app_mmio_is_allowed(
+                        trusty_app,
+                        (paddr_t)manifest_entry.value.mem_map.offset,
+                        mmio_size)) {
+                dprintf(CRITICAL,
+                        "mmio_id %u not allowed for loadable app %u, %s\n",
+                        manifest_entry.value.mem_map.id, trusty_app->app_id,
+                        trusty_app->props.app_name);
+                return ERR_NOT_VALID;
+            }
 
             mmio_entry = calloc(1, sizeof(struct manifest_mmio_entry));
             if (!mmio_entry) {
