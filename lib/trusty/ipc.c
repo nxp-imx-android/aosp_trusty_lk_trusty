@@ -176,9 +176,24 @@ err_copy_path:
 static void add_to_waiting_for_port_list_locked(struct ipc_chan* client) {
     DEBUG_ASSERT(client);
     DEBUG_ASSERT(!list_in_list(&client->node));
+    DEBUG_ASSERT(client->path);
 
     list_add_tail(&waiting_for_port_chan_list, &client->node);
     chan_add_ref(client, &client->node_ref);
+}
+
+static void remove_from_waiting_for_port_list_locked(struct ipc_chan* client,
+                                                     struct obj_ref* ref) {
+    DEBUG_ASSERT(client);
+    DEBUG_ASSERT(list_in_list(&client->node));
+
+    free((void*)client->path);
+    client->path = NULL;
+
+    /* take it out of global pending list */
+    chan_add_ref(client, ref); /* add local ref */
+    list_delete(&client->node);
+    chan_del_ref(client, &client->node_ref); /* drop list ref */
 }
 
 /*
@@ -327,13 +342,7 @@ int ipc_port_publish(struct handle* phandle) {
             if (strcmp(client->path, port->path))
                 continue;
 
-            free((void*)client->path);
-            client->path = NULL;
-
-            /* take it out of global pending list */
-            chan_add_ref(client, &tmp_client_ref); /* add local ref */
-            list_delete(&client->node);
-            chan_del_ref(client, &client->node_ref); /* drop list ref */
+            remove_from_waiting_for_port_list_locked(client, &tmp_client_ref);
 
             /* try to attach port */
             int err = port_attach_client(port, client);
