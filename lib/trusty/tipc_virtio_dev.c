@@ -597,12 +597,19 @@ static int handle_chan_msg(struct tipc_dev* dev,
         vmm_obj_del_ref(shm_obj, &shm_ref);
         shm_obj = NULL;
 
+        /* Temporarily set ext_mem_obj match_tag so memref can be created */
+        ext_mem_obj_set_match_tag(tem->ext_mem, shm[shm_idx].tag);
+
         ret = memref_create_from_vmm_obj(
                 &tem->vmm_obj, 0, size,
                 MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE, &handles[shm_idx]);
         if (ret != NO_ERROR) {
             tem->suppress_release = true;
         }
+
+        /* Clear match_tag so non-0 tags are unmappable by default */
+        ext_mem_obj_set_match_tag(tem->ext_mem, 0);
+
         /*
          * We want to release our local ref whether or not we made a handle
          * successfully. If we made a handle, the handle's ref keeps it alive.

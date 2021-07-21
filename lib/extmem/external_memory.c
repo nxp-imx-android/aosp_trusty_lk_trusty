@@ -71,6 +71,12 @@ struct ext_mem_obj* ext_mem_lookup(struct bst_root* objs, ext_mem_obj_id_t id) {
                            node);
 }
 
+void ext_mem_obj_set_match_tag(struct vmm_obj* obj, uint64_t match_tag) {
+    struct ext_mem_obj* ext_obj = ext_mem_obj_from_vmm_obj(obj);
+
+    ext_obj->match_tag = match_tag;
+}
+
 int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
     struct ext_mem_obj* ext_obj = ext_mem_obj_from_vmm_obj(obj);
 
@@ -172,6 +178,10 @@ status_t ext_mem_map_obj_id(vmm_aspace_t* aspace,
                client_id, mem_obj_id, name);
         return err;
     }
+
+    /* If tag is not 0, match_tag must be set before the object can be mapped */
+    ext_mem_obj_set_match_tag(vmm_obj, tag);
+
     err = vmm_alloc_obj(aspace, name, vmm_obj, offset, size, ptr, align_log2,
                         vmm_flags, arch_mmu_flags);
     vmm_obj_del_ref(vmm_obj, &vmm_obj_ref);

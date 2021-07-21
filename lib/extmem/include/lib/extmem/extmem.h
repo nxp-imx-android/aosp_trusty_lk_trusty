@@ -159,6 +159,15 @@ static inline void ext_mem_delete(struct bst_root* objs,
 struct ext_mem_obj* ext_mem_lookup(struct bst_root* objs, ext_mem_obj_id_t id);
 
 /**
+ * ext_mem_obj_set_match_tag - Set match tag on ext_mem_obj.
+ * @obj:            &ext_mem_obj->vmm_obj.
+ * @match_tag:      Set match_tag on @obj. The object can only be mapped if this
+ *                  matches the tag used when creating @obj. Pass 0 to return to
+ *                  initial state.
+ */
+void ext_mem_obj_set_match_tag(struct vmm_obj* obj, uint64_t match_tag);
+
+/**
  * ext_mem_obj_check_flags - vmm_obj_ops->check_flags for ext_mem_obj.
  * @obj:            &ext_mem_obj->vmm_obj.
  * @arch_mmu_flags: arch_mmu_flags to check and modify.
