@@ -33,6 +33,9 @@
 #
 # To encrypt an application, set the similar encryption variable:
 #     APPLOADER_ENCRYPT_KEY_ID_FOR_$(MODULE)
+#
+# The following variable is modified and can be used by the caller:
+#     LOADABLE_APP_LIST - list of loadable app locations
 
 # Build a loadable application
 LOADABLE_APP_TOOL := $(BUILDDIR)/host_tools/apploader_package_tool
@@ -107,6 +110,7 @@ endif
 
 GENERATED += $(LOADABLE_APP)
 EXTRA_BUILDDEPS += $(LOADABLE_APP)
+LOADABLE_APP_LIST += $(LOADABLE_APP)
 
 # Reset local variables
 APP_NAME :=

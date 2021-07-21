@@ -101,7 +101,8 @@ include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 # it. This will be removed in the future and all projects should use
 # TRUSTY_BUILTIN_USER_TASKS directly.
 TRUSTY_BUILTIN_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) \
-                             $(TRUSTY_ALL_USER_TASKS)
+                             $(TRUSTY_ALL_USER_TASKS) \
+                             $(TRUSTY_USER_TESTS)
 
 ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)
 # sort and remove duplicates
@@ -147,6 +148,37 @@ TRUSTY_LOADABLE_USER_TASKS := $(sort $(TRUSTY_LOADABLE_USER_TASKS))
 #
 $(foreach t,$(TRUSTY_LOADABLE_USER_TASKS),\
    $(call loadable-app-build-rule,$(t)))
+
+# Clear the list of loadable apps
+LOADABLE_APP_LIST :=
+
+# Sort and remove duplicates
+TRUSTY_USER_TESTS := $(sort $(TRUSTY_USER_TESTS))
+
+#
+# Generate build rules for test application
+#
+$(foreach t,$(TRUSTY_USER_TESTS),\
+   $(call loadable-app-build-rule,$(t)))
+
+# At this point LOADABLE_APP_LIST only contains user tests
+TRUSTY_LOADABLE_TEST_APPS := $(LOADABLE_APP_LIST)
+
+ifneq ($(strip $(TRUSTY_LOADABLE_TEST_APPS)),)
+
+TEST_PACKAGE_ZIP := $(BUILDDIR)/trusty_test_package.zip
+
+$(TEST_PACKAGE_ZIP): BUILDDIR := $(BUILDDIR)
+$(TEST_PACKAGE_ZIP): $(TRUSTY_LOADABLE_TEST_APPS)
+	@$(MKDIR)
+	@echo Creating Trusty test archive package
+	@echo "$^"
+	$(NOECHO)rm -f $@
+	$(NOECHO)(cd $(BUILDDIR) && zip -q -u -r $@ $(subst $(BUILDDIR)/,,$^))
+
+EXTRA_BUILDDEPS += $(TEST_PACKAGE_ZIP)
+
+endif
 
 # Restore kernel state
 ARCH := $(TRUSTY_KERNEL_SAVED_ARCH)
@@ -196,3 +228,6 @@ TRUSTY_USERSPACE_SAVED_ARCH :=
 TRUSTY_USERSPACE_SAVED_ALLOW_FP_USE :=
 TRUSTY_USERSPACE_SAVED_SCS_ENABLED :=
 USER_TASK_MODULE :=
+LOADABLE_APP_LIST :=
+TRUSTY_LOADABLE_USER_TASKS :=
+TEST_PACKAGE_ZIP :=
