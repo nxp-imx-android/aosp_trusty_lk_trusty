@@ -86,7 +86,7 @@ int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
     if (ext_obj->match_tag != ext_obj->tag) {
         TRACEF("WARNING: tag mismatch: 0x%llx != 0x%llx\n", ext_obj->match_tag,
                ext_obj->tag);
-        /* TODO: return ERR_ACCESS_DENIED; */
+        return ERR_ACCESS_DENIED;
     }
 
     if (!(*arch_mmu_flags & ARCH_MMU_FLAG_PERM_RO) &&
