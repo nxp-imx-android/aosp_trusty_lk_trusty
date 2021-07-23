@@ -46,6 +46,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
+#include <version.h>
 
 #define LOCAL_TRACE 0
 
@@ -1462,6 +1463,7 @@ void trusty_app_exit(int status) {
             panic("Unclean exit from critical app\n");
         }
         dump_backtrace();
+        dprintf(ALWAYS, "%s\n", lk_version);
         restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_FAILURE;
     } else {
         restart_timeout = TRUSTY_APP_RESTART_TIMEOUT_SUCCESS;

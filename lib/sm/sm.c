@@ -36,6 +36,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
+#include <version.h>
 
 #define LOCAL_TRACE 0
 
@@ -496,7 +497,7 @@ void platform_halt(platform_halt_action suggested_action,
                 event_signal(&nsirqevent[cpu], false);
             }
         }
-
+        dprintf(ALWAYS, "%s\n", lk_version);
         dprintf(ALWAYS, "HALT: (reason = %d)\n", reason);
     }
 
