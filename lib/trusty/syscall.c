@@ -111,7 +111,7 @@ static ssize_t sys_std_writev(uint32_t fd,
      * Even if we're suppressing the output, we need to process the data to
      * produce the correct return code.
      */
-    bool should_output = ((fd == 2) ? INFO : SPEW) <= LK_DEBUGLEVEL;
+    bool should_output = INFO <= LK_LOGLEVEL;
     FILE* fp = (fd == 2) ? stderr : stdout;
     uint8_t buf[128];
 
