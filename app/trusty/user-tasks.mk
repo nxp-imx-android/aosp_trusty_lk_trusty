@@ -219,13 +219,10 @@ SCS_ENABLED := $(TRUSTY_KERNEL_SAVED_SCS_ENABLED)
 ifneq ($(strip $(TRUSTY_BUILTIN_USER_TASKS)),)
 
 BUILTIN_TASK_MANIFESTS_BINARY := $(foreach t, $(TRUSTY_BUILTIN_USER_TASKS),\
-   $(addsuffix /$(notdir $(t)).manifest, $(t)))
-BUILTIN_TASK_MANIFESTS_BINARY := $(addprefix $(BUILDDIR)/user_tasks/, $(BUILTIN_TASK_MANIFESTS_BINARY))
+   $(_MODULES_$(t)_TRUSTY_APP_MANIFEST_BIN))
 
 BUILTIN_TASK_ELFS := $(foreach t, $(TRUSTY_BUILTIN_USER_TASKS),\
-   $(addsuffix /$(notdir $(t)).elf, $(t)))
-
-BUILTIN_TASK_ELFS := $(addprefix $(BUILDDIR)/user_tasks/, $(BUILTIN_TASK_ELFS))
+   $(_MODULES_$(t)_TRUSTY_APP_ELF))
 
 BUILTIN_TASK_OBJS := $(patsubst %.elf,%.o,$(BUILTIN_TASK_ELFS))
 
