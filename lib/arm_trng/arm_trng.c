@@ -26,7 +26,7 @@
 #include <arch/arch_ops.h>
 #include <assert.h>
 #include <kernel/thread.h>
-#include <lib/sm/smc.h>
+#include <lib/smc/smc.h>
 #include <lk/init.h>
 #include <lk/macros.h>
 #include <lk/trace.h>

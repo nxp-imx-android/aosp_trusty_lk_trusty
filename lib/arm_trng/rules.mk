@@ -29,7 +29,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/arm_trng.c \
 
 MODULE_DEPS += \
-	trusty/kernel/lib/sm \
+	trusty/kernel/lib/smc \
 
 # Timeouts in milliseconds for the long wait warning and the printing
 ARM_TRNG_LONG_WAIT_MS ?= 1000

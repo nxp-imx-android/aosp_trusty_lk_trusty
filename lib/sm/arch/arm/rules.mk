@@ -29,7 +29,6 @@ endif
 
 MODULE_SRCS += \
 	$(CUR_DIR)/entry.S \
-	$(CUR_DIR)/smc.S \
 
 ifneq (,$(findstring WITH_LIB_SM_MONITOR=1,$(GLOBAL_DEFINES)))
 

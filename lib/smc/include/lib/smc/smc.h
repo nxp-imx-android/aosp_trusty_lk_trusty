@@ -23,10 +23,24 @@
 
 #pragma once
 
-/*
- * The contents of the current file were moved to lib/smc,
- * but some older code includes it directly. Until that code
- * is updated, keep the current file and #include the new header.
- */
-#include <lib/smc/smc.h>
-#pragma message "lib/sm/smc.h was moved to lib/smc, please use the new path"
+#include <sys/types.h>
+
+struct smc_ret8 {
+    ulong r0;
+    ulong r1;
+    ulong r2;
+    ulong r3;
+    ulong r4;
+    ulong r5;
+    ulong r6;
+    ulong r7;
+};
+
+struct smc_ret8 smc8(ulong r0,
+                     ulong r1,
+                     ulong r2,
+                     ulong r3,
+                     ulong r4,
+                     ulong r5,
+                     ulong r6,
+                     ulong r7);

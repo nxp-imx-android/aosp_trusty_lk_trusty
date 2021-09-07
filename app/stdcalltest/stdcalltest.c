@@ -28,8 +28,8 @@
 #include <kernel/vm.h>
 #include <lib/sm.h>
 #include <lib/sm/sm_err.h>
-#include <lib/sm/smc.h>
 #include <lib/sm/smcall.h>
+#include <lib/smc/smc.h>
 #include <limits.h>
 #include <lk/init.h>
 #include <string.h>

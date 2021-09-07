@@ -31,7 +31,7 @@
 #include <lib/page_alloc.h>
 #include <lib/sm.h>
 #include <lib/sm/arm_ffa.h>
-#include <lib/sm/smc.h>
+#include <lib/smc/smc.h>
 #include <lk/init.h>
 #include <string.h>
 #include <sys/types.h>
