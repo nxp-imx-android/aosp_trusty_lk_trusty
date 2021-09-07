@@ -28,7 +28,8 @@
  * (https://developer.arm.com/docs/den0077/a) needed for shared memory.
  */
 
-#include "smcall.h"
+#include <lib/smc/smc_def.h>
+#include <stdint.h>
 
 #ifndef STATIC_ASSERT
 #define STATIC_ASSERT(e) _Static_assert(e, #e)
