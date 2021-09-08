@@ -32,9 +32,39 @@
 #include <trace.h>
 
 static bool arm_ffa_init_is_success = false;
+uint16_t ffa_local_id;
 
 bool arm_ffa_is_init(void) {
     return arm_ffa_init_is_success;
+}
+
+static status_t arm_ffa_call_id_get(uint16_t* id) {
+    struct smc_ret8 smc_ret;
+
+    smc_ret = smc8(SMC_FC_FFA_ID_GET, 0, 0, 0, 0, 0, 0, 0);
+
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_SUCCESS:
+    case SMC_FC64_FFA_SUCCESS:
+        if (smc_ret.r2 & ~0xFFFFUL) {
+            TRACEF("Unexpected FFA_ID_GET result: %lx\n", smc_ret.r2);
+            return ERR_NOT_VALID;
+        }
+        *id = (uint16_t)(smc_ret.r2 & 0xFFFF);
+        return NO_ERROR;
+
+    case SMC_FC_FFA_ERROR:
+        if (smc_ret.r2 == (ulong)FFA_ERROR_NOT_SUPPORTED) {
+            return ERR_NOT_SUPPORTED;
+        } else {
+            TRACEF("Unexpected FFA_ERROR: %lx\n", smc_ret.r2);
+            return ERR_NOT_VALID;
+        }
+
+    default:
+        TRACEF("Unexpected FFA SMC: %lx\n", smc_ret.r0);
+        return ERR_NOT_VALID;
+    }
 }
 
 static status_t arm_ffa_call_version(uint16_t major,
@@ -72,6 +102,13 @@ static status_t arm_ffa_setup(void) {
                ver_major_ret, ver_minor_ret);
         return ERR_NOT_SUPPORTED;
     }
+
+    res = arm_ffa_call_id_get(&ffa_local_id);
+    if (res != NO_ERROR) {
+        TRACEF("Failed to get FF-A partition id (err=%d)\n", res);
+        return res;
+    }
+
     return res;
 }
 

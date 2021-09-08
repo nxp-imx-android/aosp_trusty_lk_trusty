@@ -50,7 +50,6 @@ static mutex_t sm_mem_ffa_lock = MUTEX_INITIAL_VALUE(sm_mem_ffa_lock);
 static size_t ffa_buf_size;
 static void* ffa_tx;
 static void* ffa_rx;
-static uint16_t ffa_local_id;
 static bool supports_ns_bit = false;
 
 static void sm_mem_obj_compat_destroy(struct vmm_obj* vmm_obj) {
@@ -568,7 +567,7 @@ static void shared_mem_init(uint level) {
 
     /* Check the FF-A module initialized successfully */
     if (!arm_ffa_is_init()) {
-        TRACEF("The arm_ffa module is not initialized\n");
+        TRACEF("arm_ffa module is not initialized\n");
         goto err_ffa_init;
     }
 
@@ -626,15 +625,6 @@ static void shared_mem_init(uint level) {
     ffa_buf_size = 1U << buf_size_shift;
     buf_page_count = DIV_ROUND_UP(ffa_buf_size, PAGE_SIZE);
 
-    /* Get FF-A id. */
-    smc_ret = smc8(SMC_FC_FFA_ID_GET, 0, 0, 0, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("%s: SMC_FC_FFA_ID_GET failed 0x%lx 0x%lx 0x%lx\n", __func__,
-               smc_ret.r0, smc_ret.r1, smc_ret.r2);
-        goto err_id_get;
-    }
-    ffa_local_id = smc_ret.r2;
-
     ASSERT((ffa_buf_size % FFA_PAGE_SIZE) == 0);
 
     count = pmm_alloc_contiguous(buf_page_count, buf_size_shift, &tx_paddr,
@@ -675,7 +665,6 @@ err_alloc_rx:
     pmm_free(&page_list);
 err_alloc_tx:
     /* pmm_alloc_contiguous leaves the page list unchanged on failure */
-err_id_get:
 err_features:
 err_ffa_init:
     TRACEF("failed to initialize FF-A\n");

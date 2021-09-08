@@ -34,3 +34,9 @@
  * Return: %true in case of success, %false otherwise.
  */
 bool arm_ffa_is_init(void);
+
+/*
+ * TODO: Temporary share variables with lib/sm/shared_mem.c while
+ * implementation is being moved to lib/arm_ffa.
+ */
+extern uint16_t ffa_local_id;
