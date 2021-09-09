@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/bin/sh
+"." "`dirname $0`/../../../../../trusty/vendor/google/aosp/scripts/envsetup.sh"
+"exec" "$PY3" "$0" "$@"
 
 # Copyright 2013-2017 Google Inc. +All rights reserved.
 #
