@@ -643,6 +643,7 @@ static void shared_mem_init(uint level) {
     count = pmm_alloc_contiguous(buf_page_count, buf_size_shift, &tx_paddr,
                                  &page_list);
     if (count != buf_page_count) {
+        TRACEF("failed to allocate tx buffer\n");
         goto err_alloc_tx;
     }
     tx_vaddr = paddr_to_kvaddr(tx_paddr);
@@ -651,7 +652,8 @@ static void shared_mem_init(uint level) {
     count = pmm_alloc_contiguous(buf_page_count, buf_size_shift, &rx_paddr,
                                  &page_list);
     if (count != buf_page_count) {
-        goto err_alloc_tx;
+        TRACEF("failed to allocate rx buffer\n");
+        goto err_alloc_rx;
     }
     rx_vaddr = paddr_to_kvaddr(rx_paddr);
     ASSERT(rx_vaddr);
@@ -675,6 +677,7 @@ err_rxtx_map:
 err_alloc_rx:
     pmm_free(&page_list);
 err_alloc_tx:
+    /* pmm_alloc_contiguous leaves the page list unchanged on failure */
 err_id_get:
 err_features:
 err_version:
