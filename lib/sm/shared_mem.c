@@ -47,10 +47,8 @@ struct sm_mem_obj {
 
 static mutex_t sm_mem_ffa_lock = MUTEX_INITIAL_VALUE(sm_mem_ffa_lock);
 
-static size_t ffa_buf_size;
 static void* ffa_tx;
 static void* ffa_rx;
-static bool supports_ns_bit = false;
 
 static void sm_mem_obj_compat_destroy(struct vmm_obj* vmm_obj) {
     struct ext_mem_obj* obj = containerof(vmm_obj, struct ext_mem_obj, vmm_obj);
@@ -571,58 +569,7 @@ static void shared_mem_init(uint level) {
         goto err_ffa_init;
     }
 
-    /* Check that SMC_FC_FFA_MEM_SHARE is implemented */
-    smc_ret = smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_MEM_SHARE, 0, 0, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_MEM_SHARE) failed 0x%lx 0x%lx 0x%lx\n",
-               __func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
-        goto err_features;
-    }
-
-    smc_ret = smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_MEM_RETRIEVE_REQ,
-                   FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT, 0, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_MEM_RETRIEVE_REQ) failed 0x%lx 0x%lx 0x%lx\n",
-               __func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
-        goto err_features;
-    }
-
-    /* Whether NS bit is filled in on RETRIEVE */
-    supports_ns_bit = !!(smc_ret.r2 & FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT);
-
-    if ((smc_ret.r3 & FFA_FEATURES3_MEM_RETRIEVE_REQ_REFCOUNT_MASK) < 63) {
-        /*
-         * Expect 64 bit reference count. If we don't have it, future calls to
-         * SMC_FC_FFA_MEM_RETRIEVE_REQ can fail if we receive the same handle
-         * multile times. Warn about this, but don't return an error as we only
-         * receive each handle once in the typical case.
-         */
-        TRACEF("%s: Warning SMC_FC_FFA_MEM_RETRIEVE_REQ does not have 64 bit reference count (%ld)\n",
-               __func__, (smc_ret.r3 & 0xff) + 1);
-    }
-
-    smc_ret = smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_RXTX_MAP, 0, 0, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_RXTX_MAP) failed 0x%lx 0x%lx 0x%lx\n",
-               __func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
-        goto err_features;
-    }
-
-    switch (smc_ret.r2 & FFA_FEATURES2_RXTX_MAP_BUF_SIZE_MASK) {
-    case FFA_FEATURES2_RXTX_MAP_BUF_SIZE_4K:
-        buf_size_shift = 12;
-        break;
-    case FFA_FEATURES2_RXTX_MAP_BUF_SIZE_64K:
-        buf_size_shift = 16;
-        break;
-    case FFA_FEATURES2_RXTX_MAP_BUF_SIZE_16K:
-        buf_size_shift = 14;
-        break;
-    default:
-        TRACEF("%s: Invalid FFA_RXTX_MAP buf size value\n", __func__);
-        goto err_features;
-    }
-    ffa_buf_size = 1U << buf_size_shift;
+    buf_size_shift = __builtin_ffs(ffa_buf_size) - 1;
     buf_page_count = DIV_ROUND_UP(ffa_buf_size, PAGE_SIZE);
 
     ASSERT((ffa_buf_size % FFA_PAGE_SIZE) == 0);
@@ -665,7 +612,6 @@ err_alloc_rx:
     pmm_free(&page_list);
 err_alloc_tx:
     /* pmm_alloc_contiguous leaves the page list unchanged on failure */
-err_features:
 err_ffa_init:
     TRACEF("failed to initialize FF-A\n");
     if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_MEM_OBJ)) {

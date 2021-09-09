@@ -40,3 +40,5 @@ bool arm_ffa_is_init(void);
  * implementation is being moved to lib/arm_ffa.
  */
 extern uint16_t ffa_local_id;
+extern size_t ffa_buf_size;
+extern bool supports_ns_bit;
