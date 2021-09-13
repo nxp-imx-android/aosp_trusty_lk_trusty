@@ -26,11 +26,13 @@
 #include <err.h>
 #include <interface/arm_ffa/arm_ffa.h>
 #include <inttypes.h>
+#include <kernel/mutex.h>
 #include <kernel/vm.h>
 #include <lib/arm_ffa/arm_ffa.h>
 #include <lib/smc/smc.h>
 #include <lk/init.h>
 #include <lk/macros.h>
+#include <string.h>
 #include <sys/types.h>
 #include <trace.h>
 
@@ -40,6 +42,8 @@ size_t ffa_buf_size;
 bool supports_ns_bit = false;
 void* ffa_tx;
 void* ffa_rx;
+
+static mutex_t ffa_rxtx_buffer_lock = MUTEX_INITIAL_VALUE(ffa_rxtx_buffer_lock);
 
 bool arm_ffa_is_init(void) {
     return arm_ffa_init_is_success;
@@ -138,6 +142,62 @@ static status_t arm_ffa_call_features(ulong id,
             return ERR_NOT_VALID;
         }
 
+    default:
+        TRACEF("Unexpected FFA SMC: %lx\n", smc_ret.r0);
+        return ERR_NOT_VALID;
+    }
+}
+
+static status_t arm_ffa_call_mem_relinquish(
+        uint64_t handle,
+        uint32_t flags,
+        uint32_t endpoint_count,
+        const ffa_endpoint_id16_t* endpoints) {
+    struct smc_ret8 smc_ret;
+    struct ffa_mem_relinquish_descriptor* req = ffa_tx;
+
+    if (!req) {
+        TRACEF("ERROR: no FF-A tx buffer\n");
+        return ERR_NOT_CONFIGURED;
+    }
+    ASSERT(endpoint_count <=
+           (ffa_buf_size - sizeof(struct ffa_mem_relinquish_descriptor)) /
+                   sizeof(ffa_endpoint_id16_t));
+
+    mutex_acquire(&ffa_rxtx_buffer_lock);
+
+    req->handle = handle;
+    req->flags = flags;
+    req->endpoint_count = endpoint_count;
+
+    memcpy(req->endpoint_array, endpoints,
+           endpoint_count * sizeof(ffa_endpoint_id16_t));
+
+    smc_ret = smc8(SMC_FC_FFA_MEM_RELINQUISH, 0, 0, 0, 0, 0, 0, 0);
+
+    mutex_release(&ffa_rxtx_buffer_lock);
+
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_SUCCESS:
+    case SMC_FC64_FFA_SUCCESS:
+        return NO_ERROR;
+
+    case SMC_FC_FFA_ERROR:
+        switch ((int)smc_ret.r2) {
+        case FFA_ERROR_NOT_SUPPORTED:
+            return ERR_NOT_SUPPORTED;
+        case FFA_ERROR_INVALID_PARAMETERS:
+            return ERR_INVALID_ARGS;
+        case FFA_ERROR_NO_MEMORY:
+            return ERR_NO_MEMORY;
+        case FFA_ERROR_DENIED:
+            return ERR_BAD_STATE;
+        case FFA_ERROR_ABORTED:
+            return ERR_CANCELLED;
+        default:
+            TRACEF("Unexpected FFA_ERROR: %lx\n", smc_ret.r2);
+            return ERR_NOT_VALID;
+        }
     default:
         TRACEF("Unexpected FFA SMC: %lx\n", smc_ret.r0);
         return ERR_NOT_VALID;
@@ -266,6 +326,18 @@ static status_t arm_ffa_mem_retrieve_req_is_implemented(
     }
     *is_implemented = true;
     return NO_ERROR;
+}
+
+status_t arm_ffa_mem_relinquish(uint64_t handle) {
+    status_t res;
+
+    /* As flags are set to 0 no request to zero the memory is made */
+    res = arm_ffa_call_mem_relinquish(handle, 0, 1, &ffa_local_id);
+    if (res != NO_ERROR) {
+        TRACEF("Failed to relinquish memory region, err = %d\n", res);
+    }
+
+    return res;
 }
 
 static status_t arm_ffa_setup(void) {

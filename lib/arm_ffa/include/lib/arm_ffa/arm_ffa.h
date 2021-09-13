@@ -44,3 +44,12 @@ extern size_t ffa_buf_size;
 extern bool supports_ns_bit;
 extern void* ffa_tx;
 extern void* ffa_rx;
+
+/**
+ * arm_ffa_mem_relinquish() - Relinquish Trusty's access to a memory region.
+ * @handle:        Handle of object to relinquish.
+ *
+ * Relinquish shared memory object id with SPM/Hypervisor. Allows the sender to
+ * reclaim the memory (if it has not been retrieved by anyone else).
+ */
+status_t arm_ffa_mem_relinquish(uint64_t handle);

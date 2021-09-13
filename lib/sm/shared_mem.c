@@ -114,37 +114,6 @@ static status_t sm_mem_compat_get_vmm_obj(ext_mem_client_id_t client_id,
 }
 
 /**
- * ffa_mem_relinquish: Relinquish memory object.
- * @obj:        Object to relinquish.
- *
- * Relinquish shared memory object id with SPM/Hypervisor. Allows the sender to
- * reclaim the memory (if it has not been retrieved by anyone else).
- */
-static void ffa_mem_relinquish(struct sm_mem_obj* obj) {
-    struct smc_ret8 smc_ret;
-    struct ffa_mem_relinquish_descriptor* req = ffa_tx;
-
-    DEBUG_ASSERT(obj);
-    DEBUG_ASSERT(is_mutex_held(&sm_mem_ffa_lock));
-
-    if (!req) {
-        TRACEF("ERROR: no FF-A buffer, skip FFA_MEM_RELINQUISH\n");
-        return;
-    }
-    req->handle = obj->ext_mem_obj.id;
-    req->flags = 0; /* Tell SPM/Hypervisor to not clear memory. */
-    req->endpoint_count = 1;
-    req->endpoint_array[0] = ffa_local_id;
-
-    /* Release reference to @obj->ext_mem_obj.id in SPM/Hypervisor. */
-    smc_ret = smc8(SMC_FC_FFA_MEM_RELINQUISH, 0, 0, 0, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("bad reply: 0x%lx 0x%lx 0x%lx\n", smc_ret.r0, smc_ret.r1,
-               smc_ret.r2);
-    }
-}
-
-/**
  * sm_mem_obj_destroy: Destroy memory object.
  * @vmm_obj:    VMM object to destroy.
  *
@@ -152,11 +121,17 @@ static void ffa_mem_relinquish(struct sm_mem_obj* obj) {
  * shared memory object id with SPM/Hypervisor and free local tracking object.
  */
 static void sm_mem_obj_destroy(struct vmm_obj* vmm_obj) {
+    int ret;
     struct sm_mem_obj* obj =
             containerof(vmm_obj, struct sm_mem_obj, ext_mem_obj.vmm_obj);
 
+    DEBUG_ASSERT(obj);
+
     mutex_acquire(&sm_mem_ffa_lock);
-    ffa_mem_relinquish(obj);
+    ret = arm_ffa_mem_relinquish(obj->ext_mem_obj.id);
+    if (ret != NO_ERROR) {
+        TRACEF("Failed to relinquish the shared memory (%d)\n", ret);
+    }
     mutex_release(&sm_mem_ffa_lock);
 
     free(obj);
