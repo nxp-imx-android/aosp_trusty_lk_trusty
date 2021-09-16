@@ -331,6 +331,12 @@ trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
     rand_get_bytes(rand_bytes, sizeof(rand_bytes));
     user_addr_t rand_bytes_addr = add_to_user_stack(
             trusty_thread, rand_bytes, sizeof(rand_bytes), 1, stack_ptr);
+
+    const char* app_name = trusty_thread->app->props.app_name;
+    user_addr_t app_name_addr =
+            add_to_user_stack(trusty_thread, app_name, strlen(app_name) + 1,
+                              sizeof(user_addr_t), stack_ptr);
+
     /* auxv */
     user_addr_t auxv[] = {
             AT_PAGESZ, PAGE_SIZE,       AT_BASE, load_bias,
@@ -346,15 +352,16 @@ trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
     add_to_user_stack(trusty_thread, envp, sizeof(envp), sizeof(user_addr_t),
                       stack_ptr);
 
-    /* argv - for layout compatibility, unused */
+    /* argv. Only argv [0] and argv [1] (terminator) are set. */
     user_addr_t argv[] = {
+            app_name_addr,
             0,
     };
     add_to_user_stack(trusty_thread, argv, sizeof(argv), sizeof(user_addr_t),
                       stack_ptr);
 
-    /* argc */
-    user_addr_t argc = 0;
+    /* argc. The null terminator is not counted. */
+    user_addr_t argc = countof(argv) - 1;
     user_addr_t argc_ptr = add_to_user_stack(trusty_thread, &argc, sizeof(argc),
                                              sizeof(user_addr_t), stack_ptr);
 
