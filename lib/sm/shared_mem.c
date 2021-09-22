@@ -47,9 +47,6 @@ struct sm_mem_obj {
 
 static mutex_t sm_mem_ffa_lock = MUTEX_INITIAL_VALUE(sm_mem_ffa_lock);
 
-static void* ffa_tx;
-static void* ffa_rx;
-
 static void sm_mem_obj_compat_destroy(struct vmm_obj* vmm_obj) {
     struct ext_mem_obj* obj = containerof(vmm_obj, struct ext_mem_obj, vmm_obj);
     free(obj);
@@ -549,73 +546,14 @@ status_t ext_mem_get_vmm_obj(ext_mem_client_id_t client_id,
  * shared_mem_init - Connect to SPM/Hypervisor.
  * @level:  Unused.
  *
- * Allocate message buffers and register them with the SPM/Hypervisor. Also
- * retrieve FF-A endpoint ID.
  */
 static void shared_mem_init(uint level) {
-    paddr_t tx_paddr;
-    paddr_t rx_paddr;
-    void* tx_vaddr;
-    void* rx_vaddr;
-    size_t buf_size_shift;
-    size_t buf_page_count;
-    struct list_node page_list = LIST_INITIAL_VALUE(page_list);
-    size_t count;
-    struct smc_ret8 smc_ret;
-
     /* Check the FF-A module initialized successfully */
     if (!arm_ffa_is_init()) {
         TRACEF("arm_ffa module is not initialized\n");
-        goto err_ffa_init;
-    }
-
-    buf_size_shift = __builtin_ffs(ffa_buf_size) - 1;
-    buf_page_count = DIV_ROUND_UP(ffa_buf_size, PAGE_SIZE);
-
-    ASSERT((ffa_buf_size % FFA_PAGE_SIZE) == 0);
-
-    count = pmm_alloc_contiguous(buf_page_count, buf_size_shift, &tx_paddr,
-                                 &page_list);
-    if (count != buf_page_count) {
-        TRACEF("failed to allocate tx buffer\n");
-        goto err_alloc_tx;
-    }
-    tx_vaddr = paddr_to_kvaddr(tx_paddr);
-    ASSERT(tx_vaddr);
-
-    count = pmm_alloc_contiguous(buf_page_count, buf_size_shift, &rx_paddr,
-                                 &page_list);
-    if (count != buf_page_count) {
-        TRACEF("failed to allocate rx buffer\n");
-        goto err_alloc_rx;
-    }
-    rx_vaddr = paddr_to_kvaddr(rx_paddr);
-    ASSERT(rx_vaddr);
-
-    smc_ret = smc8(SMC_FC_FFA_RXTX_MAP, tx_paddr, rx_paddr,
-                   ffa_buf_size / FFA_PAGE_SIZE, 0, 0, 0, 0);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("failed to map tx @ 0x%" PRIxPADDR ", rx @ 0x%" PRIxPADDR
-               ", page count 0x%zx\n",
-               tx_paddr, rx_paddr, ffa_buf_size / FFA_PAGE_SIZE);
-        goto err_rxtx_map;
-    }
-    mutex_acquire(&sm_mem_ffa_lock);
-    ffa_tx = tx_vaddr;
-    ffa_rx = rx_vaddr;
-    mutex_release(&sm_mem_ffa_lock);
-
-    return;
-
-err_rxtx_map:
-err_alloc_rx:
-    pmm_free(&page_list);
-err_alloc_tx:
-    /* pmm_alloc_contiguous leaves the page list unchanged on failure */
-err_ffa_init:
-    TRACEF("failed to initialize FF-A\n");
-    if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_MEM_OBJ)) {
-        panic("shared_mem_init failed after mem_obj version selected\n");
+        if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_MEM_OBJ)) {
+            panic("shared_mem_init failed after mem_obj version selected\n");
+        }
     }
 }
 

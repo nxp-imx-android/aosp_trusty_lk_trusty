@@ -26,9 +26,11 @@
 #include <err.h>
 #include <interface/arm_ffa/arm_ffa.h>
 #include <inttypes.h>
+#include <kernel/vm.h>
 #include <lib/arm_ffa/arm_ffa.h>
 #include <lib/smc/smc.h>
 #include <lk/init.h>
+#include <lk/macros.h>
 #include <sys/types.h>
 #include <trace.h>
 
@@ -36,6 +38,8 @@ static bool arm_ffa_init_is_success = false;
 uint16_t ffa_local_id;
 size_t ffa_buf_size;
 bool supports_ns_bit = false;
+void* ffa_tx;
+void* ffa_rx;
 
 bool arm_ffa_is_init(void) {
     return arm_ffa_init_is_success;
@@ -140,6 +144,47 @@ static status_t arm_ffa_call_features(ulong id,
     }
 }
 
+static status_t arm_ffa_call_rxtx_map(paddr_t tx_paddr,
+                                      paddr_t rx_paddr,
+                                      size_t page_count) {
+    struct smc_ret8 smc_ret;
+
+    /* Page count specified in bits [0:5] */
+    ASSERT(page_count);
+    ASSERT(page_count < (1 << 6));
+
+#if ARCH_ARM64
+    smc_ret = smc8(SMC_FC64_FFA_RXTX_MAP, tx_paddr, rx_paddr, page_count, 0, 0,
+                   0, 0);
+#else
+    smc_ret = smc8(SMC_FC_FFA_RXTX_MAP, tx_paddr, rx_paddr, page_count, 0, 0, 0,
+                   0);
+#endif
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_SUCCESS:
+    case SMC_FC64_FFA_SUCCESS:
+        return NO_ERROR;
+
+    case SMC_FC_FFA_ERROR:
+        switch ((int)smc_ret.r2) {
+        case FFA_ERROR_NOT_SUPPORTED:
+            return ERR_NOT_SUPPORTED;
+        case FFA_ERROR_INVALID_PARAMETERS:
+            return ERR_INVALID_ARGS;
+        case FFA_ERROR_NO_MEMORY:
+            return ERR_NO_MEMORY;
+        case FFA_ERROR_DENIED:
+            return ERR_ALREADY_EXISTS;
+        default:
+            TRACEF("Unexpected FFA_ERROR: %lx\n", smc_ret.r2);
+            return ERR_NOT_VALID;
+        }
+    default:
+        TRACEF("Unexpected FFA SMC: %lx\n", smc_ret.r0);
+        return ERR_NOT_VALID;
+    }
+}
+
 static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
                                                 size_t* buf_size_log2) {
     ffa_features2_t features2;
@@ -147,9 +192,13 @@ static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
     status_t res;
 
     ASSERT(is_implemented);
-
+#if ARCH_ARM64
     res = arm_ffa_call_features(SMC_FC64_FFA_RXTX_MAP, 0, &is_implemented_val,
                                 &features2, NULL);
+#else
+    res = arm_ffa_call_features(SMC_FC_FFA_RXTX_MAP, 0, &is_implemented_val,
+                                &features2, NULL);
+#endif
     if (res != NO_ERROR) {
         TRACEF("Failed to query for feature FFA_RXTX_MAP, err = %d\n", res);
         return res;
@@ -226,6 +275,14 @@ static status_t arm_ffa_setup(void) {
     bool is_implemented;
     size_t buf_size_log2;
     size_t ref_count_num_bits;
+    size_t arch_page_count;
+    size_t ffa_page_count;
+    size_t count;
+    paddr_t tx_paddr;
+    paddr_t rx_paddr;
+    void* tx_vaddr;
+    void* rx_vaddr;
+    struct list_node page_list = LIST_INITIAL_VALUE(page_list);
 
     res = arm_ffa_call_version(FFA_CURRENT_VERSION_MAJOR,
                                FFA_CURRENT_VERSION_MINOR, &ver_major_ret,
@@ -282,6 +339,48 @@ static status_t arm_ffa_setup(void) {
 
     ffa_buf_size = 1U << buf_size_log2;
     ASSERT((ffa_buf_size % FFA_PAGE_SIZE) == 0);
+
+    arch_page_count = DIV_ROUND_UP(ffa_buf_size, PAGE_SIZE);
+    ffa_page_count = ffa_buf_size / FFA_PAGE_SIZE;
+    count = pmm_alloc_contiguous(arch_page_count, buf_size_log2, &tx_paddr,
+                                 &page_list);
+    if (count != arch_page_count) {
+        TRACEF("Failed to allocate tx buffer %zx!=%zx\n", count,
+               arch_page_count);
+        res = ERR_NO_MEMORY;
+        goto err_alloc_tx;
+    }
+    tx_vaddr = paddr_to_kvaddr(tx_paddr);
+    ASSERT(tx_vaddr);
+
+    count = pmm_alloc_contiguous(arch_page_count, buf_size_log2, &rx_paddr,
+                                 &page_list);
+    if (count != arch_page_count) {
+        TRACEF("Failed to allocate rx buffer %zx!=%zx\n", count,
+               arch_page_count);
+        res = ERR_NO_MEMORY;
+        goto err_alloc_rx;
+    }
+    rx_vaddr = paddr_to_kvaddr(rx_paddr);
+    ASSERT(rx_vaddr);
+
+    res = arm_ffa_call_rxtx_map(tx_paddr, rx_paddr, ffa_page_count);
+    if (res != NO_ERROR) {
+        TRACEF("Failed to map tx @ %p, rx @ %p, page count 0x%zx (err=%d)\n",
+               (void*)tx_paddr, (void*)rx_paddr, ffa_page_count, res);
+        goto err_rxtx_map;
+    }
+
+    ffa_tx = tx_vaddr;
+    ffa_rx = rx_vaddr;
+
+    return res;
+
+err_rxtx_map:
+err_alloc_rx:
+    pmm_free(&page_list);
+err_alloc_tx:
+    /* pmm_alloc_contiguous leaves the page list unchanged on failure */
 
     return res;
 }
