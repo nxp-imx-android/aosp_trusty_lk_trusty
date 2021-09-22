@@ -45,8 +45,6 @@ struct sm_mem_obj {
     struct ext_mem_obj ext_mem_obj;
 };
 
-static mutex_t sm_mem_ffa_lock = MUTEX_INITIAL_VALUE(sm_mem_ffa_lock);
-
 static void sm_mem_obj_compat_destroy(struct vmm_obj* vmm_obj) {
     struct ext_mem_obj* obj = containerof(vmm_obj, struct ext_mem_obj, vmm_obj);
     free(obj);
@@ -127,12 +125,10 @@ static void sm_mem_obj_destroy(struct vmm_obj* vmm_obj) {
 
     DEBUG_ASSERT(obj);
 
-    mutex_acquire(&sm_mem_ffa_lock);
     ret = arm_ffa_mem_relinquish(obj->ext_mem_obj.id);
     if (ret != NO_ERROR) {
         TRACEF("Failed to relinquish the shared memory (%d)\n", ret);
     }
-    mutex_release(&sm_mem_ffa_lock);
 
     free(obj);
 }
@@ -172,320 +168,96 @@ static struct sm_mem_obj* sm_mem_alloc_obj(uint16_t sender_id,
     return obj;
 }
 
-/**
- * ffa_mem_retrieve_req - Call SPM/Hypervisor to retrieve memory region.
- * @sender_id:  FF-A vm id of sender.
- * @handle:     FF-A allocated handle.
+/* sm_mem_get_vmm_obj - Looks up a shared memory object using FF-A.
+ * @client_id:      Id of external entity where the memory originated.
+ * @mem_obj_id:     Id of shared memory object to lookup and return.
+ * @tag:            Tag of the memory.
+ * @size:           Size hint for object. Caller expects an object at least this
+ *                  big.
+ * @objp:           Pointer to return object in.
+ * @obj_ref:        Reference to *@objp.
  *
- * Helper function to start retrieval. Does not process result.
- *
- * Return: &struct smc_ret8.
+ * Return: 0 on success. ERR_NOT_FOUND if @id does not exist.
  */
-static struct smc_ret8 ffa_mem_retrieve_req(uint16_t sender_id,
-                                            uint64_t handle,
-                                            uint64_t tag) {
-    struct ffa_mtd* req = ffa_tx;
-
-    DEBUG_ASSERT(is_mutex_held(&sm_mem_ffa_lock));
-
-    req->sender_id = sender_id;
-
-    /* Accept any memory region attributes. */
-    req->memory_region_attributes = 0;
-
-    req->reserved_3 = 0;
-    req->flags = 0;
-    req->handle = handle;
-
-    /* We must use the same tag as the one used by the sender to retrieve. */
-    req->tag = tag;
-    req->reserved_24_27 = 0;
-
-    /*
-     * We only support retrieving memory for ourselves for now.
-     * TODO: Also support stream endpoints. Possibly more than one.
-     */
-    req->emad_count = 1;
-    req->emad[0].mapd.endpoint_id = ffa_local_id;
-
-    /* Accept any memory access permissions. */
-    req->emad[0].mapd.memory_access_permissions = 0;
-    req->emad[0].mapd.flags = 0;
-
-    /*
-     * Set composite memory region descriptor offset to 0 to indicate that the
-     * relayer should allocate the address ranges. Other values will not work
-     * for relayers that use identity maps (e.g. EL3).
-     */
-    req->emad[0].comp_mrd_offset = 0;
-    req->emad[0].reserved_8_15 = 0;
-
-    size_t len = offsetof(struct ffa_mtd, emad[1]);
-
-    /* Start FFA_MEM_RETRIEVE_REQ. */
-    return smc8(SMC_FC_FFA_MEM_RETRIEVE_REQ, len, len, 0, 0, 0, 0, 0);
-}
-
-/**
- * ffa_mem_retrieve - Call SPM/Hypervisor to retrieve memory region.
- * @sender_id:  FF-A vm id of sender.
- * @handle:     FF-A allocated handle.
- * @objp:       Pointer to return object in.
- * @obj_ref:    Reference to *@objp.
- *
- * Return: 0 on success, lk error code on failure.
- */
-static int ffa_mem_retrieve(uint16_t sender_id,
-                            uint64_t handle,
-                            uint64_t tag,
-                            struct vmm_obj** objp,
-                            struct obj_ref* obj_ref) {
-    struct smc_ret8 smc_ret;
-    struct ffa_mtd* resp = ffa_rx;
-    struct ffa_emad* emad = resp->emad;
+static status_t sm_mem_get_vmm_obj(ext_mem_client_id_t client_id,
+                                   ext_mem_obj_id_t mem_obj_id,
+                                   uint64_t tag,
+                                   size_t size,
+                                   struct vmm_obj** objp,
+                                   struct obj_ref* obj_ref) {
+    int ret;
+    struct arm_ffa_mem_frag_info frag_info;
+    uint32_t address_range_count;
+    uint arch_mmu_flags;
     struct sm_mem_obj* obj;
     struct obj_ref tmp_obj_ref = OBJ_REF_INITIAL_VALUE(tmp_obj_ref);
-    int ret;
-    uint arch_mmu_flags;
-    struct ffa_comp_mrd* comp_mrd;
 
-    DEBUG_ASSERT(is_mutex_held(&sm_mem_ffa_lock));
     DEBUG_ASSERT(objp);
     DEBUG_ASSERT(obj_ref);
 
-    if (!ffa_tx) {
-        TRACEF("no FF-A buffer\n");
-        return ERR_NOT_READY;
+    if ((client_id & 0xffff) != client_id) {
+        TRACEF("Invalid client ID\n");
+        return ERR_INVALID_ARGS;
     }
 
-    smc_ret = ffa_mem_retrieve_req(sender_id, handle, tag);
-    if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_MEM_RETRIEVE_RESP) {
-        TRACEF("bad reply: 0x%lx 0x%lx 0x%lx\n", smc_ret.r0, smc_ret.r1,
-               smc_ret.r2);
-        return ERR_IO;
+    ret = arm_ffa_mem_retrieve_start((uint16_t)client_id, mem_obj_id, tag,
+                                     &address_range_count, &arch_mmu_flags,
+                                     &frag_info);
+
+    if (ret != NO_ERROR) {
+        TRACEF("Failed to get FF-A memory buffer, err=%d\n", ret);
+        goto err_mem_get_access;
     }
-    size_t total_len = (uint32_t)smc_ret.r1;
-    size_t fragment_len = (uint32_t)smc_ret.r2;
-
-    /*
-     * We don't retrieve the memory on behalf of anyone else, so we only
-     * expect one receiver address range descriptor.
-     */
-    if (resp->emad_count != 1) {
-        TRACEF("unexpected response count %d != 1\n", resp->emad_count);
-    }
-
-    switch (resp->flags & FFA_MTD_FLAG_TYPE_MASK) {
-    case FFA_MTD_FLAG_TYPE_SHARE_MEMORY:
-    case FFA_MTD_FLAG_TYPE_LEND_MEMORY:
-        break;
-    default:
-        /* Donate or an unknown sharing type */
-        TRACEF("Unknown transfer kind: 0x%x\n",
-               resp->flags & FFA_MTD_FLAG_TYPE_MASK);
-        return ERR_IO;
-    }
-
-    /* Check that the first fragment contains the entire header. */
-    size_t header_size = offsetof(struct ffa_mtd, emad[1]);
-    if (fragment_len < header_size) {
-        TRACEF("fragment length %zd too short\n", fragment_len);
-        return ERR_IO;
-    }
-
-    /* Check that the first fragment fits in our buffer */
-    if (fragment_len > ffa_buf_size) {
-        TRACEF("fragment length %zd larger than buffer size\n", fragment_len);
-        return ERR_IO;
-    }
-
-    size_t comp_mrd_offset = emad->comp_mrd_offset;
-
-    /*
-     * We have already checked that fragment_len is larger than *resp. Since
-     * *comp_mrd is smaller than that (verified here), the fragment_len -
-     * sizeof(*comp_mrd) subtraction below will never underflow.
-     */
-    STATIC_ASSERT(sizeof(*resp) >= sizeof(*comp_mrd));
-
-    if (comp_mrd_offset > fragment_len - sizeof(*comp_mrd)) {
-        TRACEF("fragment length %zd too short for comp_mrd_offset %zd\n",
-               fragment_len, comp_mrd_offset);
-        return ERR_IO;
-    }
-    comp_mrd = (void*)resp + comp_mrd_offset;
-
-    /*
-     * Set arch_mmu_flags based on mem_attr returned.
-     */
-    switch (resp->memory_region_attributes & ~FFA_MEM_ATTR_NONSECURE) {
-    case FFA_MEM_ATTR_DEVICE_NGNRE:
-        arch_mmu_flags = ARCH_MMU_FLAG_UNCACHED_DEVICE;
-        break;
-    case FFA_MEM_ATTR_NORMAL_MEMORY_UNCACHED:
-        arch_mmu_flags = ARCH_MMU_FLAG_UNCACHED;
-        break;
-    case (FFA_MEM_ATTR_NORMAL_MEMORY_CACHED_WB | FFA_MEM_ATTR_INNER_SHAREABLE):
-        arch_mmu_flags = ARCH_MMU_FLAG_CACHED;
-        break;
-    default:
-        TRACEF("unsupported memory attributes, 0x%x\n",
-               resp->memory_region_attributes);
-        return ERR_NOT_SUPPORTED;
-    }
-
-    if (!supports_ns_bit || (resp->memory_region_attributes & FFA_MEM_ATTR_NONSECURE)) {
-        arch_mmu_flags |= ARCH_MMU_FLAG_NS;
-    } else {
-        LTRACEF("secure memory path triggered\n");
-    }
-
-    if (!(emad->mapd.memory_access_permissions & FFA_MEM_PERM_RW)) {
-        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_RO;
-    }
-    if (emad->mapd.memory_access_permissions & FFA_MEM_PERM_NX) {
-        /*
-         * Don't allow executable mappings if the stage 2 page tables don't
-         * allow it. The hardware allows the stage 2 NX bit to only apply to
-         * EL1, not EL0, but neither FF-A nor LK can currently express this, so
-         * disallow both if FFA_MEM_PERM_NX is set.
-         */
-        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-    }
-
-    if ((resp->flags & FFA_MTD_FLAG_TYPE_MASK) ==
-        FFA_MTD_FLAG_TYPE_SHARE_MEMORY) {
-        /*
-         * If memory is shared, assume it is not safe to execute out of. This
-         * specifically indicates that another party may have access to the
-         * memory.
-         */
-        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-    }
-
-    /*
-     * Regardless of origin, we don't want to execute out of NS memory.
-     */
-    if (arch_mmu_flags & ARCH_MMU_FLAG_NS) {
-        arch_mmu_flags |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-    }
-
-    /*
-     * Check that the overall length of the message matches the expected length
-     * for the number of entries specified in the header.
-     */
-    uint32_t address_range_descriptor_count = comp_mrd->address_range_count;
-    size_t expected_len =
-            comp_mrd_offset +
-            offsetof(struct ffa_comp_mrd,
-                     address_range_array[address_range_descriptor_count]);
-    if (total_len != expected_len) {
-        TRACEF("length mismatch smc %zd != computed %zd for count %d\n",
-               total_len, expected_len, address_range_descriptor_count);
-        return ERR_IO;
-    }
-
-    header_size = comp_mrd_offset + sizeof(*comp_mrd);
-
-    struct ffa_cons_mrd* desc = comp_mrd->address_range_array;
-
-    /*
-     * Compute full descriptor count and size of partial descriptor in first
-     * fragment.
-     */
-    size_t desc_count = (fragment_len - header_size) / sizeof(*desc);
-    if (desc_count * sizeof(*desc) + header_size != fragment_len) {
-        TRACEF("fragment length %zd, contains partial descriptor\n",
-               fragment_len);
-        return ERR_IO;
-    }
-
-    /* The first fragment should not be larger than the whole message */
-    if (desc_count > address_range_descriptor_count) {
-        TRACEF("bad fragment length %zd > %zd\n", fragment_len, total_len);
-        return ERR_IO;
-    }
-
-    LTRACEF("handle %" PRId64 ", desc count %d\n", handle,
-            address_range_descriptor_count);
-
-    /* Allocate a new shared memory object. */
-    obj = sm_mem_alloc_obj(sender_id, handle, tag,
-                           address_range_descriptor_count, arch_mmu_flags,
-                           &tmp_obj_ref);
+    obj = sm_mem_alloc_obj(client_id, mem_obj_id, tag, address_range_count,
+                           arch_mmu_flags, &tmp_obj_ref);
     if (!obj) {
-        return ERR_NO_MEMORY;
+        TRACEF("Failed to allocate a shared memory object\n");
+        ret = ERR_NO_MEMORY;
+        goto err_mem_alloc_obj;
     }
 
-    for (uint ri = 0, di = 0; ri < address_range_descriptor_count; ri++, di++) {
-        if (di >= desc_count) {
-            mutex_release(&sm_mem_ffa_lock);
-            /* Drop lock to allow interleaving large object retrieval */
-            mutex_acquire(&sm_mem_ffa_lock);
-            /*
-             * All descriptors in this fragment has been consumed.
-             * Fetch next fragment from the SPM/Hypervisor.
-             */
-            smc_ret = smc8(SMC_FC_FFA_MEM_FRAG_RX, (uint32_t)handle,
-                           handle >> 32, fragment_len, 0, 0, 0, 0);
-            if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_MEM_FRAG_TX) {
-                TRACEF("bad reply: 0x%lx 0x%lx 0x%lx\n", smc_ret.r0, smc_ret.r1,
-                       smc_ret.r2);
-                ret = ERR_IO;
-                goto err_mem_frag_rx;
-            }
-            fragment_len += (uint32_t)smc_ret.r3;
-
-            desc = ffa_rx;
-            di = 0;
-
-            /*
-             * Compute descriptor count in this fragment.
-             */
-            desc_count = ((uint32_t)smc_ret.r3) / sizeof(*desc);
-            if ((uint32_t)smc_ret.r3 != desc_count * sizeof(*desc)) {
-                TRACEF("fragment length %ld, contains partial descriptor\n",
-                       smc_ret.r3);
-                ret = ERR_IO;
-                goto err_bad_data;
+    for (uint32_t i = 0; i < address_range_count; i++) {
+        if (frag_info.start_index + frag_info.count <= i) {
+            arm_ffa_rx_release();
+            ret = arm_ffa_mem_retrieve_next_frag(mem_obj_id, &frag_info);
+            if (ret != NO_ERROR) {
+                TRACEF("Failed to get next fragment, err=%d\n", ret);
+                goto err_mem_next_frag;
             }
         }
-
-        /* Copy one descriptor into object */
-        obj->ext_mem_obj.page_runs[ri].paddr = desc[di].address;
-        if (desc[di].page_count < 1 ||
-            ((size_t)desc[di].page_count > (SIZE_MAX / FFA_PAGE_SIZE))) {
-            TRACEF("bad page count 0x%x at %d/%d %d/%zd\n", desc[di].page_count,
-                   ri, address_range_descriptor_count, di, desc_count);
-            ret = ERR_IO;
-            goto err_bad_data;
+        ret = arm_ffa_mem_address_range_get(
+                &frag_info, i, &obj->ext_mem_obj.page_runs[i].paddr,
+                &obj->ext_mem_obj.page_runs[i].size);
+        if (ret != NO_ERROR) {
+            TRACEF("Failed to get address range, err=%d\n", ret);
+            goto err_mem_address_range;
         }
-        obj->ext_mem_obj.page_runs[ri].size =
-                (size_t)desc[di].page_count * FFA_PAGE_SIZE;
-        LTRACEF("added ns memory at 0x%" PRIxPADDR ", size %zd, %d/%d %d/%zd\n",
-                obj->ext_mem_obj.page_runs[ri].paddr,
-                obj->ext_mem_obj.page_runs[ri].size, ri,
-                address_range_descriptor_count, di, desc_count);
     }
 
     /* No lock needed as the object is not yet visible to anyone else */
     obj_ref_transfer(obj_ref, &tmp_obj_ref);
     *objp = &obj->ext_mem_obj.vmm_obj;
 
+    arm_ffa_rx_release();
+
     return 0;
 
-err_mem_frag_rx:
-err_bad_data:
+err_mem_address_range:
+err_mem_next_frag:
     DEBUG_ASSERT(obj_ref_active(&tmp_obj_ref));
     vmm_obj_del_ref(&obj->ext_mem_obj.vmm_obj, &tmp_obj_ref);
 
+err_mem_alloc_obj:
+err_mem_get_access:
+    arm_ffa_rx_release();
     return ret;
 }
 
 /*
  * ext_mem_get_vmm_obj - Lookup or create shared memory object.
  * @client_id:  Id of external entity where the memory originated.
- * @mem_obj_id: Id of shared memory opbject to lookup and return.
+ * @mem_obj_id: Id of shared memory object to lookup and return.
+ * @tag:        Value to identify the transaction.
  * @size:       Size hint for object.
  * @objp:       Pointer to return object in.
  * @obj_ref:    Reference to *@objp.
@@ -499,22 +271,17 @@ status_t ext_mem_get_vmm_obj(ext_mem_client_id_t client_id,
                              size_t size,
                              struct vmm_obj** objp,
                              struct obj_ref* obj_ref) {
-    int ret;
-
-    if (client_id == 0 && tag == 0 &&
-        sm_get_api_version() < TRUSTY_API_VERSION_MEM_OBJ) {
-        /* If client is not running under a hypervisor allow using old api. */
+    if (sm_get_api_version() >= TRUSTY_API_VERSION_MEM_OBJ) {
+        return sm_mem_get_vmm_obj(client_id, mem_obj_id, tag, size, objp,
+                                  obj_ref);
+    } else if (!client_id && !tag) {
+        /* If client is not running under a hypervisor allow using
+           old api. */
         return sm_mem_compat_get_vmm_obj(client_id, mem_obj_id, size, objp,
                                          obj_ref);
+    } else {
+        return ERR_NOT_SUPPORTED;
     }
-
-    mutex_acquire(&sm_mem_ffa_lock);
-
-    ret = ffa_mem_retrieve((uint16_t)client_id, mem_obj_id, tag, objp, obj_ref);
-
-    mutex_release(&sm_mem_ffa_lock);
-
-    return ret;
 }
 
 /**

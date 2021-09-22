@@ -22,6 +22,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#define LOCAL_TRACE 0
+
 #include <assert.h>
 #include <err.h>
 #include <interface/arm_ffa/arm_ffa.h>
@@ -37,11 +39,11 @@
 #include <trace.h>
 
 static bool arm_ffa_init_is_success = false;
-uint16_t ffa_local_id;
-size_t ffa_buf_size;
-bool supports_ns_bit = false;
-void* ffa_tx;
-void* ffa_rx;
+static uint16_t ffa_local_id;
+static size_t ffa_buf_size;
+static void* ffa_tx;
+static void* ffa_rx;
+static bool supports_ns_bit = false;
 
 static mutex_t ffa_rxtx_buffer_lock = MUTEX_INITIAL_VALUE(ffa_rxtx_buffer_lock);
 
@@ -145,6 +147,96 @@ static status_t arm_ffa_call_features(ulong id,
     }
 }
 
+/*
+ * Call with ffa_rxtx_buffer_lock acquired and the ffa_tx buffer already
+ * populated with struct ffa_mtd. Transmit in a single fragment.
+ */
+static status_t arm_ffa_call_mem_retrieve_req(uint32_t* total_len,
+                                              uint32_t* fragment_len) {
+    struct smc_ret8 smc_ret;
+    struct ffa_mtd* req = ffa_tx;
+    size_t len;
+
+    DEBUG_ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+
+    len = offsetof(struct ffa_mtd, emad[0]) +
+          req->emad_count * sizeof(struct ffa_emad);
+
+    smc_ret = smc8(SMC_FC_FFA_MEM_RETRIEVE_REQ, len, len, 0, 0, 0, 0, 0);
+
+    int error;
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_MEM_RETRIEVE_RESP:
+        if (total_len) {
+            *total_len = (uint32_t)smc_ret.r1;
+        }
+        if (fragment_len) {
+            *fragment_len = (uint32_t)smc_ret.r2;
+        }
+        return NO_ERROR;
+    case SMC_FC_FFA_ERROR:
+        error = smc_ret.r2;
+        switch (error) {
+        case FFA_ERROR_NOT_SUPPORTED:
+            return ERR_NOT_SUPPORTED;
+        case FFA_ERROR_INVALID_PARAMETERS:
+            return ERR_INVALID_ARGS;
+        case FFA_ERROR_NO_MEMORY:
+            return ERR_NO_MEMORY;
+        case FFA_ERROR_DENIED:
+            return ERR_BAD_STATE;
+        case FFA_ERROR_ABORTED:
+            return ERR_CANCELLED;
+        default:
+            TRACEF("Unknown error: 0x%x\n", error);
+            return ERR_NOT_VALID;
+        }
+    default:
+        return ERR_NOT_VALID;
+    }
+}
+
+static status_t arm_ffa_call_mem_frag_rx(uint64_t handle,
+                                         uint32_t offset,
+                                         uint32_t* fragment_len) {
+    struct smc_ret8 smc_ret;
+
+    DEBUG_ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+
+    smc_ret = smc8(SMC_FC_FFA_MEM_FRAG_RX, (uint32_t)handle, handle >> 32,
+                   offset, 0, 0, 0, 0);
+
+    /* FRAG_RX is followed by FRAG_TX on successful completion. */
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_MEM_FRAG_TX: {
+        uint64_t handle_out = smc_ret.r1 + ((uint64_t)smc_ret.r2 << 32);
+        if (handle != handle_out) {
+            TRACEF("Handle for response doesn't match the request, %" PRId64
+                   " != %" PRId64,
+                   handle, handle_out);
+            return ERR_NOT_VALID;
+        }
+        *fragment_len = smc_ret.r3;
+        return NO_ERROR;
+    }
+    case SMC_FC_FFA_ERROR:
+        switch ((int)smc_ret.r2) {
+        case FFA_ERROR_NOT_SUPPORTED:
+            return ERR_NOT_SUPPORTED;
+        case FFA_ERROR_INVALID_PARAMETERS:
+            return ERR_INVALID_ARGS;
+        case FFA_ERROR_ABORTED:
+            return ERR_CANCELLED;
+        default:
+            TRACEF("Unexpected error %d\n", (int)smc_ret.r2);
+            return ERR_NOT_VALID;
+        }
+    default:
+        TRACEF("Unexpected function id returned 0x%08lx\n", smc_ret.r0);
+        return ERR_NOT_VALID;
+    }
+}
+
 static status_t arm_ffa_call_mem_relinquish(
         uint64_t handle,
         uint32_t flags,
@@ -242,6 +334,31 @@ static status_t arm_ffa_call_rxtx_map(paddr_t tx_paddr,
     }
 }
 
+static status_t arm_ffa_call_rx_release(void) {
+    struct smc_ret8 smc_ret;
+
+    DEBUG_ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+
+    smc_ret = smc8(SMC_FC_FFA_RX_RELEASE, 0, 0, 0, 0, 0, 0, 0);
+    switch (smc_ret.r0) {
+    case SMC_FC_FFA_SUCCESS:
+    case SMC_FC64_FFA_SUCCESS:
+        return NO_ERROR;
+
+    case SMC_FC_FFA_ERROR:
+        switch ((int)smc_ret.r2) {
+        case FFA_ERROR_NOT_SUPPORTED:
+            return ERR_NOT_SUPPORTED;
+        case FFA_ERROR_DENIED:
+            return ERR_BAD_STATE;
+        default:
+            return ERR_NOT_VALID;
+        }
+    default:
+        return ERR_NOT_VALID;
+    }
+}
+
 static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
                                                 size_t* buf_size_log2) {
     ffa_features2_t features2;
@@ -322,6 +439,304 @@ static status_t arm_ffa_mem_retrieve_req_is_implemented(
     }
     *is_implemented = true;
     return NO_ERROR;
+}
+
+/* Helper function to set up the tx buffer with standard values
+   before calling FFA_MEM_RETRIEVE_REQ. */
+static void arm_ffa_populate_receive_req_tx_buffer(uint16_t sender_id,
+                                                   uint64_t handle,
+                                                   uint64_t tag) {
+    struct ffa_mtd* req = ffa_tx;
+    DEBUG_ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+
+    memset(req, 0, sizeof(struct ffa_mtd));
+
+    req->sender_id = sender_id;
+    req->handle = handle;
+    /* We must use the same tag as the one used by the sender to retrieve. */
+    req->tag = tag;
+
+    /*
+     * We only support retrieving memory for ourselves for now.
+     * TODO: Also support stream endpoints. Possibly more than one.
+     */
+    req->emad_count = 1;
+    memset(req->emad, 0, sizeof(struct ffa_emad));
+    req->emad[0].mapd.endpoint_id = ffa_local_id;
+}
+
+/* *desc_buffer is malloc'd and on success passes responsibility to free to
+   the caller. Populate the tx buffer before calling. */
+static status_t arm_ffa_mem_retrieve(uint16_t sender_id,
+                                     uint64_t handle,
+                                     uint32_t* len,
+                                     uint32_t* fragment_len) {
+    status_t res = NO_ERROR;
+
+    DEBUG_ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+    DEBUG_ASSERT(len);
+
+    uint32_t len_out, fragment_len_out;
+    res = arm_ffa_call_mem_retrieve_req(&len_out, &fragment_len_out);
+    LTRACEF("total_len: %u, fragment_len: %u\n", len_out, fragment_len_out);
+    if (res != NO_ERROR) {
+        TRACEF("FF-A memory retrieve request failed, err = %d\n", res);
+        return res;
+    }
+    if (fragment_len_out > len_out) {
+        TRACEF("Fragment length larger than total length %u > %u\n",
+               fragment_len_out, len_out);
+        return ERR_IO;
+    }
+
+    /* Check that the first fragment fits in our buffer */
+    if (fragment_len_out > ffa_buf_size) {
+        TRACEF("Fragment length %u larger than buffer size\n",
+               fragment_len_out);
+        return ERR_IO;
+    }
+
+    if (fragment_len) {
+        *fragment_len = fragment_len_out;
+    }
+    if (len) {
+        *len = len_out;
+    }
+
+    return NO_ERROR;
+}
+
+status_t arm_ffa_mem_address_range_get(struct arm_ffa_mem_frag_info* frag_info,
+                                       size_t index,
+                                       paddr_t* addr,
+                                       size_t* size) {
+    uint32_t page_count;
+    size_t frag_idx;
+
+    DEBUG_ASSERT(frag_info);
+
+    if (index < frag_info->start_index ||
+        index >= frag_info->start_index + frag_info->count) {
+        return ERR_OUT_OF_RANGE;
+    }
+
+    frag_idx = index - frag_info->start_index;
+
+    page_count = frag_info->address_ranges[frag_idx].page_count;
+    LTRACEF("address %p, page_count 0x%x\n",
+            (void*)frag_info->address_ranges[frag_idx].address,
+            frag_info->address_ranges[frag_idx].page_count);
+    if (page_count < 1 || ((size_t)page_count > (SIZE_MAX / FFA_PAGE_SIZE))) {
+        TRACEF("bad page count 0x%x at %zd\n", page_count, index);
+        return ERR_IO;
+    }
+
+    if (addr) {
+        *addr = (paddr_t)frag_info->address_ranges[frag_idx].address;
+    }
+    if (size) {
+        *size = page_count * FFA_PAGE_SIZE;
+    }
+
+    return NO_ERROR;
+}
+
+status_t arm_ffa_mem_retrieve_start(uint16_t sender_id,
+                                    uint64_t handle,
+                                    uint64_t tag,
+                                    uint32_t* address_range_count,
+                                    uint* arch_mmu_flags,
+                                    struct arm_ffa_mem_frag_info* frag_info) {
+    status_t res;
+    struct ffa_mtd* mtd;
+    struct ffa_emad* emad;
+    struct ffa_comp_mrd* comp_mrd;
+    uint32_t computed_len;
+    uint32_t header_size;
+
+    uint32_t total_len;
+    uint32_t fragment_len;
+
+    DEBUG_ASSERT(frag_info);
+
+    mutex_acquire(&ffa_rxtx_buffer_lock);
+    arm_ffa_populate_receive_req_tx_buffer(sender_id, handle, tag);
+    res = arm_ffa_mem_retrieve(sender_id, handle, &total_len, &fragment_len);
+
+    if (res != NO_ERROR) {
+        TRACEF("FF-A memory retrieve failed err=%d\n", res);
+        return res;
+    }
+
+    if (fragment_len <
+        offsetof(struct ffa_mtd, emad) + sizeof(struct ffa_emad)) {
+        TRACEF("Fragment too short for memory transaction descriptor\n");
+        return ERR_IO;
+    }
+
+    mtd = ffa_rx;
+    emad = mtd->emad;
+
+    /*
+     * We don't retrieve the memory on behalf of anyone else, so we only
+     * expect one receiver address range descriptor.
+     */
+    if (mtd->emad_count != 1) {
+        TRACEF("unexpected response count %d != 1\n", mtd->emad_count);
+        return ERR_IO;
+    }
+
+    LTRACEF("comp_mrd_offset: %u\n", emad->comp_mrd_offset);
+    if (emad->comp_mrd_offset + sizeof(*comp_mrd) > fragment_len) {
+        TRACEF("Fragment length %u too short for comp_mrd_offset %u\n",
+               fragment_len, emad->comp_mrd_offset);
+        return ERR_IO;
+    }
+
+    comp_mrd = ffa_rx + emad->comp_mrd_offset;
+
+    uint32_t address_range_count_out = comp_mrd->address_range_count;
+    frag_info->address_ranges = comp_mrd->address_range_array;
+    LTRACEF("address_range_count: %u\n", address_range_count_out);
+
+    computed_len = emad->comp_mrd_offset +
+                   offsetof(struct ffa_comp_mrd, address_range_array) +
+                   sizeof(struct ffa_cons_mrd) * comp_mrd->address_range_count;
+    if (total_len != computed_len) {
+        TRACEF("Reported length %u != computed length %u\n", total_len,
+               computed_len);
+        return ERR_IO;
+    }
+
+    header_size = emad->comp_mrd_offset +
+                  offsetof(struct ffa_comp_mrd, address_range_array);
+    frag_info->count =
+            (fragment_len - header_size) / sizeof(struct ffa_cons_mrd);
+    LTRACEF("Descriptors in fragment %u\n", frag_info->count);
+
+    if (frag_info->count * sizeof(struct ffa_cons_mrd) + header_size !=
+        fragment_len) {
+        TRACEF("fragment length %u, contains partial descriptor\n",
+               fragment_len);
+        return ERR_IO;
+    }
+
+    frag_info->received_len = fragment_len;
+    frag_info->start_index = 0;
+
+    uint arch_mmu_flags_out = 0;
+
+    switch (mtd->flags & FFA_MTD_FLAG_TYPE_MASK) {
+    case FFA_MTD_FLAG_TYPE_SHARE_MEMORY:
+        /*
+         * If memory is shared, assume it is not safe to execute out of. This
+         * specifically indicates that another party may have access to the
+         * memory.
+         */
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+        break;
+    case FFA_MTD_FLAG_TYPE_LEND_MEMORY:
+        break;
+    case FFA_MTD_FLAG_TYPE_DONATE_MEMORY:
+        TRACEF("Unexpected donate memory transaction type is not supported\n");
+        return ERR_NOT_IMPLEMENTED;
+    default:
+        TRACEF("Unknown memory transaction type: 0x%x\n", mtd->flags);
+        return ERR_NOT_VALID;
+    }
+
+    switch (mtd->memory_region_attributes & ~FFA_MEM_ATTR_NONSECURE) {
+    case FFA_MEM_ATTR_DEVICE_NGNRE:
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_UNCACHED_DEVICE;
+        break;
+    case FFA_MEM_ATTR_NORMAL_MEMORY_UNCACHED:
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_UNCACHED;
+        break;
+    case (FFA_MEM_ATTR_NORMAL_MEMORY_CACHED_WB | FFA_MEM_ATTR_INNER_SHAREABLE):
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_CACHED;
+        break;
+    default:
+        TRACEF("Invalid memory attributes, 0x%x\n",
+               mtd->memory_region_attributes);
+        return ERR_NOT_VALID;
+    }
+
+    if (!(emad->mapd.memory_access_permissions & FFA_MEM_PERM_RW)) {
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_PERM_RO;
+    }
+    if (emad->mapd.memory_access_permissions & FFA_MEM_PERM_NX) {
+        /*
+         * Don't allow executable mappings if the stage 2 page tables don't
+         * allow it. The hardware allows the stage 2 NX bit to only apply to
+         * EL1, not EL0, but neither FF-A nor LK can currently express this, so
+         * disallow both if FFA_MEM_PERM_NX is set.
+         */
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+    }
+
+    if (!supports_ns_bit ||
+        (mtd->memory_region_attributes & FFA_MEM_ATTR_NONSECURE)) {
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_NS;
+        /* Regardless of origin, we don't want to execute out of NS memory. */
+        arch_mmu_flags_out |= ARCH_MMU_FLAG_PERM_NO_EXECUTE;
+    }
+
+    if (arch_mmu_flags) {
+        *arch_mmu_flags = arch_mmu_flags_out;
+    }
+    if (address_range_count) {
+        *address_range_count = address_range_count_out;
+    }
+
+    return res;
+}
+
+/* This assumes that the fragment is completely composed of memory
+   region descriptors (struct ffa_cons_mrd) */
+status_t arm_ffa_mem_retrieve_next_frag(
+        uint64_t handle,
+        struct arm_ffa_mem_frag_info* frag_info) {
+    status_t res;
+    uint32_t fragment_len;
+
+    mutex_acquire(&ffa_rxtx_buffer_lock);
+
+    res = arm_ffa_call_mem_frag_rx(handle, frag_info->received_len,
+                                   &fragment_len);
+
+    if (res != NO_ERROR) {
+        TRACEF("Failed to get memory retrieve fragment, err = %d\n", res);
+        return res;
+    }
+
+    frag_info->received_len += fragment_len;
+    frag_info->start_index += frag_info->count;
+
+    frag_info->count = fragment_len / sizeof(struct ffa_cons_mrd);
+    if (frag_info->count * sizeof(struct ffa_cons_mrd) != fragment_len) {
+        TRACEF("fragment length %u, contains partial descriptor\n",
+               fragment_len);
+        return ERR_IO;
+    }
+
+    frag_info->address_ranges = ffa_rx;
+
+    return NO_ERROR;
+}
+
+status_t arm_ffa_rx_release(void) {
+    status_t res;
+    ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
+
+    res = arm_ffa_call_rx_release();
+    mutex_release(&ffa_rxtx_buffer_lock);
+
+    if (res != NO_ERROR && res != ERR_NOT_SUPPORTED) {
+        TRACEF("Failed to release rx buffer, err = %d\n", res);
+        return res;
+    } else {
+        return NO_ERROR;
+    }
 }
 
 status_t arm_ffa_mem_relinquish(uint64_t handle) {

@@ -230,7 +230,7 @@ status_t ext_mem_map_obj_id(struct vmm_aspace* aspace,
 /**
  * ext_mem_get_vmm_obj - Lookup shared memory object.
  * @client_id:      Id of external entity where the memory originated.
- * @mem_obj_id:     Id of shared memory opbject to lookup and return.
+ * @mem_obj_id:     Id of shared memory object to lookup and return.
  * @tag:            Tag of the memory. If a non-FF-A object, use 0.
  * @size:           Size hint for object. Caller expects an object at least this
  *                  big.
