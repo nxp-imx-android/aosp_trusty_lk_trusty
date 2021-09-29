@@ -44,11 +44,17 @@ else
 HOST_TEST_BUILDDIR := $(TRUSTY_TOP_LEVEL_BUILDDIR)
 endif
 
+# We should use the prebuilt linker rather than the host linker
+HOST_LDFLAGS := -B$(CLANG_BINDIR) -fuse-ld=lld
+
 ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 HOST_RUN_ENV := ASAN_OPTIONS=symbolize=1 ASAN_SYMBOLIZER_PATH=$(CLANG_BINDIR)/llvm-symbolizer
-# ASAN is not compatable with GDB.
+HOST_LIBCXX_CPPFLAGS := -stdlib=libc++ -isystem$(CLANG_BINDIR)/../include/c++/v1
+HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
+HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+# ASAN is not compatible with GDB.
 HOST_DEBUGGER :=
 else
 # TODO: use hermetic version of GCC.
@@ -56,6 +62,8 @@ else
 HOST_CC := gcc
 HOST_SANITIZER_FLAGS :=
 HOST_RUN_ENV :=
+HOST_LIBCXX_CPPFLAGS :=
+HOST_LIBCXX_LDFLAGS :=
 HOST_DEBUGGER := gdb -batch -ex run -ex where
 endif
 
@@ -67,13 +75,13 @@ GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(HOST_TEST_BUILDDIR)/host_tests/obj/$(HOST_TEST)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
-GENERIC_CPPFLAGS := -std=c++11 -Wno-c99-designator
+GENERIC_CPPFLAGS := -std=c++11 -Wno-c99-designator $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
 # Link
 HOST_TEST_BIN := $(HOST_TEST_BUILDDIR)/host_tests/$(HOST_TEST)
 $(HOST_TEST_BIN): CC := $(HOST_CC)
-$(HOST_TEST_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(addprefix -l, $(HOST_LIBS))
+$(HOST_TEST_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LDFLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
 $(HOST_TEST_BIN): $(GENERIC_OBJS)
 	@echo linking $@
 	@$(MKDIR)
@@ -104,6 +112,10 @@ HOST_LIBS :=
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
 HOST_RUN_ENV :=
+HOST_LIBCXX_CPPFLAGS :=
+HOST_LDFLAGS :=
+HOST_LIBCXX_PATH :=
+HOST_LIBCXX_LDFLAGS :=
 HOST_DEBUGGER :=
 HOST_TEST_BIN :=
 HOST_OBJ_DIR :=
