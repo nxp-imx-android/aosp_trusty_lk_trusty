@@ -37,7 +37,6 @@ ifeq ($(HOST_SRCS), )
 $(error HOST_SRCS must be specified)
 endif
 
-ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 # ASAN is not compatable with GDB.
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
@@ -57,14 +56,6 @@ HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(
 # Add relative path inside the SDK package to RPATH
 HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../toolchain/clang/lib64'
 else
-HOST_LIBCXX_CPPFLAGS :=
-HOST_LIBCXX_LDFLAGS :=
-endif
-else
-# TODO: use hermetic version of GCC.
-# To do this, we'd need to compile boringssl from source rather than using a system library.
-HOST_CC := gcc
-HOST_SANITIZER_FLAGS :=
 HOST_LIBCXX_CPPFLAGS :=
 HOST_LIBCXX_LDFLAGS :=
 endif

@@ -47,7 +47,6 @@ endif
 # We should use the prebuilt linker rather than the host linker
 HOST_LDFLAGS := -B$(CLANG_BINDIR) -fuse-ld=lld
 
-ifeq ($(call TOBOOL,$(CLANGBUILD)),true)
 HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 HOST_RUN_ENV := ASAN_OPTIONS=symbolize=1 ASAN_SYMBOLIZER_PATH=$(CLANG_BINDIR)/llvm-symbolizer
@@ -56,16 +55,6 @@ HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
 HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
 # ASAN is not compatible with GDB.
 HOST_DEBUGGER :=
-else
-# TODO: use hermetic version of GCC.
-# To do this, we'd need to compile boringssl from source rather than using a system library.
-HOST_CC := gcc
-HOST_SANITIZER_FLAGS :=
-HOST_RUN_ENV :=
-HOST_LIBCXX_CPPFLAGS :=
-HOST_LIBCXX_LDFLAGS :=
-HOST_DEBUGGER := gdb -batch -ex run -ex where
-endif
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
 
