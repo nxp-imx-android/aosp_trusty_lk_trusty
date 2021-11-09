@@ -289,7 +289,9 @@ TEST(mmutest, alloc_last_kernel_page) {
     /* Allocate last kernel aspace page. */
     ptr1 = (void*)(aspace->base + (aspace->size - PAGE_SIZE));
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
-                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD, 0);
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_START_GUARD |
+                            VMM_FLAG_NO_END_GUARD,
+                    0);
     /* TODO: allow this to fail as page could already be in use */
     ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
 
@@ -308,7 +310,7 @@ TEST(mmutest, alloc_last_kernel_page) {
 
     /* Try to allocate last kernel aspace page again, should fail */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
-                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
     EXPECT_EQ(ERR_NO_MEMORY, ret, "vmm_alloc last page\n");
 
     /* Allocate 2nd last kernel aspace page, while last page is allocated. */
@@ -328,7 +330,7 @@ TEST(mmutest, alloc_last_kernel_page) {
 
     /* Allocate and free last page */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
-                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+                    VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
     /* TODO: allow this to fail as page could be in use */
     ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
     ret = vmm_free_region(aspace, (vaddr_t)ptr1);
