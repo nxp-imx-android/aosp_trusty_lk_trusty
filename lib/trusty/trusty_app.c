@@ -1312,14 +1312,22 @@ status_t trusty_app_create_and_start(struct trusty_app_img* app_img,
         ret = request_app_start_locked(trusty_app);
         mutex_release(&apps_lock);
         /*
-         * request_app_start_locked either returns NO_ERROR or
-         * ERR_ALREADY_STARTED, and the latter should never happen here
-         * because we would already return with ERR_ALREADY_EXISTS earlier
+         * request_app_start_locked always returns one of
+         * NO_ERROR or ERR_ALREADY_STARTED.
+         *
+         * Since we drop apps_lock between trusty_app_create and here,
+         * it is possible for another thread to race us and start the
+         * app from trusty_app_request_start_by_port before we
+         * reacquire the lock. In that case, request_app_start_locked
+         * returns ERR_ALREADY_STARTED here. We treat this case as a
+         * success and return NO_ERROR since the application is
+         * running and we don't want the kernel service to
+         * free its memory.
          */
-        DEBUG_ASSERT(ret == NO_ERROR);
+        DEBUG_ASSERT(ret == NO_ERROR || ret == ERR_ALREADY_STARTED);
     }
 
-    return ret;
+    return NO_ERROR;
 }
 
 status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
