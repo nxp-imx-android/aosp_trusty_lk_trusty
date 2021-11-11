@@ -328,6 +328,11 @@ TEST(mmutest, alloc_last_kernel_page) {
     ret = vmm_free_region(aspace, (vaddr_t)ptr3);
     EXPECT_EQ(0, ret, "vmm_free_region failed\n");
 
+    /* Try to allocate last page without VMM_FLAG_NO_END_GUARD flag */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_OUT_OF_RANGE, ret, "vmm_alloc succeeded unexpectedly\n");
+
     /* Allocate and free last page */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
                     VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
@@ -428,6 +433,11 @@ TEST_P(mmutestaspace, guard_page) {
     ptr2 = NULL;
     vmm_free_region(aspace, (vaddr_t)ptr1);
     ptr1 = NULL;
+
+    /* Check that we cannot allocate at a random spot without guard page */
+    ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
+                    VMM_FLAG_NO_START_GUARD | VMM_FLAG_NO_END_GUARD, 0);
+    ASSERT_EQ(ERR_INVALID_ARGS, ret);
 
     /* Find a range to to more specific tests in. */
     retb = vmm_find_spot(aspace, size, &base);
