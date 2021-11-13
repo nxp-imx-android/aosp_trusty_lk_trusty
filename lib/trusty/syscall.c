@@ -301,8 +301,8 @@ long sys_prepare_dma(user_addr_t uaddr,
     do {
         paddr_t paddr;
         size_t paddr_size;
-        ret = slice.obj->ops->get_page(slice.obj, slice.offset, &paddr,
-                                       &paddr_size);
+        ret = slice.obj->ops->get_page(slice.obj, slice.offset + mapped_size,
+                                       &paddr, &paddr_size);
         if (ret != NO_ERROR)
             goto err;
 
