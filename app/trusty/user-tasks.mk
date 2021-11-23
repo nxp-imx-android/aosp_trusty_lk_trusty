@@ -66,6 +66,12 @@ MODULE := KERNEL
 include make/userspace_recurse.mk
 endef
 
+# Strip out flags not applicable to SDK
+define prepare-sdk-flags
+$(patsubst -fsanitize-blacklist=%,,\
+	$(patsubst -include $(BUILDDIR)/config.h,,$(1)))
+endef
+
 TRUSTY_TOP_LEVEL_BUILDDIR := $(BUILDDIR)
 TRUSTY_APP_BUILDDIR := $(BUILDDIR)/user_tasks
 TRUSTY_SDK_DIR := $(BUILDDIR)/sdk
@@ -181,8 +187,12 @@ $(info ALL_USER_TASKS: $(ALL_USER_TASKS))
 # GLOBAL_CPPFLAGS comes before GLOBAL_INCLUDES on the compile command-line. This
 # is important because we need libcxx's math.h to be picked up before musl's
 # when building C++.
-GLOBAL_USER_CPPFLAGS += -I$(TRUSTY_SDK_INCLUDE_DIR)/c++/v1
-GLOBAL_USER_COMPILEFLAGS += --sysroot=$(TRUSTY_SDK_SYSROOT) -isystem $(TRUSTY_SDK_INCLUDE_DIR)
+GLOBAL_USER_IN_TREE_CPPFLAGS += -I$(TRUSTY_SDK_INCLUDE_DIR)/c++/v1
+GLOBAL_USER_IN_TREE_COMPILEFLAGS += \
+	--sysroot=$(TRUSTY_SDK_SYSROOT) \
+	-isystem $(TRUSTY_SDK_INCLUDE_DIR) \
+	-D_LIBCPP_HAS_THREAD_API_PTHREAD \
+
 TRUSTY_APP_BASE_LDFLAGS += -L$(TRUSTY_SDK_LIB_DIR)
 
 # Generate build rules for each sdk library, if they have not already been
@@ -239,6 +249,9 @@ TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
 # Add rust crate tests to the list of built in apps
 RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
 TRUSTY_BUILTIN_USER_TASKS += $(RUST_USER_TEST_MODULES)
+
+# Build the SDK makefile
+$(eval $(call trusty-build-rule,trusty/user/base/sdk))
 
 # Ensure that includes and libs are installed
 all:: $(ALL_SDK_INCLUDES) $(ALL_SDK_LIBS) $(ALL_SDK_EXTRA_FILES) $(TRUSTY_SDK_LICENSE)
