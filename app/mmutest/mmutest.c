@@ -387,6 +387,20 @@ TEST_P(mmutestaspace, guard_page) {
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0, 0, 0);
     ASSERT_EQ(0, ret);
 
+    /*
+     * We may get an allocation right at the beginning of the address space
+     * by chance or because ASLR is disabled. In that case, we make another
+     * allocation to ensure that ptr1 - PAGE_SIZE >= aspace->base holds.
+     */
+    if (aspace->base > (vaddr_t)ptr1 - PAGE_SIZE) {
+        ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0, 0, 0);
+        ASSERT_EQ(0, ret);
+        ASSERT_GE((vaddr_t)ptr3 - PAGE_SIZE, aspace->base);
+        vmm_free_region(aspace, (vaddr_t)ptr1);
+        ptr1 = ptr3;
+        ptr3 = NULL;
+    }
+
     /* Check that there are no existing adjacent allocations. */
     ret = vmm_get_obj(aspace, (vaddr_t)ptr1 - PAGE_SIZE, PAGE_SIZE, &slice);
     EXPECT_EQ(ERR_NOT_FOUND, ret);
