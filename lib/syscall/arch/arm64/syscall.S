@@ -21,15 +21,8 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <arch/asm_macros.h>
 #include <asm.h>
-
-.macro push ra, rb
-stp \ra, \rb, [sp,#-16]!
-.endm
-
-.macro pop ra, rb
-ldp \ra, \rb, [sp], #16
-.endm
 
 #define DAIF_MASK_IAF 0x7
 
@@ -47,15 +40,15 @@ FUNCTION (arm64_syscall)
 
 	msr	daifclr, #DAIF_MASK_IAF
 
-	ldr	x14, =nr_syscalls
+	adrl	x14, nr_syscalls
 	ldr	x14, [x14]
 	cmp	x12, x14
 	b.hs	.Lundefined
-	ldr	x14, =syscall_table
+	adrl	x14, syscall_table
 	ldr	x14, [x14, x12, lsl#3]
 	cbnz	x14, .Ldefined
 .Lundefined:
-	ldr	x14,=sys_undefined
+	adrl	x14, sys_undefined
 .Ldefined:
 	ldp	x2, x3, [x0, #16]
 	ldp	x0, x1, [x0]
