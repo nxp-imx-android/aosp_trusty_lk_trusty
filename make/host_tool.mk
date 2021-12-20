@@ -26,6 +26,7 @@
 # HOST_SRCS : list of source files (required)
 # HOST_INCLUDE_DIRS : list of include directories
 # HOST_FLAGS : list of flags for the compiler
+# HOST_LDFLAGS : list of flags for the compiler
 # HOST_LIBS : list of libraries to link against
 
 # Validate arguments.
@@ -42,7 +43,7 @@ HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 
 # We should use the prebuilt linker rather than the host linker
-HOST_LDFLAGS := -B$(CLANG_BINDIR) -fuse-ld=lld
+HOST_LDFLAGS += -B$(CLANG_BINDIR) -fuse-ld=lld
 
 # When using clang, we need to always use the prebuilt libc++ library
 # because we can't be sure what version of libstdc++ the host system
@@ -87,6 +88,7 @@ HOST_TOOL_NAME:=
 HOST_SRCS :=
 HOST_INCLUDE_DIRS :=
 HOST_FLAGS :=
+HOST_LDFLAGS :=
 HOST_LIBS :=
 # Cleanup internal
 HOST_CC :=
