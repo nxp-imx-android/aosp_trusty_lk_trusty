@@ -43,3 +43,16 @@ FUNCTION(sm_sched_nonsecure)
 	stp	w2, w3, [x9], #8
 	str	x7, [x9], #8
 	ret
+
+FUNCTION(platform_early_halt)
+	/* Disable interrupts and FIQs */
+	msr	daifset, #3
+
+.Lloop:
+	ldr	x0, =SMC_SC_NS_RETURN
+	ldr	x1, =SM_ERR_PANIC
+	mov	x2, xzr
+	mov	x3, xzr
+	smc	#0
+
+	b	.Lloop
