@@ -51,12 +51,24 @@ static inline void in_ubsan_set(bool val) {
     in_ubsan = val;
 }
 #else
+/*
+ * Single copy of in_ubsan for when we don't have a current thread, e.g.,
+ * during early boot
+ */
+static bool in_ubsan_early = false;
+
 #include <kernel/thread.h>
 static inline bool in_ubsan_get(void) {
-    return tls_get(TLS_ENTRY_UBSAN);
+    thread_t* curr = get_current_thread();
+    return curr ? thread_tls_get(curr, TLS_ENTRY_UBSAN) : in_ubsan_early;
 }
 static inline void in_ubsan_set(bool val) {
-    tls_set(TLS_ENTRY_UBSAN, val);
+    thread_t* curr = get_current_thread();
+    if (curr) {
+        thread_tls_set(curr, TLS_ENTRY_UBSAN, val);
+    } else {
+        in_ubsan_early = val;
+    }
 }
 #endif
 
