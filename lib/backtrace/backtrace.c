@@ -219,6 +219,11 @@ void dump_thread_backtrace(struct thread* thread) {
     struct stack_frame frame = {0};
     get_current_frame(&frame);
 
-    printf("\nBacktrace: \n");
+    printf("\nBacktrace for thread: %s\n", thread->name);
+    struct trusty_app *app = current_trusty_app();
+    if (app) {
+        printf("(app: %s)\n", app->props.app_name);
+    }
+
     dump_backtrace_etc(thread, &frame);
 }
