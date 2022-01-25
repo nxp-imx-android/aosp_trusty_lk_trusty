@@ -43,9 +43,6 @@
 
 static mutex_t smc_table_lock = MUTEX_INITIAL_VALUE(smc_table_lock);
 
-/* Defined elsewhere */
-long smc_fiq_exit(struct smc32_args* args);
-
 #define TRACE_SMC(msg, args)                                                \
     do {                                                                    \
         u_int _i;                                                           \
@@ -105,11 +102,6 @@ static long smc_stdcall_secure_monitor(struct smc32_args* args) {
     return handler_fn(args);
 }
 
-long smc_fiq_exit(struct smc32_args* args) {
-    sm_intc_fiq_exit();
-    return 1; /* 0: reeenter fiq handler, 1: return */
-}
-
 static long smc_fiq_enter(struct smc32_args* args) {
     return sm_intc_fiq_enter();
 }
@@ -144,8 +136,6 @@ static long smc_get_version_str(struct smc32_args* args) {
 }
 
 static smc32_handler_t sm_fastcall_function_table[] = {
-        [SMC_FUNCTION(SMC_FC_REQUEST_FIQ)] = smc_intc_request_fiq,
-        [SMC_FUNCTION(SMC_FC_FIQ_EXIT)] = smc_fiq_exit,
         [SMC_FUNCTION(SMC_FC_GET_NEXT_IRQ)] = smc_intc_get_next_irq,
         [SMC_FUNCTION(SMC_FC_FIQ_ENTER)] = smc_fiq_enter,
 #if !WITH_LIB_SM_MONITOR
@@ -154,7 +144,6 @@ static smc32_handler_t sm_fastcall_function_table[] = {
 #endif
         [SMC_FUNCTION(SMC_FC_GET_VERSION_STR)] = smc_get_version_str,
         [SMC_FUNCTION(SMC_FC_API_VERSION)] = smc_sm_api_version,
-        [SMC_FUNCTION(SMC_FC_FIQ_RESUME)] = smc_intc_fiq_resume,
 };
 
 static long smc_fastcall_secure_monitor(struct smc32_args* args) {

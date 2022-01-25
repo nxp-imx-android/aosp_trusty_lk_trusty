@@ -83,11 +83,8 @@ long smc_sm_api_version(struct smc32_args* args);
 
 /* Interrupt controller irq/fiq support */
 long smc_intc_get_next_irq(struct smc32_args* args);
-long smc_intc_request_fiq(struct smc32_args* args);
-long smc_intc_fiq_resume(struct smc32_args* args);
 /* return 0 to enter ns-fiq handler, return non-0 to return */
 status_t sm_intc_fiq_enter(void);
-void sm_intc_fiq_exit(void);
 void sm_intc_enable_interrupts(void);
 
 /* Get the argument block passed in by the bootloader */
