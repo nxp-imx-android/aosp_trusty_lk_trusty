@@ -52,7 +52,7 @@
 # harder for a reader to figure out which sanitizer is expected to generate
 # a false-positive in that code.
 
-UBSAN_SANITIZERS := \
+UBSAN_SANITIZERS ?= \
     alignment \
     bool \
     builtin \
