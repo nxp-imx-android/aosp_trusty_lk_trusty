@@ -210,6 +210,11 @@ static void dump_backtrace_etc(struct thread* thread,
 }
 
 void dump_thread_backtrace(struct thread* thread) {
+    if (!thread) {
+        printf("Not executing in any thread, backtrace not available!\n");
+        return;
+    }
+
     /*
      * TODO(b/149918767): Support backtracing for non-current threads. We need
      * operations on trusty_thread and trusty_app to be thread-safe first.
