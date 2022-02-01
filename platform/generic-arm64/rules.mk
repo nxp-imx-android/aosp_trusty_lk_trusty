@@ -37,7 +37,7 @@ ifneq (2,$(GIC_VERSION))
 ARM_MERGE_FIQ_IRQ := true
 endif
 
-MEMBASE ?= $(KERNEL_BASE)
+MEMBASE ?= 0
 MEMSIZE ?= 1
 
 GLOBAL_INCLUDES += \
