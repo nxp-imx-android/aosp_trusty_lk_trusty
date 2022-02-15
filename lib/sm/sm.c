@@ -68,7 +68,6 @@ static event_t nsirqevent[SMP_MAX_CPUS];
 static thread_t* nsirqthreads[SMP_MAX_CPUS];
 static thread_t* nsidlethreads[SMP_MAX_CPUS];
 static thread_t* stdcallthread;
-static bool ns_threads_started;
 static bool irq_thread_ready[SMP_MAX_CPUS];
 struct sm_std_call_state stdcallstate = {
         .event = EVENT_INITIAL_VALUE(stdcallstate.event, 0, 0),
@@ -384,43 +383,9 @@ LK_INIT_HOOK_FLAGS(libsm_mon_perrcpu,
                    LK_INIT_FLAG_ALL_CPUS);
 #endif
 
-static void sm_secondary_init(uint level) {
-    char name[32];
-    int cpu = arch_curr_cpu_num();
-
-    event_init(&nsirqevent[cpu], false, EVENT_FLAG_AUTOUNSIGNAL);
-
-    snprintf(name, sizeof(name), "irq-ns-switch-%d", cpu);
-    nsirqthreads[cpu] = thread_create(name, sm_irq_loop, (void*)(uintptr_t)cpu,
-                                      HIGHEST_PRIORITY, DEFAULT_STACK_SIZE);
-    if (!nsirqthreads[cpu]) {
-        panic("failed to create irq NS switcher thread for cpu %d!\n", cpu);
-    }
-    thread_set_pinned_cpu(nsirqthreads[cpu], cpu);
-    thread_set_real_time(nsirqthreads[cpu]);
-
-    snprintf(name, sizeof(name), "idle-ns-switch-%d", cpu);
-    nsidlethreads[cpu] = thread_create(name, sm_wait_for_smcall, NULL,
-                                       LOWEST_PRIORITY + 1, DEFAULT_STACK_SIZE);
-    if (!nsidlethreads[cpu]) {
-        panic("failed to create idle NS switcher thread for cpu %d!\n", cpu);
-    }
-    thread_set_pinned_cpu(nsidlethreads[cpu], cpu);
-    thread_set_real_time(nsidlethreads[cpu]);
-
-    if (ns_threads_started) {
-        thread_resume(nsirqthreads[cpu]);
-        thread_resume(nsidlethreads[cpu]);
-    }
-}
-
-LK_INIT_HOOK_FLAGS(libsm_cpu,
-                   sm_secondary_init,
-                   LK_INIT_LEVEL_PLATFORM - 2,
-                   LK_INIT_FLAG_ALL_CPUS);
-
 static void sm_init(uint level) {
     status_t err;
+    char name[32];
 
     mutex_acquire(&boot_args_lock);
 
@@ -446,6 +411,31 @@ static void sm_init(uint level) {
     }
 
     mutex_release(&boot_args_lock);
+
+    for (int cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
+        event_init(&nsirqevent[cpu], false, EVENT_FLAG_AUTOUNSIGNAL);
+
+        snprintf(name, sizeof(name), "irq-ns-switch-%d", cpu);
+        nsirqthreads[cpu] =
+                thread_create(name, sm_irq_loop, (void*)(uintptr_t)cpu,
+                              HIGHEST_PRIORITY, DEFAULT_STACK_SIZE);
+        if (!nsirqthreads[cpu]) {
+            panic("failed to create irq NS switcher thread for cpu %d!\n", cpu);
+        }
+        thread_set_pinned_cpu(nsirqthreads[cpu], cpu);
+        thread_set_real_time(nsirqthreads[cpu]);
+
+        snprintf(name, sizeof(name), "idle-ns-switch-%d", cpu);
+        nsidlethreads[cpu] =
+                thread_create(name, sm_wait_for_smcall, NULL,
+                              LOWEST_PRIORITY + 1, DEFAULT_STACK_SIZE);
+        if (!nsidlethreads[cpu]) {
+            panic("failed to create idle NS switcher thread for cpu %d!\n",
+                  cpu);
+        }
+        thread_set_pinned_cpu(nsidlethreads[cpu], cpu);
+        thread_set_real_time(nsidlethreads[cpu]);
+    }
 
     stdcallthread = thread_create("sm-stdcall", sm_stdcall_loop, NULL,
                                   LOWEST_PRIORITY + 2, DEFAULT_STACK_SIZE);
@@ -536,13 +526,12 @@ unlock:
 static void resume_nsthreads(void) {
     int i;
 
-    ns_threads_started = true;
-    smp_wmb();
     for (i = 0; i < SMP_MAX_CPUS; i++) {
-        if (nsirqthreads[i])
-            thread_resume(nsirqthreads[i]);
-        if (nsidlethreads[i])
-            thread_resume(nsidlethreads[i]);
+        DEBUG_ASSERT(nsirqthreads[i]);
+        DEBUG_ASSERT(nsidlethreads[i]);
+
+        thread_resume(nsirqthreads[i]);
+        thread_resume(nsidlethreads[i]);
     }
 }
 
