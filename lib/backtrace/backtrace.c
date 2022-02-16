@@ -27,21 +27,108 @@
 #include <lib/backtrace/symbolize.h>
 #include <lib/trusty/trusty_app.h>
 
+/*
+ * Traces on release builds look like this for:
+ *  Backtrace for thread: trusty_app_12_7ee4dddc-177a-420
+ *  (app: crasher)
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
+ *  uSP+0x0nn0: 0x00000..0nnnnn crasher_data_func+0x0/0xnn
+ *  uSP+0x0nn0: 0x00000..0nnnnn chan_event_handler_proc...
+ *  uSP+0x0nn0: 0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
+ *  uSP+0x0nn0: 0x00000..0nnnnn main+0xnn/0xnn
+ *  uSP+0x0nn0: 0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
+ *
+ * Debug builds show more information:
+ *  Backtrace for thread: trusty_app_30_7ee4dddc-177a-420
+ *  (app: crasher)
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn crasher_data_func+0x0/0xnn
+ *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn chan_event_handler_proc...
+ *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
+ *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn main+0xnn/0xnn
+ *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
+ *
+ * Kernel panics in release builds:
+ *  Backtrace for thread: app manager
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
+ *      <null>: 0xffff0..0nnnnn
+ *
+ * Kernel panics in debug builds:
+ *  Backtrace for thread: app manager
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
+ *  0x00000..00: 0xffffn..n/0xffff0..0nnnnn
+ */
+
 #if IS_64BIT
 #define PRI0xPTR "016" PRIxPTR
 #else
 #define PRI0xPTR "08" PRIxPTR
 #endif
 
-static void print_function_info(struct stack_frame* frame,
+/* Format for canonical stack offsets */
+#define PRI0xSTKOFF "04" PRIxPTR
+
+extern char _start;
+
+static bool is_on_user_stack(struct thread* _thread, uintptr_t addr);
+static bool is_on_kernel_stack(struct thread* thread, uintptr_t addr);
+
+static void print_stack_address(struct thread* thread, uintptr_t addr) {
+#if TEST_BUILD
+    /*
+     * For security reasons, never print absolute addresses in
+     * release builds
+     */
+    printf("0x%" PRI0xPTR, addr);
+    return;
+#endif
+
+    if (is_on_user_stack(thread, addr)) {
+        struct trusty_thread* trusty_thread = trusty_thread_get(thread);
+        uintptr_t stack_low_addr =
+                trusty_thread->stack_start - trusty_thread->stack_size;
+        printf("uSP+0x%" PRI0xSTKOFF, addr - stack_low_addr);
+        return;
+    }
+
+    if (is_on_kernel_stack(thread, addr)) {
+        printf("kSP+0x%" PRI0xSTKOFF, addr - (uintptr_t)thread->stack);
+        return;
+    }
+
+    if (addr) {
+        printf("<non-null>");
+    } else {
+        printf("    <null>");
+    }
+}
+
+static void print_function_info(struct thread* thread,
+                                struct stack_frame* frame,
                                 uintptr_t load_bias,
                                 struct pc_symbol_info* info) {
     uintptr_t pc_offset;
     uintptr_t pc = frame->ret_addr;
     __builtin_sub_overflow(pc, load_bias, &pc_offset);
 
-    printf("0x%" PRI0xPTR ": 0x%" PRI0xPTR "/0x%" PRI0xPTR, frame->fp, pc,
-           pc_offset);
+    print_stack_address(thread, frame->fp);
+    printf(": ");
+
+#if TEST_BUILD
+    /*
+     * For security reasons, never print absolute addresses in
+     * release builds
+     */
+    printf("0x%" PRI0xPTR "/", pc);
+#endif
+    printf("0x%" PRI0xPTR, pc_offset);
 
     if (info) {
         printf(" %s+0x%lx/0x%lx\n", info->symbol, info->offset, info->size);
@@ -50,21 +137,27 @@ static void print_function_info(struct stack_frame* frame,
     }
 }
 
-static void dump_user_function(struct trusty_app* app,
+static void dump_user_function(struct thread* thread,
+                               struct trusty_app* app,
                                struct stack_frame* frame) {
     uintptr_t load_bias = app ? app->load_bias : 0;
     struct pc_symbol_info info;
     int rc = trusty_app_symbolize(app, frame->ret_addr, &info);
     if (rc == NO_ERROR) {
-        print_function_info(frame, load_bias, &info);
+        print_function_info(thread, frame, load_bias, &info);
     } else {
-        print_function_info(frame, load_bias, NULL);
+        print_function_info(thread, frame, load_bias, NULL);
     }
 }
 
-static void dump_kernel_function(struct stack_frame* frame) {
+static void dump_kernel_function(struct thread* thread,
+                                 struct stack_frame* frame) {
+    uintptr_t load_bias;
+    __builtin_sub_overflow((uintptr_t)&_start, KERNEL_BASE + KERNEL_LOAD_OFFSET,
+                           &load_bias);
+
     /* TODO(b/164524596): kernel instruction address symbolization */
-    print_function_info(frame, 0 /* load_bias */, NULL);
+    print_function_info(thread, frame, load_bias, NULL);
 }
 
 /**
@@ -75,9 +168,10 @@ static void dump_kernel_function(struct stack_frame* frame) {
 static void dump_function(thread_t* thread, struct stack_frame* frame) {
     if (is_user_address(frame->ret_addr)) {
         struct trusty_thread* trusty_thread = trusty_thread_get(thread);
-        dump_user_function(trusty_thread ? trusty_thread->app : NULL, frame);
+        dump_user_function(thread, trusty_thread ? trusty_thread->app : NULL,
+                           frame);
     } else if (is_kernel_address(frame->ret_addr)) {
-        dump_kernel_function(frame);
+        dump_kernel_function(thread, frame);
     }
 }
 
@@ -198,14 +292,12 @@ static void dump_backtrace_etc(struct thread* thread,
         /* Backtrace is expected to terminate with a zero frame */
         break;
     case FRAME_NON_MONOTONIC:
-        printf("Stack frame moved in wrong direction! "
-               "fp: 0x%lx, ret_addr: 0x%lx\n",
-               frame->fp, frame->ret_addr);
+        printf("Stack frame moved in wrong direction! ");
+        dump_function(thread, frame);
         break;
     default:
-        printf("Corrupt stack frame! "
-               "fp: 0x%lx, ret_addr: 0x%lx\n",
-               frame->fp, frame->ret_addr);
+        printf("Corrupt stack frame! ");
+        dump_function(thread, frame);
     }
 }
 
