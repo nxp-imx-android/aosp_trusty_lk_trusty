@@ -296,7 +296,7 @@ STATIC_ASSERT(sizeof(struct ffa_mem_relinquish_descriptor) == 16);
  *     For RXTX_MAP: min buffer size and alignment boundary is 16K.
  * * @FFA_FEATURES2_MEM_DYNAMIC_BUFFER
  *     Supports custom buffers for memory transactions.
- * * @FFA_FEATURES2_MEM_HAS_NS_BIT
+ * * @FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT
  *     Supports setting the NS bit on retrieved descriptors.
  *
  * For all other bits and commands: must be 0.
@@ -307,7 +307,7 @@ typedef uint32_t ffa_features2_t;
 #define FFA_FEATURES2_RXTX_MAP_BUF_SIZE_64K 0x1U
 #define FFA_FEATURES2_RXTX_MAP_BUF_SIZE_16K 0x2U
 #define FFA_FEATURES2_MEM_DYNAMIC_BUFFER 0x1U
-#define FFA_FEATURES2_MEM_HAS_NS_BIT 0x2U
+#define FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT 0x2U
 
 /**
  * typedef ffa_features3_t - FFA_FEATURES values returned in w3

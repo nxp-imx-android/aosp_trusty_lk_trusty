@@ -581,8 +581,8 @@ static void shared_mem_init(uint level) {
         goto err_features;
     }
 
-    smc_ret = smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_MEM_RETRIEVE_REQ, 0, 0, 0, 0,
-                   0, 0);
+    smc_ret = smc8(SMC_FC_FFA_FEATURES, SMC_FC_FFA_MEM_RETRIEVE_REQ,
+                   FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT, 0, 0, 0, 0, 0);
     if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
         TRACEF("%s: SMC_FC_FFA_FEATURES(SMC_FC_FFA_MEM_RETRIEVE_REQ) failed 0x%lx 0x%lx 0x%lx\n",
                __func__, smc_ret.r0, smc_ret.r1, smc_ret.r2);
@@ -590,7 +590,7 @@ static void shared_mem_init(uint level) {
     }
 
     /* Whether NS bit is filled in on RETRIEVE */
-    supports_ns_bit = !!(smc_ret.r2 & FFA_FEATURES2_MEM_HAS_NS_BIT);
+    supports_ns_bit = !!(smc_ret.r2 & FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT);
 
     if ((smc_ret.r3 & FFA_FEATURES3_MEM_RETRIEVE_REQ_REFCOUNT_MASK) < 63) {
         /*
