@@ -95,7 +95,7 @@ endif
 GLOBAL_DEFINES += \
 	WITH_SYSCALL_TABLE=1 \
 
-ifneq ($(TEST_BUILD),)
+ifeq (true,$(call TOBOOL,$(TEST_BUILD)))
 MODULE_SRCS += \
 	$(LOCAL_DIR)/apploader_mmio_test_apps.c
 endif
