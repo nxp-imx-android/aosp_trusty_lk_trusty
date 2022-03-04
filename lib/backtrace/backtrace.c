@@ -34,12 +34,12 @@
  *  kSP+0x0nn0: 0xffff0..0nnnnn
  *  kSP+0x0nn0: 0xffff0..0nnnnn
  *  kSP+0x0nn0: 0xffff0..0nnnnn
- *  uSP+0x0nn0: 0x00000..0nnnnn crasher_data_func+0x0/0xnn
+ *  kSP+0x0nn0: 0x00000..0nnnnn crasher_data_func+0x0/0xnn
  *  uSP+0x0nn0: 0x00000..0nnnnn chan_event_handler_proc...
  *  uSP+0x0nn0: 0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
  *  uSP+0x0nn0: 0x00000..0nnnnn main+0xnn/0xnn
  *  uSP+0x0nn0: 0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
- *      <null>: 0x00000..000000
+ *  uSP+0x0nn0: 0x00000..000000
  *
  * Debug builds show more information:
  *  Backtrace for thread: trusty_app_30_7ee4dddc-177a-420
@@ -47,25 +47,25 @@
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
- *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn crasher_data_func+0x0/0xnn
+ *  0xffffn..n0: 0x0000n..n/0x00000..0nnnnn crasher_data_func+0x0/0xnn
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn chan_event_handler_proc...
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn main+0xnn/0xnn
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
- *  0x00000..00: 0x00000..0/0x00000..000000
+ *  0x0000n..n0: 0x00000..0/0x00000..000000
  *
  * Kernel panics in release builds:
  *  Backtrace for thread: app manager
  *  kSP+0x0nn0: 0xffff0..0nnnnn
  *  kSP+0x0nn0: 0xffff0..0nnnnn
- *      <null>: 0xffff0..0nnnnn
+ *  kSP+0x0nn0: 0xffff0..0nnnnn
  *
  * Kernel panics in debug builds:
  *  Backtrace for thread: app manager
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
  *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
- *  0x00000..00: 0xffffn..n/0xffff0..0nnnnn
+ *  0xffffn..n0: 0xffffn..n/0xffff0..0nnnnn
  */
 
 #if IS_64BIT
@@ -105,6 +105,10 @@ static void print_stack_address(struct thread* thread, uintptr_t addr) {
         return;
     }
 
+    /*
+     * We should never get here for frame->frame_addr,
+     * but we print something just in case
+     */
     if (addr) {
         printf("<non-null>");
     } else {
@@ -120,7 +124,7 @@ static void print_function_info(struct thread* thread,
     uintptr_t pc = frame->ret_addr;
     __builtin_sub_overflow(pc, load_bias, &pc_offset);
 
-    print_stack_address(thread, frame->fp);
+    print_stack_address(thread, frame->frame_addr);
     printf(": ");
 
 #if TEST_BUILD
@@ -239,10 +243,8 @@ static inline bool is_trace_monotonic(uintptr_t prev_fp, uintptr_t next_fp) {
 static int dump_monotonic_backtrace(struct thread* thread,
                                     struct stack_frame* frame,
                                     bool user) {
-    uintptr_t prev_fp = 0;
     int frame_state = FRAME_OK;
     while (frame_state == FRAME_OK) {
-        prev_fp = frame->fp;
         frame_state = step_frame(frame, user);
         dump_function(thread, frame);
 
@@ -258,7 +260,8 @@ static int dump_monotonic_backtrace(struct thread* thread,
             return FRAME_CORRUPT;
         }
         /* Stack should only move in one direction */
-        if (prev_fp && !is_trace_monotonic(prev_fp, frame->fp)) {
+        if (frame->frame_addr &&
+            !is_trace_monotonic(frame->frame_addr, frame->fp)) {
             return FRAME_NON_MONOTONIC;
         }
     }

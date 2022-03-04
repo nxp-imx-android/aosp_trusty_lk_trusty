@@ -36,13 +36,15 @@ extern const bool stack_direction;
 
 /**
  * struct stack_frame - stack frame of a function call
- * @fp: frame pointer
+ * @frame_addr: address of the current frame on the stack
+ * @fp: pointer to previous frame on the stack
  * @ret_addr: return address
  *
  * There is more stuff in the frame record. However, for the purpose of
  * backtracing we only need frame pointer and return address.
  */
 struct stack_frame {
+    uintptr_t frame_addr;
     uintptr_t fp;
     uintptr_t ret_addr;
 };

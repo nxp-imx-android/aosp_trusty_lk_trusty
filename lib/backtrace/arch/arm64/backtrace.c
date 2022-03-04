@@ -66,6 +66,7 @@ static int step_user_frame(struct stack_frame* frame) {
         return FRAME_CORRUPT;
     }
 
+    frame->frame_addr = frame->fp;
     frame->fp = uframe.fp;
     frame->ret_addr = uframe.lr;
     if (is_zero_frame(frame)) {
@@ -79,6 +80,7 @@ static int step_kernel_frame(struct stack_frame* frame, bool current_frame) {
     void* frame_addr = current_frame ? __GET_FRAME() : (void*)(frame->fp);
     memcpy(&kframe, frame_addr, sizeof(kframe));
 
+    frame->frame_addr = (uintptr_t)frame_addr;
     frame->fp = kframe.fp;
     frame->ret_addr = kframe.lr;
     if (is_zero_frame(frame)) {
