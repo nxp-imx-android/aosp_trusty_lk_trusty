@@ -21,4 +21,3 @@
 
 MODULE_SRCS += \
 	$(GET_LOCAL_DIR)/backtrace.c \
-	$(GET_LOCAL_DIR)/backtrace_arm64.c \

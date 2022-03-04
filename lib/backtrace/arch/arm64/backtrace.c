@@ -74,9 +74,10 @@ static int step_user_frame(struct stack_frame* frame) {
     return FRAME_OK;
 }
 
-static int step_kernel_frame(struct stack_frame* frame) {
+static int step_kernel_frame(struct stack_frame* frame, bool current_frame) {
     struct kernel_stack_frame kframe;
-    memcpy(&kframe, (void*)(frame->fp), sizeof(kframe));
+    void* frame_addr = current_frame ? __GET_FRAME() : (void*)(frame->fp);
+    memcpy(&kframe, frame_addr, sizeof(kframe));
 
     frame->fp = kframe.fp;
     frame->ret_addr = kframe.lr;
@@ -90,6 +91,10 @@ int step_frame(struct stack_frame* frame, bool user) {
     if (user) {
         return step_user_frame(frame);
     } else {
-        return step_kernel_frame(frame);
+        return step_kernel_frame(frame, false);
     }
+}
+
+void get_current_frame(struct stack_frame* frame) {
+    step_kernel_frame(frame, true);
 }
