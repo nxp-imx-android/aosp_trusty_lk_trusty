@@ -39,6 +39,7 @@
  *  uSP+0x0nn0: 0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
  *  uSP+0x0nn0: 0x00000..0nnnnn main+0xnn/0xnn
  *  uSP+0x0nn0: 0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
+ *      <null>: 0x00000..000000
  *
  * Debug builds show more information:
  *  Backtrace for thread: trusty_app_30_7ee4dddc-177a-420
@@ -51,6 +52,7 @@
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn tipc_handle_event+0xnn/0xnnn
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn main+0xnn/0xnn
  *  0x0000n..n0: 0x0000n..n/0x00000..0nnnnn libc_start_main_stage2+0xnn/0xnn
+ *  0x00000..00: 0x00000..0/0x00000..000000
  *
  * Kernel panics in release builds:
  *  Backtrace for thread: app manager
@@ -172,6 +174,8 @@ static void dump_function(thread_t* thread, struct stack_frame* frame) {
                            frame);
     } else if (is_kernel_address(frame->ret_addr)) {
         dump_kernel_function(thread, frame);
+    } else {
+        print_function_info(thread, frame, 0, NULL);
     }
 }
 
