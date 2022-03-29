@@ -351,6 +351,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
         arch_mmu_flags = ARCH_MMU_FLAG_UNCACHED_DEVICE;
         break;
     case FFA_MEM_ATTR_NORMAL_MEMORY_UNCACHED:
+    case (FFA_MEM_ATTR_NORMAL_MEMORY_UNCACHED | FFA_MEM_ATTR_INNER_SHAREABLE):
         arch_mmu_flags = ARCH_MMU_FLAG_UNCACHED;
         break;
     case (FFA_MEM_ATTR_NORMAL_MEMORY_CACHED_WB | FFA_MEM_ATTR_INNER_SHAREABLE):
