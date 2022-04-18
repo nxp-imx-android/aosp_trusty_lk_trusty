@@ -69,8 +69,14 @@ endef
 TRUSTY_TOP_LEVEL_BUILDDIR := $(BUILDDIR)
 TRUSTY_APP_BUILDDIR := $(BUILDDIR)/user_tasks
 TRUSTY_LIBRARY_BUILDDIR := $(BUILDDIR)/lib
+TRUSTY_HOST_LIBRARY_BUILDDIR := $(BUILDDIR)/host_lib
 
+GLOBAL_HOST_RUSTFLAGS += -L $(RUST_HOST_LIBDIR) -L dependency=$(TRUSTY_HOST_LIBRARY_BUILDDIR)
 GLOBAL_USER_RUSTFLAGS += -L dependency=$(TRUSTY_LIBRARY_BUILDDIR)
+
+# We need the host library dir to pick up recursive dependencies that are proc
+# macros and therefore built in the host build dir.
+GLOBAL_USER_RUSTFLAGS += -L dependency=$(TRUSTY_HOST_LIBRARY_BUILDDIR)
 
 GLOBAL_CRATE_COUNT := 0
 RUST_ANALYZER_CRATES :=
@@ -261,6 +267,7 @@ EXTRA_OBJS += $(BUILTIN_TASK_OBJS)
 endif
 
 # Reset app variables
+BUILDDIR := $(TRUSTY_TOP_LEVEL_BUILDDIR)
 TRUSTY_APP :=
 TRUSTY_APP_NAME :=
 TRUSTY_APP_BASE_LDFLAGS :=
