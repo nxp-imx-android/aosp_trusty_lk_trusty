@@ -190,14 +190,19 @@ for i in [8, 16, 32, 64]:
     BUILTIN_TYPES.add('uint%d_t' % i)
 
 def reformat_c_to_rust(arg):
+    """Reformat a C-style argument into corresponding Rust argument
+
+    Raises:
+        NotImplementedError: If argument type was too complex to reformat.
+    """
     m = re.match(r"(const )?(struct )?(.*?)\s*( ?\* ?)?$", arg)
     is_const = m.group(1) is not None
     ty = m.group(3)
     is_ptr = m.group(4) is not None
     rust_arg = ''
     if '*' in ty:
-        fatal_parse_error(line, "Rust arg reformatting needs to be "
-                          "extended to handle double indirection.")
+        raise NotImplementedError("Rust arg reformatting needs to be extended "
+                                  f"to handle double indirection in arg: {arg}")
     if is_ptr:
         rust_arg += '*%s ' % ('const' if is_const else 'mut')
     rust_arg += ty
@@ -246,13 +251,17 @@ def parse_check_def(line, struct_types):
 
     # Reformat arguments into Rust syntax
     rust_args = []
-    for arg in sys_args_list:
-        m = re.match(r"(.*?)(\w+)$", arg)
-        ty = m.group(1)
-        name = m.group(2)
-        rust_args.append('%s: %s' % (name, reformat_c_to_rust(ty)))
-    gd['rust_args'] = ', '.join(rust_args)
-    gd['rust_rt'] = reformat_c_to_rust(gd['sys_rt'])
+    try:
+        for arg in sys_args_list:
+            m = re.match(r"(.*?)(\w+)$", arg)
+            ty = m.group(1)
+            name = m.group(2)
+            rust_args.append('%s: %s' % (name, reformat_c_to_rust(ty)))
+        gd['rust_args'] = ', '.join(rust_args)
+        gd['rust_rt'] = reformat_c_to_rust(gd['sys_rt'])
+    except NotImplementedError as err:
+        # reformat_c_to_rust failed to convert argument or return type
+        fatal_parse_error(line, err)
 
     # In C, a forward declaration with an empty list of arguments has an
     # unknown number of arguments. Set it to 'void' to declare there are
