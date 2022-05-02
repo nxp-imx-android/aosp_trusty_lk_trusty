@@ -135,6 +135,15 @@ $(PREBUILT_OBJECTS_DEST): $(BUILDDIR)/user_tasks/%: %
 	$(MKDIR)
 	cp $^ $(dir $@)/
 
+define prebuilt-app-build-rule
+$(eval _MODULES_$(1)_TRUSTY_APP_MANIFEST_BIN := $(1)/$(notdir $(1)).manifest)\
+$(eval _MODULES_$(1)_TRUSTY_APP_ELF := $(1)/$(notdir $(1)).elf)
+endef
+
+# Set up global variables describing each prebuilt app
+$(foreach t,$(TRUSTY_PREBUILT_USER_TASKS),\
+	$(call prebuilt-app-build-rule,$(t)))
+
 TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
 
 # Add rust crate tests to the list of built in apps
