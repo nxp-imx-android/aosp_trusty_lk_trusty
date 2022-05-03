@@ -445,3 +445,18 @@ UBSAN_HANDLER(cfi_check_fail_abort,
     log(&data->loc, "cfi check fail abort", details);
     UBSAN_FINISH;
 }
+
+UBSAN_HANDLER(vla_bound_not_positive,
+              struct vla_bound_data* data,
+              value_handle_t val) {
+    UBSAN_START;
+    char rendered_val[VALUE_RENDER_SIZE];
+    char details[DETAIL_RENDER_SIZE];
+
+    render_val(rendered_val, sizeof(rendered_val), data->type, val);
+    scnprintf(details, sizeof(details), "bound %s is not positive for type %s",
+              rendered_val, data->type->name);
+    log(&data->loc,
+        "variable length array bound evaluates to non-positive value", details);
+    UBSAN_FINISH;
+}
