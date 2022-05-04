@@ -263,9 +263,13 @@ UBSAN_HANDLER(pointer_overflow,
               uintptr_t result) {
     UBSAN_START;
     char details[DETAIL_RENDER_SIZE];
+#if RELEASE_BUILD
+    scnprintf(details, sizeof(details), "pointer arithmetic overflowed");
+#else
     scnprintf(details, sizeof(details),
               "pointer arithmetic on %p overflowed resulting in %p",
               (void*)base, (void*)result);
+#endif
     log(&data->loc, "pointer_overflow", details);
     UBSAN_FINISH;
 }
@@ -325,17 +329,29 @@ UBSAN_HANDLER(type_mismatch_v1,
         scnprintf(details, sizeof(details), "%s null pointer type %s",
                   type_check_kinds[data->type_check_kind], data->type->name);
     } else if (ptr & (alignment - 1)) {
+#if RELEASE_BUILD
+        scnprintf(details, sizeof(details), "%s misaligned pointer for type %s",
+                  type_check_kinds[data->type_check_kind], data->type->name);
+#else
         scnprintf(
                 details, sizeof(details),
                 "%s misaligned pointer %p for type %s which requires %d byte alignment",
                 type_check_kinds[data->type_check_kind], (void*)ptr,
                 data->type->name, (int)alignment);
+#endif
     } else {
+#if RELEASE_BUILD
+        scnprintf(
+                details, sizeof(details),
+                "%s pointer points at a region with insufficient space for a value of type %s",
+                type_check_kinds[data->type_check_kind], data->type->name);
+#else
         scnprintf(
                 details, sizeof(details),
                 "%s pointer %p points at a region with insufficient space for a value of type %s",
                 type_check_kinds[data->type_check_kind], (void*)ptr,
                 data->type->name);
+#endif
     }
     log(&data->loc, "type mismatch", details);
     UBSAN_FINISH;
