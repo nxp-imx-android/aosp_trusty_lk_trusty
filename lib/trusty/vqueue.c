@@ -130,7 +130,7 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
                            &avail_cnt);
     if (unlikely(avail_cnt > (uint16_t)vq->vring.num)) {
         /* such state is not recoverable */
-        panic("vq %p: new avail idx out of range (old %u new %u)\n", vq,
+        panic("vq %u: new avail idx out of range (old %u new %u)\n", vq->id,
               vq->last_avail_idx, vq->vring.avail->idx);
     }
 
@@ -154,7 +154,7 @@ static int _vqueue_get_avail_buf_locked(struct vqueue* vq,
         /* index of the first descriptor in chain is out of range.
            vring is in non recoverable state: we cannot even return
            an error to the other side */
-        panic("vq %p: head out of range %u (max %u)\n", vq, next_idx,
+        panic("vq %u: head out of range %u (max %u)\n", vq->id, next_idx,
               vq->vring.num);
     }
 
