@@ -109,7 +109,8 @@ TRUSTY_BUILTIN_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) \
                              $(TRUSTY_ALL_USER_TASKS) \
                              $(TRUSTY_USER_TESTS)
 
-ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS) $(TRUSTY_RUST_USER_TESTS)
+ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)  \
+		  $(TRUSTY_LOADABLE_USER_TESTS) $(TRUSTY_RUST_USER_TESTS)
 # sort and remove duplicates
 ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 
@@ -173,7 +174,11 @@ $(foreach t,$(TRUSTY_LOADABLE_USER_TASKS),\
 LOADABLE_APP_LIST :=
 
 # Sort and remove duplicates
-TRUSTY_USER_TESTS := $(sort $(TRUSTY_USER_TESTS) $(RUST_USER_TEST_MODULES))
+TRUSTY_USER_TESTS := $(sort \
+                       $(TRUSTY_USER_TESTS) \
+                       $(TRUSTY_LOADABLE_USER_TESTS) \
+                       $(RUST_USER_TEST_MODULES) \
+                     )
 
 #
 # Generate build rules for test application
