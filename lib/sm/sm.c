@@ -37,6 +37,8 @@
 #include <sys/types.h>
 #include <trace.h>
 #include <version.h>
+#include <imx-regs.h>
+#include <lib/sm/smc.h>
 
 #define LOCAL_TRACE 0
 
@@ -568,5 +570,14 @@ static void sm_release_boot_args(uint level) {
         TRACEF("WARNING: outstanding reference to boot args"
                "at the end of initialzation!\n");
 }
+
+#ifdef MACH_IMX8MQ
+#define FSL_SIP_GPC 0xC2000000
+#define FSL_SIP_CONFIG_GPC_CORE_WAKE 0x05
+void imx8mq_wake_core(uint32_t target)
+{
+    smc8(FSL_SIP_GPC, FSL_SIP_CONFIG_GPC_CORE_WAKE, target, 0, 0, 0, 0, 0);
+}
+#endif
 
 LK_INIT_HOOK(libsm_bootargs, sm_release_boot_args, LK_INIT_LEVEL_LAST);
