@@ -42,7 +42,7 @@ ifeq ($(GENERIC_OBJ_DIR), )
 $(error GENERIC_OBJ_DIR must be specified)
 endif
 
-# Group the source files so we can differ the flags between C and C++.
+# Group the source files so we can differ the flags between C, C++, and assembly.
 GENERIC_C_SRCS := $(filter %.c,$(GENERIC_SRCS))
 GENERIC_C_OBJS := $(addprefix $(GENERIC_OBJ_DIR)/,$(patsubst %.c,%.o,$(GENERIC_C_SRCS)))
 
@@ -52,13 +52,17 @@ GENERIC_CC_OBJS := $(addprefix $(GENERIC_OBJ_DIR)/,$(patsubst %.cc,%.o,$(GENERIC
 GENERIC_CPP_SRCS := $(filter %.cpp,$(GENERIC_SRCS))
 GENERIC_CPP_OBJS := $(addprefix $(GENERIC_OBJ_DIR)/,$(patsubst %.cpp,%.o,$(GENERIC_CPP_SRCS)))
 
-GENERIC_OBJS := $(strip $(GENERIC_C_OBJS) $(GENERIC_CC_OBJS) $(GENERIC_CPP_OBJS))
+GENERIC_ASM_SRCS := $(filter %.S,$(GENERIC_SRCS))
+GENERIC_ASM_OBJS := $(addprefix $(GENERIC_OBJ_DIR)/,$(patsubst %.S,%.o,$(GENERIC_ASM_SRCS)))
+
+GENERIC_OBJS := $(strip $(GENERIC_C_OBJS) $(GENERIC_CC_OBJS) $(GENERIC_CPP_OBJS) $(GENERIC_ASM_OBJS))
 
 # Bind inputs.
 $(GENERIC_OBJS): CC := $(GENERIC_CC)
 $(GENERIC_OBJS): FLAGS := $(GENERIC_FLAGS)
 $(GENERIC_OBJS): CFLAGS := $(GENERIC_CFLAGS)
 $(GENERIC_OBJS): CPPFLAGS := $(GENERIC_CPPFLAGS)
+$(GENERIC_OBJS): ASMFLAGS := $(GENERIC_ASMFLAGS)
 
 $(GENERIC_C_OBJS): $(GENERIC_OBJ_DIR)/%.o: %.c
 	@echo building $@
@@ -75,6 +79,11 @@ $(GENERIC_CPP_OBJS): $(GENERIC_OBJ_DIR)/%.o: %.cpp
 	@$(MKDIR)
 	$(NOECHO)$(CC) $(FLAGS) $(CPPFLAGS) -c $< -MMD -o $@
 
+$(GENERIC_ASM_OBJS): $(GENERIC_OBJ_DIR)/%.o: %.S
+	@echo building $@
+	@$(MKDIR)
+	$(NOECHO)$(CC) $(FLAGS) $(ASMFLAGS) -c $< -MMD -o $@
+
 # Ensure recompilation on header file change.
 -include $(GENERIC_OBJS:.o=.d)
 
@@ -85,6 +94,7 @@ GENERIC_OBJ_DIR :=
 GENERIC_FLAGS :=
 GENERIC_CFLAGS :=
 GENERIC_CPPFLAGS :=
+GENERIC_ASMFLAGS :=
 # Cleanup internal
 GENERIC_C_SRCS :=
 GENERIC_C_OBJS :=
@@ -92,5 +102,7 @@ GENERIC_CC_SRCS :=
 GENERIC_CC_OBJS :=
 GENERIC_CPP_SRCS :=
 GENERIC_CPP_OBJS :=
+GENERIC_ASM_SRCS :=
+GENERIC_ASM_OBJS :=
 
 # GENERIC_OBJS is returned.
