@@ -26,7 +26,10 @@
 # HOST_SRCS : list of source files (required)
 # HOST_INCLUDE_DIRS : list of include directories
 # HOST_FLAGS : list of flags for the compiler
-# HOST_LIBS : list of libraries to link against
+# HOST_LIBS : list of host-provided libraries to link against
+# HOST_DEPS : list of libraries to build and link against. Recursive
+#             dependencies are not supported.
+
 
 # Validate arguments.
 ifeq ($(HOST_TEST), )
@@ -58,12 +61,17 @@ HOST_DEBUGGER :=
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
 
+# Compile test library dependencies
+HOST_LIB_ARCHIVES :=
+$(foreach t,$(HOST_DEPS),\
+	$(eval include $(addsuffix /rules.mk,$(t))))
+
 # Compile test sources.
 GENERIC_CC := $(HOST_CC)
 GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(HOST_TEST_BUILDDIR)/host_tests/obj/$(HOST_TEST)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
-GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
+GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809 -Wno-missing-field-initializers
 GENERIC_CPPFLAGS := -std=c++11 -Wno-c99-designator $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
@@ -71,7 +79,7 @@ include make/generic_compile.mk
 HOST_TEST_BIN := $(HOST_TEST_BUILDDIR)/host_tests/$(HOST_TEST)
 $(HOST_TEST_BIN): CC := $(HOST_CC)
 $(HOST_TEST_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LDFLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
-$(HOST_TEST_BIN): $(GENERIC_OBJS)
+$(HOST_TEST_BIN): $(GENERIC_OBJS) $(HOST_LIB_ARCHIVES)
 	@echo linking $@
 	@$(MKDIR)
 	$(NOECHO)$(CC) $^ $(LDFLAGS) -o $@
@@ -97,6 +105,7 @@ HOST_SRCS :=
 HOST_INCLUDE_DIRS :=
 HOST_FLAGS :=
 HOST_LIBS :=
+HOST_DEPS :=
 # Cleanup internal
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
@@ -109,3 +118,4 @@ HOST_DEBUGGER :=
 HOST_TEST_BIN :=
 HOST_OBJ_DIR :=
 GENERIC_OBJS :=
+HOST_LIB_ARCHIVES :=

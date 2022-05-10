@@ -27,7 +27,9 @@
 # HOST_INCLUDE_DIRS : list of include directories
 # HOST_FLAGS : list of flags for the compiler
 # HOST_LDFLAGS : list of flags for the compiler
-# HOST_LIBS : list of libraries to link against
+# HOST_LIBS : list of host-provided libraries to link against
+# HOST_DEPS : list of libraries to build and link against. Recursive
+#             dependencies are not supported.
 
 # Validate arguments.
 ifeq ($(HOST_TOOL_NAME), )
@@ -63,12 +65,16 @@ endif
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
 
-# Compile test sources.
+# Compile tool library dependencies
+HOST_LIB_ARCHIVES :=
+include $(addsuffix /rules.mk, $(HOST_DEPS))
+
+# Compile tool sources.
 GENERIC_CC := $(HOST_CC)
 GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(BUILDDIR)/host_tools/obj/$(HOST_TOOL_NAME)
 GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
-GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=199309 -Wno-missing-field-initializers
+GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809 -Wno-missing-field-initializers
 GENERIC_CPPFLAGS := -std=c++17 $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
@@ -76,7 +82,7 @@ include make/generic_compile.mk
 HOST_TOOL_BIN := $(BUILDDIR)/host_tools/$(HOST_TOOL_NAME)
 $(HOST_TOOL_BIN): CC := $(HOST_CC)
 $(HOST_TOOL_BIN): LDFLAGS := -g $(HOST_SANITIZER_FLAGS) $(HOST_LDFLAGS) $(HOST_LIBCXX_LDFLAGS) $(addprefix -l, $(HOST_LIBS))
-$(HOST_TOOL_BIN): $(GENERIC_OBJS)
+$(HOST_TOOL_BIN): $(GENERIC_OBJS) $(HOST_LIB_ARCHIVES)
 	@echo linking $@
 	@$(MKDIR)
 	$(NOECHO)$(CC) $^ $(LDFLAGS) -o $@
@@ -90,9 +96,11 @@ HOST_INCLUDE_DIRS :=
 HOST_FLAGS :=
 HOST_LDFLAGS :=
 HOST_LIBS :=
+HOST_DEPS :=
 # Cleanup internal
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
 HOST_TOOL_BIN :=
 HOST_OBJ_DIR :=
 GENERIC_OBJS :=
+HOST_LIB_ARCHIVES :=
