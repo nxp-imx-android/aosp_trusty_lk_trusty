@@ -118,6 +118,27 @@ static void chan_event_handler(struct ktipc_server* ksrv,
         ktipc_chan_close(kchan);
         return;
     }
+
+    if (event & IPC_HANDLE_POLL_SEND_UNBLOCKED) {
+        LTRACEF("unblocked for sending\n");
+
+        if (kchan->ops->on_send_unblocked) {
+            rc = kchan->ops->on_send_unblocked(kchan->port, kchan->href.handle,
+                                               kchan->user_ctx);
+            if (rc < 0) {
+                /* report an error and close channel */
+                LTRACEF("failed (%d) to handle event on channel %p\n", rc,
+                        kchan->href.handle);
+                ktipc_chan_close(kchan);
+                return;
+            }
+        } else {
+            LTRACEF("send-unblocking not handled for channel %p\n",
+                    kchan->href.handle);
+            ktipc_chan_close(kchan);
+            return;
+        }
+    }
 }
 
 /*

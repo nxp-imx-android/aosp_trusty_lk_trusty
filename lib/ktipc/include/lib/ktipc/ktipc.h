@@ -129,6 +129,7 @@ struct ktipc_port {
  * @on_message:    is invoked when a new message is available
  * @on_disconnect: is invoked when the peer terminates connection
  * @on_channel_cleanup: is invoked to cleanup user allocated state
+ * @on_send_unblocked:  is invoked when the channel is unblocked for sending
  *
  * The overall call flow is as follow:
  *
@@ -156,6 +157,10 @@ struct ktipc_port {
  * callback is mandatory if the user implements @on_connect callback and
  * allocates per channel state.
  *
+ * The @on_send_unblocked callback is invoked when a channel becomes unblocked
+ * for sending after an earlier %ERR_NOT_ENOUGH_BUFFER error code returned
+ * by tipc_send1() or ipc_send_msg().
+ *
  * Note: an application implementing these callbacks MUST not close channel
  * received as @chan parameter directly, instead it should return an error
  * and the channel will be closed by the framework.
@@ -176,6 +181,10 @@ struct ktipc_srv_ops {
                           void* ctx);
 
     void (*on_channel_cleanup)(void* ctx);
+
+    int (*on_send_unblocked)(const struct ktipc_port* port,
+                             struct handle* chan,
+                             void* ctx);
 };
 
 /**
