@@ -726,6 +726,61 @@ TEST(mmutest, run_nx) {
     EXPECT_EQ(ERR_FAULT, mmu_test_execute(ARCH_MMU_FLAG_PERM_NO_EXECUTE));
 }
 
+/*
+ * Tests that allocations with conflicting NS bits are not allowed
+ * near each other
+ */
+TEST(mmutest, ns_conflict) {
+    int ret;
+    void* ptr_ns = NULL;
+    void* ptr_s = NULL;
+    uint arch_mmu_flags_query, ns_flag;
+    vmm_aspace_t* aspace = vmm_get_kernel_aspace();
+
+    /*
+     * Allocate a NS page with a 16K alignment to ensure that there
+     * is enough room after it in the 1MB section for both the guard page
+     * and the S page below.
+     */
+    ret = vmm_alloc(aspace, "ns_conflict_ns", PAGE_SIZE, &ptr_ns,
+                    PAGE_SIZE_SHIFT + 2, 0, ARCH_MMU_FLAG_NS);
+    EXPECT_EQ(0, ret);
+
+    ret = arch_mmu_query(&aspace->arch_aspace, (vaddr_t)ptr_ns, NULL,
+                         &arch_mmu_flags_query);
+    EXPECT_EQ(0, ret);
+
+    ns_flag = arch_mmu_flags_query & ARCH_MMU_FLAG_NS;
+    EXPECT_EQ(ARCH_MMU_FLAG_NS, ns_flag);
+
+    /*
+     * Allocate an S page just after the previous one (plus the guard page).
+     * This should fail on arm32 because the kernel shouldn't let us mix the
+     * two kinds.
+     */
+    ptr_s = (uint8_t*)ptr_ns + 2 * PAGE_SIZE;
+    ret = vmm_alloc(aspace, "ns_conflict_s", PAGE_SIZE, &ptr_s, PAGE_SIZE_SHIFT,
+                    VMM_FLAG_VALLOC_SPECIFIC, 0);
+    if (ret) {
+        ptr_s = NULL;
+    } else {
+        ret = arch_mmu_query(&aspace->arch_aspace, (vaddr_t)ptr_s, NULL,
+                             &arch_mmu_flags_query);
+        if (!ret) {
+            ns_flag = arch_mmu_flags_query & ARCH_MMU_FLAG_NS;
+            EXPECT_EQ(0, ns_flag);
+        }
+    }
+
+test_abort:
+    if (ptr_ns) {
+        vmm_free_region(aspace, (vaddr_t)ptr_ns);
+    }
+    if (ptr_s) {
+        vmm_free_region(aspace, (vaddr_t)ptr_s);
+    }
+}
+
 /* Test suite for vmm_obj_slice and vmm_get_obj */
 
 typedef struct {
