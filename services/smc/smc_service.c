@@ -24,6 +24,7 @@
 #include <err.h>
 #include <interface/smc/smc.h>
 #include <kernel/thread.h>
+#include <lib/ktipc/ktipc.h>
 #include <lib/trusty/handle_set.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/ipc_msg.h>
@@ -34,14 +35,7 @@
 
 #define LOCAL_TRACE (0)
 
-struct smc_service {
-    struct handle* port;
-    struct handle* hset;
-};
-
 struct smc_channel_ctx {
-    struct handle* handle;
-    struct handle_ref* href;
     struct smc_access_policy policy;
 };
 
@@ -92,76 +86,16 @@ static struct smc_regs smc(struct smc_regs* regs) {
     };
 }
 
-/* Read SMC service request from userspace client */
-static int smc_read_request(struct handle* channel, struct smc_msg* msg) {
+static int smc_service_handle_msg(const struct ktipc_port* port,
+                                  struct handle* channel,
+                                  void* ctx) {
+    struct smc_channel_ctx* channel_ctx = ctx;
     int rc;
-    struct ipc_msg_info msg_info;
-    size_t msg_len = sizeof(struct smc_msg);
-
-    rc = ipc_get_msg(channel, &msg_info);
-    if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) to get message\n", __func__, rc);
-        goto err;
-    }
-
-    struct iovec_kern iov = {
-            .iov_base = (void*)msg,
-            .iov_len = msg_len,
-    };
-    struct ipc_msg_kern ipc_msg = {
-            .num_iov = 1,
-            .iov = &iov,
-            .num_handles = 0,
-            .handles = NULL,
-    };
-    rc = ipc_read_msg(channel, msg_info.id, 0, &ipc_msg);
-    if (rc != (int)msg_len) {
-        TRACEF("%s: failed (%d) to read message. Expected to read %zu bytes.\n",
-               __func__, rc, msg_len);
-        rc = ERR_BAD_LEN;
-    } else {
-        rc = NO_ERROR;
-    }
-    ipc_put_msg(channel, msg_info.id);
-
-err:
-    return rc;
-}
-
-/* Send SMC service reply to userspace client */
-static int smc_send_response(struct handle* channel, struct smc_msg* msg) {
-    int rc;
-    size_t msg_len = sizeof(struct smc_msg);
-    struct iovec_kern iov = {
-            .iov_base = (void*)msg,
-            .iov_len = msg_len,
-    };
-    struct ipc_msg_kern ipc_msg = {
-            .num_iov = 1,
-            .iov = &iov,
-            .num_handles = 0,
-            .handles = NULL,
-    };
-
-    rc = ipc_send_msg(channel, &ipc_msg);
-    if (rc != (int)msg_len) {
-        TRACEF("%s: failed (%d) to send message. Expected to send %zu bytes.\n",
-               __func__, rc, msg_len);
-        rc = ERR_BAD_LEN;
-    } else {
-        rc = NO_ERROR;
-    }
-    return rc;
-}
-
-static int handle_msg(struct smc_channel_ctx* channel_ctx) {
-    int rc;
-    struct handle* channel = channel_ctx->handle;
     struct smc_msg request;
     uint32_t smc_nr;
 
-    rc = smc_read_request(channel, &request);
-    if (rc != NO_ERROR) {
+    rc = ktipc_recv(channel, sizeof(request), &request, sizeof(request));
+    if ((size_t)rc != sizeof(request)) {
         TRACEF("%s: failed (%d) to read SMC request\n", __func__, rc);
         goto err;
     }
@@ -188,8 +122,8 @@ static int handle_msg(struct smc_channel_ctx* channel_ctx) {
             .params[2] = ret.r2,
             .params[3] = ret.r3,
     };
-    rc = smc_send_response(channel, &response);
-    if (rc != NO_ERROR) {
+    rc = ktipc_send(channel, &response, sizeof(response));
+    if ((size_t)rc != sizeof(response)) {
         TRACEF("%s: failed (%d) to send response\n", __func__, rc);
     }
 
@@ -197,206 +131,66 @@ err:
     return rc;
 }
 
-/*
- * Adds a given channel to a given handle set. On success, returns pointer to
- * added handle_ref. Otherwise, returns NULL.
- */
-static struct handle_ref* hset_add_channel(struct handle* hset,
-                                           struct smc_channel_ctx* hctx) {
-    int rc;
-    struct handle_ref* href;
-
-    href = calloc(1, sizeof(struct handle_ref));
-    if (!href) {
-        TRACEF("%s: failed to allocate a handle_ref\n", __func__);
-        goto err_href_alloc;
+static int smc_service_handle_connect(const struct ktipc_port* port,
+                                      struct handle* chan,
+                                      const struct uuid* peer_uuid,
+                                      void** ctx_p) {
+    struct smc_channel_ctx* channel_ctx = calloc(1, sizeof(*channel_ctx));
+    if (!channel_ctx) {
+        TRACEF("%s: failed to allocate smc_channel_ctx\n", __func__);
+        return ERR_NO_MEMORY;
     }
 
-    handle_incref(hctx->handle);
-    href->handle = hctx->handle;
-    href->emask = ~0U;
+    smc_load_access_policy(peer_uuid, &channel_ctx->policy);
 
-    /* to retrieve handle_ref from a handle_set_wait() event */
-    hctx->href = href;
-    href->cookie = hctx;
+    *ctx_p = channel_ctx;
 
-    rc = handle_set_attach(hset, href);
-    if (rc < 0) {
-        TRACEF("%s: failed (%d) handle_set_attach()\n", __func__, rc);
-        goto err_hset_attach;
-    }
-    return href;
-
-err_hset_attach:
-    handle_decref(href->handle);
-    free(href);
-err_href_alloc:
-    return NULL;
+    return NO_ERROR;
 }
 
-static void hset_remove_channel(struct handle_ref* href) {
-    handle_set_detach_ref(href);
-    handle_decref(href->handle);
-    free(href);
+static void smc_service_handle_channel_cleanup(void* ctx) {
+    struct smc_channel_ctx* channel_ctx = ctx;
+    free(channel_ctx);
 }
 
-static void smc_channel_close(struct smc_channel_ctx* hctx) {
-    handle_decref(hctx->handle);
-    free(hctx);
-}
+const static struct ktipc_srv_ops smc_service_ops = {
+        .on_connect = smc_service_handle_connect,
+        .on_message = smc_service_handle_msg,
+        .on_channel_cleanup = smc_service_handle_channel_cleanup,
+};
 
-static void handle_channel_event(struct handle_ref* event) {
-    int rc;
-    struct smc_channel_ctx* channel_ctx = event->cookie;
+const static struct ktipc_port_acl smc_service_port_acl = {
+        .flags = IPC_PORT_ALLOW_TA_CONNECT,
+        .uuids = NULL,
+        .uuid_num = 0,
+        .extra_data = NULL,
+};
 
-    DEBUG_ASSERT(channel_ctx->href->handle == event->handle);
+const static struct ktipc_port smc_service_port = {
+        .name = SMC_SERVICE_PORT,
+        .uuid = &kernel_uuid,
+        .msg_max_size = sizeof(struct smc_msg),
+        .msg_queue_len = 1,
+        .acl = &smc_service_port_acl,
+        .priv = NULL,
+};
 
-    if (event->emask & IPC_HANDLE_POLL_MSG) {
-        rc = handle_msg(channel_ctx);
-
-        if (rc != NO_ERROR) {
-            TRACEF("%s: handle_msg failed (%d). Closing channel.\n", __func__,
-                   rc);
-            goto err;
-        }
-    }
-
-    if (event->emask & IPC_HANDLE_POLL_HUP) {
-        goto err;
-    }
-    return;
-
-err:
-    hset_remove_channel(channel_ctx->href);
-    smc_channel_close(channel_ctx);
-}
-
-static void handle_port_event(struct smc_service* ctx,
-                              struct handle_ref* event) {
-    int rc;
-    struct smc_channel_ctx* channel_ctx;
-    struct handle* channel;
-    const struct uuid* peer_uuid;
-
-    if (event->emask & IPC_HANDLE_POLL_READY) {
-        rc = ipc_port_accept(event->handle, &channel, &peer_uuid);
-        LTRACEF("accept returned %d\n", rc);
-
-        if (rc != NO_ERROR) {
-            TRACEF("%s: failed (%d) to accept incoming connection\n", __func__,
-                   rc);
-            goto err;
-        }
-
-        channel_ctx = calloc(1, sizeof(struct smc_channel_ctx));
-        if (!channel_ctx) {
-            TRACEF("%s: failed to allocate a smc_channel_ctx\n", __func__);
-            goto err;
-        }
-        channel_ctx->handle = channel;
-        smc_load_access_policy(peer_uuid, &channel_ctx->policy);
-
-        if (!hset_add_channel(ctx->hset, channel_ctx)) {
-            goto err_hset_add_channel;
-        }
-    }
-    return;
-
-err_hset_add_channel:
-    smc_channel_close(channel_ctx);
-err:
-    return;
-}
-
-static void smc_service_loop(struct smc_service* ctx) {
-    int rc;
-    struct handle_ref event;
-
-    while (true) {
-        rc = handle_set_wait(ctx->hset, &event, INFINITE_TIME);
-        if (rc != NO_ERROR) {
-            TRACEF("%s: handle_set_wait failed: %d\n", __func__, rc);
-            break;
-        }
-
-        LTRACEF("%s: got handle set event rc=%d ev=%x handle=%p cookie=%p\n",
-                __func__, rc, event.emask, event.handle, event.cookie);
-        if (event.handle == ctx->port) {
-            LTRACEF("%s: handling port event\n", __func__);
-            handle_port_event(ctx, &event);
-        } else {
-            LTRACEF("%s: handling channel event\n", __func__);
-            handle_channel_event(&event);
-        }
-        handle_decref(event.handle);
-    }
-}
-
-static int smc_service_thread(void* arg) {
-    int rc;
-    struct handle_ref* port_href;
-    struct smc_service ctx;
-
-    ctx.hset = handle_set_create();
-    if (!ctx.hset) {
-        TRACEF("%s: failed to create handle set\n", __func__);
-        rc = ERR_NO_MEMORY;
-        goto err_hset_create;
-    }
-
-    rc = ipc_port_create(&kernel_uuid, SMC_SERVICE_PORT, 1,
-                         sizeof(struct smc_msg), IPC_PORT_ALLOW_TA_CONNECT,
-                         &ctx.port);
-    if (rc) {
-        TRACEF("%s: failed (%d) to create smc port\n", __func__, rc);
-        goto err_port_create;
-    }
-
-    rc = ipc_port_publish(ctx.port);
-    if (rc) {
-        TRACEF("%s: failed (%d) to publish smc port\n", __func__, rc);
-        goto err_port_publish;
-    }
-
-    port_href = calloc(1, sizeof(struct handle_ref));
-    if (!port_href) {
-        TRACEF("%s: failed to allocate a port handle_ref\n", __func__);
-        goto err_port_href_alloc;
-    }
-    port_href->handle = ctx.port;
-    port_href->emask = ~0U;
-
-    rc = handle_set_attach(ctx.hset, port_href);
-    if (rc < 0) {
-        TRACEF("%s: failed (%d) handle_set_attach() port\n", __func__, rc);
-        goto err_hset_add_port;
-    }
-
-    smc_service_loop(&ctx);
-    TRACEF("%s: smc_service_loop() returned. SMC service exiting.\n", __func__);
-
-err_smc_service_loop:
-    handle_set_detach_ref(port_href);
-err_hset_add_port:
-    free(port_href);
-err_port_href_alloc:
-err_port_publish:
-    handle_close(ctx.port);
-err_port_create:
-    handle_close(ctx.hset);
-err_hset_create:
-    return rc;
-}
+static struct ktipc_server smc_ktipc_server =
+        KTIPC_SERVER_INITIAL_VALUE(smc_ktipc_server, "smc_ktipc_server");
 
 static void smc_service_init(uint level) {
-    struct thread* thread =
-            thread_create("smc-service", smc_service_thread, NULL,
-                          DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-    if (!thread) {
-        TRACEF("%s: failed to create smc-service thread\n", __func__);
-        return;
+    int rc;
+
+    rc = ktipc_server_start(&smc_ktipc_server);
+    if (rc < 0) {
+        panic("Failed (%d) to start smc server\n", rc);
     }
-    thread_detach_and_resume(thread);
+
+    rc = ktipc_server_add_port(&smc_ktipc_server, &smc_service_port,
+                               &smc_service_ops);
+    if (rc < 0) {
+        panic("Failed (%d) to create smc port\n", rc);
+    }
 }
 
 LK_INIT_HOOK(smc, smc_service_init, LK_INIT_LEVEL_APPS);
