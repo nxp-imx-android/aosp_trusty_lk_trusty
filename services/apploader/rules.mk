@@ -28,6 +28,7 @@ MODULE_SRCS += \
 
 MODULE_DEPS += \
 	trusty/kernel/lib/trusty \
+	trusty/kernel/lib/ktipc \
 	trusty/user/base/interface/apploader \
 
 # We need to add the package tool as a dependency here, since there are very

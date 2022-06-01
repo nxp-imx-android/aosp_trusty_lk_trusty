@@ -29,6 +29,7 @@
 #include <inttypes.h>
 #include <kernel/thread.h>
 #include <kernel/vm.h>
+#include <lib/ktipc/ktipc.h>
 #include <lib/trusty/handle_set.h>
 #include <lib/trusty/ipc.h>
 #include <lib/trusty/ipc_msg.h>
@@ -39,13 +40,7 @@
 #include <string.h>
 #include <uapi/mm.h>
 
-struct apploader_service {
-    struct handle* port;
-    struct handle* hset;
-};
-
 struct apploader_channel_ctx {
-    struct handle_ref href;
     struct vmm_obj_slice vmm_obj_slice;
 };
 
@@ -66,6 +61,13 @@ static const struct uuid apploader_unittest_uuid = {
         {0x86, 0x61, 0xef, 0x34, 0xfb, 0x3b, 0xe6, 0xfc},
 };
 #endif
+
+const static struct uuid* apploader_service_uuids[] = {
+        &apploader_user_uuid,
+#if TEST_BUILD
+        &apploader_unittest_uuid,
+#endif
+};
 
 struct apploader_secure_req {
     struct apploader_secure_header hdr;
@@ -108,21 +110,9 @@ static int apploader_service_send_response(struct handle* chan,
                     },
             .error = error,
     };
-    struct iovec_kern resp_iov = {
-            .iov_base = (void*)&resp,
-            .iov_len = sizeof(resp),
-    };
-    struct ipc_msg_kern resp_msg = {
-            .iov = &resp_iov,
-            .num_iov = 1,
-            .handles = handles,
-            .num_handles = num_handles,
-    };
 
-    int rc = ipc_send_msg(chan, &resp_msg);
-    if (rc < 0)
-        return rc;
-
+    int rc =
+            ktipc_send_handles(chan, handles, num_handles, &resp, sizeof(resp));
     if (rc != (int)sizeof(resp)) {
         return ERR_BAD_LEN;
     }
@@ -131,11 +121,11 @@ static int apploader_service_send_response(struct handle* chan,
 }
 
 static int apploader_service_handle_cmd_get_memory(
+        struct handle* chan,
         struct apploader_channel_ctx* channel_ctx,
         struct apploader_secure_get_memory_req* req) {
     int rc;
     uint32_t resp_error;
-    struct handle* chan = channel_ctx->href.handle;
 
     if (channel_ctx->vmm_obj_slice.obj) {
         TRACEF("%s: client already holds a memref\n", __func__);
@@ -197,11 +187,11 @@ err_chan_has_memref:
 }
 
 static int apploader_service_handle_cmd_load_application(
+        struct handle* chan,
         struct apploader_channel_ctx* channel_ctx,
         struct apploader_secure_load_app_req* req) {
     int rc;
     uint32_t resp_error;
-    struct handle* chan = channel_ctx->href.handle;
 
     if (!channel_ctx->vmm_obj_slice.obj) {
         TRACEF("%s: invalid handle\n", __func__);
@@ -304,47 +294,13 @@ err_invalid_handle:
             chan, APPLOADER_SECURE_CMD_LOAD_APPLICATION, resp_error, NULL, 0);
 }
 
-static int apploader_service_read_request(struct handle* chan,
-                                          struct apploader_secure_req* req) {
+static int apploader_service_handle_msg(const struct ktipc_port* port,
+                                        struct handle* chan,
+                                        void* ctx) {
+    struct apploader_channel_ctx* channel_ctx = ctx;
     int rc;
-    struct ipc_msg_info msg_inf;
-    rc = ipc_get_msg(chan, &msg_inf);
-    if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) to get IPC message\n", __func__, rc);
-        return rc;
-    }
-
-    if (msg_inf.len < sizeof(req->hdr) || msg_inf.len > sizeof(*req)) {
-        TRACEF("%s: message is too short or too long (%zd)\n", __func__,
-               msg_inf.len);
-        rc = ERR_BAD_LEN;
-        goto err;
-    }
-
-    struct iovec_kern iov = {
-            .iov_base = (void*)req,
-            .iov_len = sizeof(*req),
-    };
-    struct ipc_msg_kern msg = {
-            .iov = &iov,
-            .num_iov = 1,
-            .handles = NULL,
-            .num_handles = 0,
-    };
-    rc = ipc_read_msg(chan, msg_inf.id, 0, &msg);
-    ASSERT(rc < 0 || (size_t)rc == msg_inf.len);
-
-err:
-    ipc_put_msg(chan, msg_inf.id);
-    return rc;
-}
-
-static int apploader_service_handle_msg(
-        struct apploader_channel_ctx* channel_ctx) {
-    int rc;
-    struct handle* chan = channel_ctx->href.handle;
     struct apploader_secure_req req;
-    rc = apploader_service_read_request(chan, &req);
+    rc = ktipc_recv(chan, sizeof(req.hdr), &req, sizeof(req));
     if (rc < 0) {
         TRACEF("%s: failed (%d) to read apploader request\n", __func__, rc);
         return rc;
@@ -363,7 +319,7 @@ static int apploader_service_handle_msg(
             break;
         }
 
-        rc = apploader_service_handle_cmd_get_memory(channel_ctx,
+        rc = apploader_service_handle_cmd_get_memory(chan, channel_ctx,
                                                      &req.get_memory_req);
         break;
 
@@ -378,7 +334,7 @@ static int apploader_service_handle_msg(
             break;
         }
 
-        rc = apploader_service_handle_cmd_load_application(channel_ctx,
+        rc = apploader_service_handle_cmd_load_application(chan, channel_ctx,
                                                            &req.load_app_req);
         break;
 
@@ -397,185 +353,69 @@ static int apploader_service_handle_msg(
     return rc;
 }
 
-static void apploader_service_channel_close(
-        struct apploader_channel_ctx* hctx) {
-    handle_close(hctx->href.handle);
-    vmm_obj_slice_release(&hctx->vmm_obj_slice);
-    free(hctx);
+static int apploader_service_handle_connect(const struct ktipc_port* port,
+                                            struct handle* chan,
+                                            const struct uuid* peer,
+                                            void** ctx_p) {
+    struct apploader_channel_ctx* channel_ctx = calloc(1, sizeof(*channel_ctx));
+    if (!channel_ctx) {
+        TRACEF("%s: failed to allocate apploader_channel_ctx\n", __func__);
+        return ERR_NO_MEMORY;
+    }
+
+    vmm_obj_slice_init(&channel_ctx->vmm_obj_slice);
+
+    *ctx_p = channel_ctx;
+
+    return NO_ERROR;
 }
 
-static void apploader_service_handle_channel_event(struct handle_ref* event) {
-    int rc;
-    struct apploader_channel_ctx* channel_ctx = event->cookie;
+static void apploader_service_handle_channel_cleanup(void* ctx) {
+    struct apploader_channel_ctx* channel_ctx = ctx;
 
-    DEBUG_ASSERT(channel_ctx->href.handle == event->handle);
-
-    if (event->emask & IPC_HANDLE_POLL_MSG) {
-        rc = apploader_service_handle_msg(channel_ctx);
-
-        if (rc != NO_ERROR) {
-            TRACEF("%s: handle_msg failed (%d). Closing channel.\n", __func__,
-                   rc);
-            goto err;
-        }
-    }
-
-    if (event->emask & IPC_HANDLE_POLL_HUP) {
-        goto err;
-    }
-    return;
-
-err:
-    handle_set_detach_ref(&channel_ctx->href);
-    apploader_service_channel_close(channel_ctx);
+    vmm_obj_slice_release(&channel_ctx->vmm_obj_slice);
+    free(channel_ctx);
 }
 
-static void apploader_service_handle_port_event(struct apploader_service* ctx,
-                                                struct handle_ref* event) {
-    int rc;
-    struct apploader_channel_ctx* channel_ctx;
-    struct handle* channel;
-    const struct uuid* peer_uuid;
+const static struct ktipc_srv_ops apploader_service_ops = {
+        .on_connect = apploader_service_handle_connect,
+        .on_message = apploader_service_handle_msg,
+        .on_channel_cleanup = apploader_service_handle_channel_cleanup,
+};
 
-    if (event->emask & IPC_HANDLE_POLL_READY) {
-        rc = ipc_port_accept(event->handle, &channel, &peer_uuid);
-        LTRACEF("accept returned %d\n", rc);
+const static struct ktipc_port_acl apploader_service_port_acl = {
+        .flags = IPC_PORT_ALLOW_TA_CONNECT,
+        .uuids = apploader_service_uuids,
+        .uuid_num = countof(apploader_service_uuids),
+        .extra_data = NULL,
+};
 
-        if (rc != NO_ERROR) {
-            TRACEF("%s: failed (%d) to accept incoming connection\n", __func__,
-                   rc);
-            goto err_accept;
-        }
+const static struct ktipc_port apploader_service_port = {
+        .name = APPLOADER_SECURE_PORT,
+        .uuid = &kernel_uuid,
+        .msg_max_size = sizeof(union apploader_longest_secure_msg),
+        .msg_queue_len = 1,
+        .acl = &apploader_service_port_acl,
+        .priv = NULL,
+};
 
-        /*
-         * Check peer UUID against the known apploader client.
-         *
-         * The unit test application is also allowed to connect in test builds,
-         * since it tests both the user space client and this service from a
-         * single set of unit tests.
-         */
-        if (memcmp(peer_uuid, &apploader_user_uuid, sizeof(struct uuid))
-#if TEST_BUILD
-            && memcmp(peer_uuid, &apploader_unittest_uuid, sizeof(struct uuid))
-#endif
-        ) {
-            TRACEF("%s: received connection from unknown peer\n", __func__);
-            goto err_bad_uuid;
-        }
-
-        channel_ctx = calloc(1, sizeof(struct apploader_channel_ctx));
-        if (!channel_ctx) {
-            TRACEF("%s: failed to allocate a apploader_channel_ctx\n",
-                   __func__);
-            goto err_alloc_channel_ctx;
-        }
-        vmm_obj_slice_init(&channel_ctx->vmm_obj_slice);
-
-        /* to retrieve channel_ctx from a handle_set_wait() event */
-        channel_ctx->href.cookie = channel_ctx;
-        channel_ctx->href.handle = channel;
-        channel_ctx->href.emask = ~0U;
-
-        rc = handle_set_attach(ctx->hset, &channel_ctx->href);
-        if (rc != NO_ERROR) {
-            TRACEF("%s: failed (%d) handle_set_attach()\n", __func__, rc);
-            apploader_service_channel_close(channel_ctx);
-            return;
-        }
-    }
-    return;
-
-err_alloc_channel_ctx:
-err_bad_uuid:
-    handle_close(channel);
-err_accept:
-    return;
-}
-
-static void apploader_service_loop(struct apploader_service* ctx) {
-    int rc;
-    struct handle_ref event;
-
-    while (true) {
-        rc = handle_set_wait(ctx->hset, &event, INFINITE_TIME);
-        if (rc != NO_ERROR) {
-            TRACEF("%s: handle_set_wait failed: %d\n", __func__, rc);
-            break;
-        }
-
-        LTRACEF("%s: got handle set event rc=%d ev=%x handle=%p cookie=%p\n",
-                __func__, rc, event.emask, event.handle, event.cookie);
-        /* This only works for services with a single port, like apploader */
-        if (event.handle == ctx->port) {
-            LTRACEF("%s: handling port event\n", __func__);
-            apploader_service_handle_port_event(ctx, &event);
-        } else {
-            LTRACEF("%s: handling channel event\n", __func__);
-            apploader_service_handle_channel_event(&event);
-        }
-        handle_decref(event.handle);
-    }
-}
-
-static int apploader_service_thread(void* arg) {
-    int rc;
-    struct apploader_service ctx;
-
-    ctx.hset = handle_set_create();
-    if (!ctx.hset) {
-        TRACEF("%s: failed to create handle set\n", __func__);
-        rc = ERR_NO_MEMORY;
-        goto err_hset_create;
-    }
-
-    rc = ipc_port_create(&kernel_uuid, APPLOADER_SECURE_PORT, 1,
-                         sizeof(union apploader_longest_secure_msg),
-                         IPC_PORT_ALLOW_TA_CONNECT, &ctx.port);
-    if (rc) {
-        TRACEF("%s: failed (%d) to create apploader port\n", __func__, rc);
-        goto err_port_create;
-    }
-
-    rc = ipc_port_publish(ctx.port);
-    if (rc) {
-        TRACEF("%s: failed (%d) to publish apploader port\n", __func__, rc);
-        goto err_port_publish;
-    }
-
-    struct handle_ref port_href = {
-            .handle = ctx.port,
-            .emask = ~0U,
-    };
-    rc = handle_set_attach(ctx.hset, &port_href);
-    if (rc < 0) {
-        TRACEF("%s: failed (%d) handle_set_attach() port\n", __func__, rc);
-        goto err_hset_add_port;
-    }
-
-    apploader_service_loop(&ctx);
-    TRACEF("%s: apploader_service_loop() returned. apploader service exiting.\n",
-           __func__);
-
-    handle_set_detach_ref(&port_href);
-
-err_hset_add_port:
-err_port_publish:
-    handle_close(ctx.port);
-err_port_create:
-    handle_close(ctx.hset);
-err_hset_create:
-    return rc;
-}
+static struct ktipc_server apploader_ktipc_server =
+        KTIPC_SERVER_INITIAL_VALUE(apploader_ktipc_server,
+                                   "apploader_ktipc_server");
 
 static void apploader_service_init(uint level) {
-    struct thread* thread =
-            thread_create("apploader-service", apploader_service_thread, NULL,
-                          DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
-    if (!thread) {
-        TRACEF("%s: failed to create apploader-service thread\n", __func__);
-        return;
+    int rc;
+
+    rc = ktipc_server_start(&apploader_ktipc_server);
+    if (rc < 0) {
+        panic("Failed (%d) to start apploader server\n", rc);
     }
-    thread_detach_and_resume(thread);
+
+    rc = ktipc_server_add_port(&apploader_ktipc_server, &apploader_service_port,
+                               &apploader_service_ops);
+    if (rc < 0) {
+        panic("Failed (%d) to create apploader port\n", rc);
+    }
 }
 
 LK_INIT_HOOK(apploader, apploader_service_init, LK_INIT_LEVEL_APPS + 1);
