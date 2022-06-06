@@ -27,6 +27,9 @@
 #include <lk/init.h>
 #include <stdio.h>
 #include <string.h>
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+#include <trusty/io_handle.h>
+#endif
 
 static size_t print_count;
 static size_t print_bytes;
@@ -99,11 +102,11 @@ TEST(consoletest, steal_lock) {
     spin_lock_saved_state_t state;
     clear_stats();
 
-    io_lock(stdout->io);
+    io_lock(file_io_handle(stdout));
     arch_interrupt_save(&state, SPIN_LOCK_FLAG_INTERRUPTS);
     printf("Hello, %s!\n", "test");
     arch_interrupt_restore(state, SPIN_LOCK_FLAG_INTERRUPTS);
-    io_unlock(stdout->io);
+    io_unlock(file_io_handle(stdout));
 
     check_standard_stats();
 }

@@ -40,6 +40,9 @@
 #include <lib/trusty/uctx.h>
 #include <lib/trusty/uio.h>
 #include <platform.h>
+#if LK_LIBC_IMPLEMENTATION_IS_MUSL
+#include <trusty/io_handle.h>
+#endif
 
 #include "util.h"
 
@@ -114,11 +117,14 @@ static ssize_t sys_std_writev(uint32_t fd,
      * produce the correct return code.
      */
     bool should_output = INFO <= LK_LOGLEVEL;
-    FILE* fp = (fd == 2) ? stderr : stdout;
+    io_handle_t* io_handle = fd_io_handle(fd);
+    if (io_handle == NULL) {
+        return ERR_BAD_HANDLE;
+    }
     uint8_t buf[128];
 
     if (should_output) {
-        io_lock(fp->io);
+        io_lock(io_handle);
     }
 
     struct iovec_iter iter = iovec_iter_create(iov_cnt);
@@ -132,7 +138,7 @@ static ssize_t sys_std_writev(uint32_t fd,
         }
         total_bytes += ret;
         if (should_output) {
-            ret = io_write(fp->io, (const void*)buf, ret);
+            ret = io_write(io_handle, (const void*)buf, ret);
             if (ret < 0) {
                 goto write_done;
             }
@@ -142,8 +148,8 @@ static ssize_t sys_std_writev(uint32_t fd,
 
 write_done:
     if (should_output) {
-        io_write_commit(fp->io);
-        io_unlock(fp->io);
+        io_write_commit(io_handle);
+        io_unlock(io_handle);
     }
     return ret;
 }
