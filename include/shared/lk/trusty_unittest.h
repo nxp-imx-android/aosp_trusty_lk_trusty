@@ -688,6 +688,7 @@ static inline const void* GetParam(void) {
 #define EXPECT_LE(args...) EXPECT_TEST(<=, args)
 #define EXPECT_GT(args...) EXPECT_TEST(>, args)
 #define EXPECT_GE(args...) EXPECT_TEST(>=, args)
+#define EXPECT_STREQ(str1, str2) EXPECT_EQ(strcmp((str1), (str2)), 0)
 
 #define ASSERT_TEST(op, args...) \
     ASSERT_EXPECT_TEST(op, true, goto test_abort;, args)
@@ -697,5 +698,6 @@ static inline const void* GetParam(void) {
 #define ASSERT_LE(args...) ASSERT_TEST(<=, args)
 #define ASSERT_GT(args...) ASSERT_TEST(>, args)
 #define ASSERT_GE(args...) ASSERT_TEST(>=, args)
+#define ASSERT_STREQ(str1, str2) ASSERT_EQ(strcmp((str1), (str2)), 0)
 
 __END_CDECLS
