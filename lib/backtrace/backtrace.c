@@ -137,7 +137,8 @@ static void print_function_info(struct thread* thread,
     printf("0x%" PRI0xPTR "x", pc_offset);
 
     if (info) {
-        printf(" %s+0x%lxx/0x%lxx\n", info->symbol, info->offset, info->size);
+        printf(" %s+0x%" PRIxPTR "x/0x%" PRIxPTR "x\n", info->symbol,
+               info->offset, info->size);
     } else {
         printf("\n");
     }
@@ -275,7 +276,7 @@ static void dump_backtrace_etc(struct thread* thread,
      * Expect the first frame to be in kernel address space
      */
     if (!is_kernel_address(frame->fp)) {
-        printf("Corrupt stack frame pointer! fp: 0x%lx\n", frame->fp);
+        printf("Corrupt stack frame pointer! fp: 0x%" PRIxPTR "\n", frame->fp);
         return;
     }
     int frame_state = dump_monotonic_backtrace(thread, frame, false);

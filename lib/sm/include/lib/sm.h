@@ -29,6 +29,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#define PRIxNS_ADDR PRIx64
+
 typedef uint64_t ns_addr_t;
 typedef uint32_t ns_size_t;
 

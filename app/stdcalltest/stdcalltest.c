@@ -22,6 +22,7 @@
  */
 
 #include <err.h>
+#include <inttypes.h>
 #include <kernel/vm.h>
 #include <lib/sm.h>
 #include <lib/sm/sm_err.h>
@@ -75,8 +76,9 @@ static long stdcalltest_sharedmem_rw(ext_mem_client_id_t client_id,
 
     for (size_t i = 0; i < size / sizeof(*va64); i++) {
         if (va64[i] != i) {
-            TRACEF("input mismatch at %zd, got 0x%llx instead of 0x%zx\n", i,
-                   va64[i], i);
+            TRACEF("input mismatch at %zd, got 0x%" PRIx64
+                   " instead of 0x%zx\n",
+                   i, va64[i], i);
             status = SM_ERR_INVALID_PARAMETERS;
             goto err_input_mismatch;
         }

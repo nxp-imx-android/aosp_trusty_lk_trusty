@@ -22,8 +22,10 @@
  */
 
 #include <err.h>
+#include <inttypes.h>
 #include <kernel/vm.h>
 #include <lib/extmem/extmem.h>
+#include <sys/types.h>
 #include <trace.h>
 
 #define LOCAL_TRACE 0
@@ -80,12 +82,12 @@ void ext_mem_obj_set_match_tag(struct vmm_obj* obj, uint64_t match_tag) {
 int ext_mem_obj_check_flags(struct vmm_obj* obj, uint* arch_mmu_flags) {
     struct ext_mem_obj* ext_obj = ext_mem_obj_from_vmm_obj(obj);
 
-    LTRACEF("obj 0x%llx, obj arch_mmu_flags 0x%x, arch_mmu_flags 0x%x\n",
+    LTRACEF("obj 0x%" PRIx64 ", obj arch_mmu_flags 0x%x, arch_mmu_flags 0x%x\n",
             ext_obj->id, ext_obj->arch_mmu_flags, *arch_mmu_flags);
 
     if (ext_obj->match_tag != ext_obj->tag) {
-        TRACEF("WARNING: tag mismatch: 0x%llx != 0x%llx\n", ext_obj->match_tag,
-               ext_obj->tag);
+        TRACEF("WARNING: tag mismatch: 0x%" PRIx64 " != 0x%" PRIx64 "\n",
+               ext_obj->match_tag, ext_obj->tag);
         return ERR_ACCESS_DENIED;
     }
 
@@ -148,8 +150,8 @@ int ext_mem_obj_get_page(struct vmm_obj* obj,
 
     *paddr = ext_obj->page_runs[index].paddr + page_offset;
     *paddr_size = ext_obj->page_runs[index].size - page_offset;
-    LTRACEF("offset %zd, index %zd/%zd -> paddr 0x%lx, size %zu\n", offset,
-            index, ext_obj->page_run_count, *paddr, *paddr_size);
+    LTRACEF("offset %zd, index %zd/%zd -> paddr 0x%" PRIxPADDR ", size %zu\n",
+            offset, index, ext_obj->page_run_count, *paddr, *paddr_size);
 
     return 0;
 }
@@ -174,7 +176,8 @@ status_t ext_mem_map_obj_id(vmm_aspace_t* aspace,
     err = ext_mem_get_vmm_obj(client_id, mem_obj_id, tag, size + offset,
                               &vmm_obj, &vmm_obj_ref);
     if (err) {
-        TRACEF("failed to get object, 0x%llx:0x%llx, to map for %s\n",
+        TRACEF("failed to get object, 0x%" PRIx64 ":0x%" PRIx64
+               ", to map for %s\n",
                client_id, mem_obj_id, name);
         return err;
     }
@@ -186,10 +189,11 @@ status_t ext_mem_map_obj_id(vmm_aspace_t* aspace,
                         vmm_flags, arch_mmu_flags);
     vmm_obj_del_ref(vmm_obj, &vmm_obj_ref);
     if (err) {
-        TRACEF("failed to map object, 0x%llx:0x%llx, for %s\n", client_id,
-               mem_obj_id, name);
+        TRACEF("failed to map object, 0x%" PRIx64 ":0x%" PRIx64 ", for %s\n",
+               client_id, mem_obj_id, name);
         return err;
     }
-    LTRACEF("mapped 0x%llx:0x%llx at %p\n", client_id, mem_obj_id, *ptr);
+    LTRACEF("mapped 0x%" PRIx64 ":0x%" PRIx64 " at %p\n", client_id, mem_obj_id,
+            *ptr);
     return err;
 }

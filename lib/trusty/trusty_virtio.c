@@ -30,6 +30,7 @@
 #include <trace.h>
 
 #include <arch/arch_ops.h>
+#include <inttypes.h>
 #include <kernel/mutex.h>
 #include <kernel/vm.h>
 #include <lk/init.h>
@@ -160,7 +161,7 @@ ssize_t virtio_get_description(ext_mem_client_id_t client_id,
     struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("descr_buf: %u bytes @ 0x%llx\n", buf_sz, buf_id);
+    LTRACEF("descr_buf: %u bytes @ 0x%" PRIx64 "\n", buf_sz, buf_id);
 
     finalize_vdev_registery();
 
@@ -216,12 +217,12 @@ status_t virtio_start(ext_mem_client_id_t client_id,
     struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, ns_descr_id);
+    LTRACEF("%u bytes @ 0x%" PRIx64 "\n", descr_sz, ns_descr_id);
 
     list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
         if (client_id != vd->client_id) {
-            LTRACEF("mismatched client id 0x%llx != 0x%llx\n", client_id,
-                    vd->client_id);
+            LTRACEF("mismatched client id 0x%" PRIx64 " != 0x%" PRIx64 "\n",
+                    client_id, vd->client_id);
             return ERR_INVALID_ARGS;
         }
     }
@@ -288,12 +289,12 @@ status_t virtio_stop(ext_mem_client_id_t client_id,
     struct vdev* vd;
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
-    LTRACEF("%u bytes @ 0x%llx\n", descr_sz, descr_id);
+    LTRACEF("%u bytes @ 0x%" PRIx64 "\n", descr_sz, descr_id);
 
     list_for_every_entry(&vb->vdev_list, vd, struct vdev, node) {
         if (client_id != vd->client_id) {
-            LTRACEF("mismatched client id 0x%llx != 0x%llx\n", client_id,
-                    vd->client_id);
+            LTRACEF("mismatched client id 0x%" PRIx64 " != 0x%" PRIx64 "\n",
+                    client_id, vd->client_id);
             return ERR_INVALID_ARGS;
         }
     }

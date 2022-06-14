@@ -48,6 +48,7 @@
 #include <lib/trusty/memref.h>
 #include <lib/trusty/tipc_virtio_dev.h>
 
+#include <inttypes.h>
 #include <uapi/mm.h>
 
 #define LOCAL_TRACE 0
@@ -198,7 +199,8 @@ void tipc_ext_mem_destroy(struct vmm_obj* obj) {
     /* In case this was the last reference, tell NS to try reclaiming */
     if (!tem->suppress_release) {
         if (release_shm(tem->dev, ext_mem_id) != NO_ERROR) {
-            TRACEF("Failed to release external memory: 0x%llx\n", ext_mem_id);
+            TRACEF("Failed to release external memory: 0x%" PRIx64 "\n",
+                   ext_mem_id);
         }
     }
     free(tem);
@@ -1112,8 +1114,8 @@ static status_t tipc_dev_probe(struct tipc_dev* dev,
         ext_mem_obj_id_t smem_id =
                 ((uint64_t)vring->reserved << 32) | vring->da;
 
-        LTRACEF("vring%d: mem-id 0x%llx align %u num %u nid %u\n", vring_cnt,
-                smem_id, vring->align, vring->num, vring->notifyid);
+        LTRACEF("vring%d: mem-id 0x%" PRIx64 " align %u num %u nid %u\n",
+                vring_cnt, smem_id, vring->align, vring->num, vring->notifyid);
 
         ret = vqueue_init(&dev->vqs[vring_cnt], vring->notifyid,
                           dev->vd.client_id, smem_id, vring->num, vring->align,
@@ -1378,7 +1380,7 @@ status_t release_shm(struct tipc_dev* dev, uint64_t shm_id) {
 
     msg.body.id = shm_id;
 
-    LTRACEF("release shm %llu\n", shm_id);
+    LTRACEF("release shm %" PRIu64 "\n", shm_id);
 
     return tipc_send_buf(dev, TIPC_CTRL_ADDR, TIPC_CTRL_ADDR, &msg, sizeof(msg),
                          true);

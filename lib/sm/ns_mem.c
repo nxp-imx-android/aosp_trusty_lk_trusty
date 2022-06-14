@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <err.h>
+#include <inttypes.h>
 #include <lib/sm.h>
 #include <trace.h>
 
@@ -94,8 +95,9 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
     if (!pinf)
         return ERR_INVALID_ARGS;
 
-    LTRACEF("raw=0x%llx: pa=0x%llx: mair=0x%x, sharable=0x%x\n", pinf->attr,
-            NS_PTE_PHYSADDR(pinf->attr), (uint)NS_PTE_ATTR_MAIR(pinf->attr),
+    LTRACEF("raw=0x%" PRIx64 ": pa=0x%llx: mair=0x%x, sharable=0x%x\n",
+            pinf->attr, NS_PTE_PHYSADDR(pinf->attr),
+            (uint)NS_PTE_ATTR_MAIR(pinf->attr),
             (uint)NS_PTE_ATTR_SHAREABLE(pinf->attr));
 
     if (ppa)

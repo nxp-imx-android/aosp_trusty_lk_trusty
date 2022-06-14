@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <compiler.h>
 #include <err.h>
+#include <inttypes.h>
 #include <kernel/mutex.h>
 #include <kernel/vm.h>
 #include <lib/sm/sm_err.h>
@@ -189,7 +190,7 @@ static struct ql_tipc_dev* dev_acquire(ext_mem_client_id_t client_id,
     dev = dev_lookup(client_id, buf_id);
     if (dev) {
         if (dev->in_use) {
-            TRACEF("0x%llx: device in use by another cpu\n", buf_id);
+            TRACEF("0x%" PRIx64 ": device in use by another cpu\n", buf_id);
             dev = NULL;
         } else {
             dev->in_use = true;
@@ -219,7 +220,7 @@ static long dev_create(ext_mem_client_id_t client_id,
 
     dev = dev_lookup(client_id, buf_id);
     if (dev) {
-        LTRACEF("0x%llx: device already exists\n", buf_id);
+        LTRACEF("0x%" PRIx64 ": device already exists\n", buf_id);
         return SM_ERR_INVALID_PARAMETERS;
     }
 
@@ -273,7 +274,8 @@ static long dev_create(ext_mem_client_id_t client_id,
     spin_unlock_restore(&_dev_list_lock, state, SLOCK_FLAGS);
     _dev_cnt++;
 
-    LTRACEF("tipc dev: %u bytes @ 0x%llx:0x%llx (%p) (flags=0x%x)\n",
+    LTRACEF("tipc dev: %u bytes @ 0x%" PRIx64 ":0x%" PRIx64
+            " (%p) (flags=0x%x)\n",
             dev->ns_sz, dev->client_id, dev->buf_id, dev->ns_va,
             dev->ns_mmu_flags);
 
@@ -617,7 +619,7 @@ long ql_tipc_shutdown_device(ext_mem_client_id_t client_id,
                              ext_mem_obj_id_t buf_id) {
     struct ql_tipc_dev* dev = dev_acquire(client_id, buf_id);
     if (!dev) {
-        LTRACEF("0x%llx: device not found\n", buf_id);
+        LTRACEF("0x%" PRIx64 ": device not found\n", buf_id);
         return SM_ERR_INVALID_PARAMETERS;
     }
     dev_shutdown(dev);
@@ -634,7 +636,7 @@ long ql_tipc_handle_cmd(ext_mem_client_id_t client_id,
     /* lookup device */
     struct ql_tipc_dev* dev = dev_acquire(client_id, buf_id);
     if (!dev) {
-        LTRACEF("0x%llx: device not found\n", buf_id);
+        LTRACEF("0x%" PRIx64 ": device not found\n", buf_id);
         goto err_not_found;
     }
 

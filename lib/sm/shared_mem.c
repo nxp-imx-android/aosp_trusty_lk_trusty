@@ -24,6 +24,7 @@
 #include <compiler.h>
 #include <debug.h>
 #include <err.h>
+#include <inttypes.h>
 #include <kernel/mutex.h>
 #include <kernel/vm.h>
 #include <lib/extmem/extmem.h>
@@ -33,6 +34,7 @@
 #include <lib/sm/smc.h>
 #include <lk/init.h>
 #include <string.h>
+#include <sys/types.h>
 #include <trace.h>
 
 #define LOCAL_TRACE 0
@@ -97,7 +99,7 @@ static status_t sm_mem_compat_get_vmm_obj(ext_mem_client_id_t client_id,
          * If ns_addr_t is larger than paddr_t and we get an address that does
          * not fit, return an error as we cannot map that address.
          */
-        TRACEF("unsupported paddr, 0x%0llx\n", ns_paddr);
+        TRACEF("unsupported paddr, 0x%0" PRIxNS_ADDR "\n", ns_paddr);
         return ERR_INVALID_ARGS;
     }
 
@@ -434,7 +436,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
         return ERR_IO;
     }
 
-    LTRACEF("handle %lld, desc count %d\n", handle,
+    LTRACEF("handle %" PRId64 ", desc count %d\n", handle,
             address_range_descriptor_count);
 
     /* Allocate a new shared memory object. */
@@ -490,7 +492,7 @@ static int ffa_mem_retrieve(uint16_t sender_id,
         }
         obj->ext_mem_obj.page_runs[ri].size =
                 (size_t)desc[di].page_count * FFA_PAGE_SIZE;
-        LTRACEF("added ns memory at 0x%lx, size %zd, %d/%d %d/%zd\n",
+        LTRACEF("added ns memory at 0x%" PRIxPADDR ", size %zd, %d/%d %d/%zd\n",
                 obj->ext_mem_obj.page_runs[ri].paddr,
                 obj->ext_mem_obj.page_runs[ri].size, ri,
                 address_range_descriptor_count, di, desc_count);
@@ -657,7 +659,8 @@ static void shared_mem_init(uint level) {
     smc_ret = smc8(SMC_FC_FFA_RXTX_MAP, tx_paddr, rx_paddr,
                    ffa_buf_size / FFA_PAGE_SIZE, 0, 0, 0, 0);
     if ((uint32_t)smc_ret.r0 != SMC_FC_FFA_SUCCESS) {
-        TRACEF("failed to map tx @ 0x%lx, rx @ 0x%lx, page count 0x%zx\n",
+        TRACEF("failed to map tx @ 0x%" PRIxPADDR ", rx @ 0x%" PRIxPADDR
+               ", page count 0x%zx\n",
                tx_paddr, rx_paddr, ffa_buf_size / FFA_PAGE_SIZE);
         goto err_rxtx_map;
     }

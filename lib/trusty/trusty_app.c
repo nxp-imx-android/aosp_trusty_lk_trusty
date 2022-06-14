@@ -82,22 +82,22 @@ STATIC_ASSERT(USER_ASPACE_BASE != 0);
 #define ELF_PHDR Elf64_Phdr
 #define Elf_Addr Elf64_Addr
 
-#define PRIxELF_Off "llx"
-#define PRIuELF_Size "llu"
-#define PRIxELF_Size "llx"
-#define PRIxELF_Addr "llx"
-#define PRIxELF_Flags "llx"
+#define PRIxELF_Off PRIx64
+#define PRIuELF_Size PRIu64
+#define PRIxELF_Size PRIx64
+#define PRIxELF_Addr PRIx64
+#define PRIxELF_Flags PRIx64
 #else
 #define ELF_SHDR Elf32_Shdr
 #define ELF_EHDR Elf32_Ehdr
 #define ELF_PHDR Elf32_Phdr
 #define Elf_Addr Elf32_Addr
 
-#define PRIxELF_Off "x"
-#define PRIuELF_Size "u"
-#define PRIxELF_Size "x"
-#define PRIxELF_Addr "x"
-#define PRIxELF_Flags "x"
+#define PRIxELF_Off PRIx32
+#define PRIuELF_Size PRIu32
+#define PRIxELF_Size PRIx32
+#define PRIxELF_Addr PRIx32
+#define PRIxELF_Flags PRIx32
 #endif
 
 static u_int trusty_next_app_id;
@@ -460,7 +460,8 @@ static struct trusty_thread* trusty_thread_create(
                     ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
     if (err != NO_ERROR) {
         dprintf(CRITICAL,
-                "failed(%d) to create thread stack(0x%lx) for app %u, %s\n",
+                "failed(%d) to create thread stack(0x%" PRIxVADDR
+                ") for app %u, %s\n",
                 err, stack_bot, trusty_app->app_id, trusty_app->props.app_name);
         goto err_stack;
     }
@@ -576,7 +577,8 @@ static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
     }
 
     /* manifest data is embedded in kernel */
-    dprintf(SPEW, "trusty app manifest: start %p size 0x%08lx end %p\n",
+    dprintf(SPEW,
+            "trusty app manifest: start %p size 0x%08" PRIxPTR " end %p\n",
             (void*)app_img->manifest_start,
             app_img->manifest_end - app_img->manifest_start,
             (void*)app_img->manifest_end);
@@ -861,8 +863,10 @@ static status_t init_brk(struct trusty_app* trusty_app) {
 
         if (status != NO_ERROR) {
             dprintf(CRITICAL,
-                    "failed(%d) to create heap(0x%lx) for app %u, %s\n", status,
-                    start_brk, trusty_app->app_id, trusty_app->props.app_name);
+                    "failed(%d) to create heap(0x%" PRIxPTR
+                    ") for app %u, %s\n",
+                    status, start_brk, trusty_app->app_id,
+                    trusty_app->props.app_name);
             return ERR_NO_MEMORY;
         }
     }
@@ -931,7 +935,7 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     *out = 0;
 #endif
 
-    LTRACEF("Load bias: %lx\n", *out);
+    LTRACEF("Load bias: %" PRIxVADDR "\n", *out);
 
     return NO_ERROR;
 }
@@ -1012,14 +1016,16 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
 
         if (vaddr & PAGE_MASK) {
             dprintf(CRITICAL,
-                    "segment %u load address 0x%lx in not page aligned for app %u, %s\n",
+                    "segment %u load address 0x%" PRIxVADDR
+                    " in not page aligned for app %u, %s\n",
                     i, vaddr, trusty_app->app_id, trusty_app->props.app_name);
             return ERR_NOT_VALID;
         }
 
         if (img_kvaddr & PAGE_MASK) {
             dprintf(CRITICAL,
-                    "segment %u image address 0x%lx in not page aligned for app %u, %s\n",
+                    "segment %u image address 0x%" PRIxVADDR
+                    " in not page aligned for app %u, %s\n",
                     i, img_kvaddr, trusty_app->app_id,
                     trusty_app->props.app_name);
             return ERR_NOT_VALID;
@@ -1063,7 +1069,8 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
 
             if (ret != NO_ERROR) {
                 dprintf(CRITICAL,
-                        "failed(%d) to allocate data segment(0x%lx) %u for app %u, %s\n",
+                        "failed(%d) to allocate data segment(0x%" PRIxVADDR
+                        ") %u for app %u, %s\n",
                         ret, vaddr, i, trusty_app->app_id,
                         trusty_app->props.app_name);
                 return ret;
@@ -1123,7 +1130,8 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
                     vmm_flags, arch_mmu_flags);
             if (ret != NO_ERROR) {
                 dprintf(CRITICAL,
-                        "failed(%d) to map RO segment(0x%lx) %u for app %u, %s\n",
+                        "failed(%d) to map RO segment(0x%" PRIxVADDR
+                        ") %u for app %u, %s\n",
                         ret, vaddr, i, trusty_app->app_id,
                         trusty_app->props.app_name);
                 free(paddr_arr);
@@ -1134,7 +1142,8 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
             free(paddr_arr);
         }
 
-        LTRACEF("trusty_app %d, %s: load vaddr 0x%08lx, paddr 0x%08lx"
+        LTRACEF("trusty_app %d, %s: load vaddr 0x%08" PRIxVADDR
+                ", paddr 0x%08" PRIxVADDR
                 ", rsize 0x%08zx, msize 0x%08" PRIxELF_Size
                 ", access r%c%c, flags 0x%x\n",
                 trusty_app->app_id, trusty_app->props.app_name, vaddr,
@@ -1155,7 +1164,9 @@ static status_t alloc_address_map(struct trusty_app* trusty_app) {
         return ret;
     }
 
-    dprintf(SPEW, "trusty_app %d, %s: brk:  start 0x%08lx end 0x%08lx\n",
+    dprintf(SPEW,
+            "trusty_app %d, %s: brk:  start 0x%08" PRIxPTR " end 0x%08" PRIxPTR
+            "\n",
             trusty_app->app_id, trusty_app->props.app_name,
             trusty_app->start_brk, trusty_app->end_brk);
     dprintf(SPEW, "trusty_app %d, %s: entry 0x%08" PRIxELF_Addr "\n",
@@ -1249,12 +1260,13 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
 
     if (app_img->img_start & PAGE_MASK || app_img->img_end & PAGE_MASK) {
         dprintf(CRITICAL,
-                "app image is not page aligned start 0x%lx end 0x%lx\n",
+                "app image is not page aligned start 0x%" PRIxPTR
+                " end 0x%" PRIxPTR "\n",
                 app_img->img_start, app_img->img_end);
         return ERR_NOT_VALID;
     }
 
-    dprintf(SPEW, "trusty_app: start %p size 0x%08lx end %p\n",
+    dprintf(SPEW, "trusty_app: start %p size 0x%08" PRIxPTR " end %p\n",
             (void*)app_img->img_start, app_img->img_end - app_img->img_start,
             (void*)app_img->img_end);
 

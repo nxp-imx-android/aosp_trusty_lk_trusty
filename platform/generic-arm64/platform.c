@@ -24,10 +24,12 @@
 #include <debug.h>
 #include <dev/interrupt/arm_gic.h>
 #include <dev/timer/arm_generic.h>
+#include <inttypes.h>
 #include <kernel/vm.h>
 #include <lk/init.h>
 #include <platform/gic.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "smc.h"
 
@@ -108,7 +110,10 @@ static void platform_after_vm_init(uint level) {
     paddr_t gicd = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICD);
     paddr_t gicr = generic_arm64_get_reg_base(SMC_GET_GIC_BASE_GICR);
 
-    dprintf(INFO, "gicc 0x%lx, gicd 0x%lx, gicr 0x%lx\n", gicc, gicd, gicr);
+    dprintf(INFO,
+            "gicc 0x%" PRIxPADDR ", gicd 0x%" PRIxPADDR ", gicr 0x%" PRIxPADDR
+            "\n",
+            gicc, gicd, gicr);
 
     /* initialize the interrupt controller */
     struct arm_gic_init_info init_info = {
