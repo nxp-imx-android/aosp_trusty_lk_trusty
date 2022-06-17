@@ -24,6 +24,8 @@
 #ifndef __UAPI_MM_H
 #define __UAPI_MM_H
 
+#include <stdint.h>
+
 /*
  * Flags for mmap syscall
  */
@@ -41,6 +43,15 @@
  * %MMAP_PROT_WRITE specified, or with %MMAP_PROT_EXEC specified.
  */
 #define MMAP_FLAG_IO_HANDLE (0x1 << 4)
+
+/**
+ * MMAP_FLAG_ANONYMOUS - the mapping is not backed by any handle.
+ * When passed to mmap(), this flag causes the handle argument to be
+ * ignored. This is analogous to MAP_ANONYMOUS in Linux.
+ *
+ * When this flag is used, the uaddr argument must be 0.
+ */
+#define MMAP_FLAG_ANONYMOUS (0x1 << 5)
 
 /**
  * Memory Protection attributes - flags to control mmap attributes

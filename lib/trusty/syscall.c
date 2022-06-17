@@ -41,6 +41,8 @@
 #include <lib/trusty/uio.h>
 #include <platform.h>
 
+#include "util.h"
+
 #define LOCAL_TRACE 0
 
 static ssize_t sys_std_writev(uint32_t fd,
@@ -223,13 +225,13 @@ long sys_mmap(user_addr_t uaddr,
     struct trusty_app* trusty_app = current_trusty_app();
     long ret;
 
-    /*
-     * Only allows mapping on IO region specified by handle (id) and uaddr
-     * must be 0 for now.
-     * TBD: Add support in to use uaddr as a hint.
-     */
     if (flags & MMAP_FLAG_IO_HANDLE) {
-        if (uaddr != 0) {
+        /*
+         * Only allows mapping on IO region specified by handle (id) and uaddr
+         * must be 0 for now.
+         * TBD: Add support in to use uaddr as a hint.
+         */
+        if (uaddr != 0 || flags & MMAP_FLAG_ANONYMOUS) {
             return ERR_INVALID_ARGS;
         }
 
@@ -239,6 +241,31 @@ long sys_mmap(user_addr_t uaddr,
         }
 
         return uaddr;
+    } else if (flags & MMAP_FLAG_ANONYMOUS) {
+        /*
+         * Same as above, uaddr must be 0 for now.
+         * TBD: Add support to use addr as a hint.
+         */
+        if (uaddr != 0) {
+            return ERR_INVALID_ARGS;
+        }
+
+        uint32_t mmu_flags = 0;
+        ret = xlat_flags(flags, flags, &mmu_flags);
+        if (ret != NO_ERROR) {
+            LTRACEF("error translating memory protection flags in mmap\n");
+            return ret;
+        }
+
+        void* ptr = NULL;
+        ret = vmm_alloc(trusty_app->aspace, "mmap", size, &ptr, 0, 0,
+                        mmu_flags);
+        if (ret != NO_ERROR) {
+            LTRACEF("error mapping anonymous region\n");
+            return ret;
+        }
+
+        return (long)ptr;
     } else {
         struct handle* handle;
         ret = uctx_handle_get(current_uctx(), handle_id, &handle);

@@ -40,6 +40,7 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/trusty_app.c \
 	$(LOCAL_DIR)/uctx.c \
 	$(LOCAL_DIR)/uirq.c \
+	$(LOCAL_DIR)/util.c \
 	$(LOCAL_DIR)/uuid.c \
 
 GLOBAL_DEFINES += \

@@ -32,12 +32,9 @@
 
 #include <trace.h>
 
-#define LOCAL_TRACE 0
+#include "util.h"
 
-static bool is_accessible(uint32_t obj_flags, uint32_t req_flags) {
-    req_flags &= MMAP_FLAG_PROT_MASK;
-    return (req_flags && ((obj_flags & req_flags) == req_flags));
-}
+#define LOCAL_TRACE 0
 
 /**
  * struct memref
@@ -54,27 +51,6 @@ struct memref {
     uint32_t mmap_prot;
 };
 
-static bool is_prot_valid(uint32_t mmap_prot) {
-    if (!(mmap_prot & MMAP_FLAG_PROT_MASK)) {
-        /* unknown flags set */
-        return false;
-    }
-
-    if (mmap_prot & MMAP_FLAG_PROT_EXEC) {
-        /* exec flags is not supported */
-        return false;
-    }
-
-    if (mmap_prot & MMAP_FLAG_PROT_WRITE) {
-        if (!(mmap_prot & MMAP_FLAG_PROT_READ)) {
-            /* write only memory is not supported */
-            return false;
-        }
-    }
-
-    return true;
-}
-
 /* This is only safe to call when the handle is destroyed */
 static void memref_destroy(struct memref* memref) {
     LTRACEF("dropping memref\n");
@@ -86,26 +62,6 @@ static void memref_handle_destroy(struct handle* memref_handle) {
     DEBUG_ASSERT(memref_handle);
     struct memref* memref = containerof(memref_handle, struct memref, handle);
     memref_destroy(memref);
-}
-
-static status_t xlat_flags(uint32_t memref_prot,
-                           uint32_t mmap_prot,
-                           uint* arch_mmu_flags) {
-    if (!is_prot_valid(mmap_prot)) {
-        return ERR_INVALID_ARGS;
-    }
-
-    if (!is_accessible(memref_prot, mmap_prot)) {
-        return ERR_ACCESS_DENIED;
-    }
-
-    *arch_mmu_flags |= ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE;
-
-    if (!(mmap_prot & MMAP_FLAG_PROT_WRITE)) {
-        *arch_mmu_flags |= ARCH_MMU_FLAG_PERM_RO;
-    }
-
-    return NO_ERROR;
 }
 
 static status_t memref_mmap(struct handle* handle,
