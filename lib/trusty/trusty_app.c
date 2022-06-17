@@ -127,13 +127,13 @@ static event_t app_mgr_event =
 static struct list_node allowed_mmio_ranges_list =
         LIST_INITIAL_VALUE(allowed_mmio_ranges_list);
 
-#define PRINT_TRUSTY_APP_UUID(tid, u)                                          \
-    dprintf(SPEW,                                                              \
-            "trusty_app %d uuid: 0x%x 0x%x 0x%x 0x%x%x 0x%x%x%x%x%x%x\n", tid, \
-            (u)->time_low, (u)->time_mid, (u)->time_hi_and_version,            \
-            (u)->clock_seq_and_node[0], (u)->clock_seq_and_node[1],            \
-            (u)->clock_seq_and_node[2], (u)->clock_seq_and_node[3],            \
-            (u)->clock_seq_and_node[4], (u)->clock_seq_and_node[5],            \
+#define PRINT_TRUSTY_APP_UUID(tid, u)                                                              \
+    dprintf(SPEW,                                                                                  \
+            "trusty_app %d uuid: 0x%08xx 0x%04xx 0x%04xx 0x%02x%02x 0x%02x%02x%02x%02x%02x%02x\n", \
+            tid, (u)->time_low, (u)->time_mid, (u)->time_hi_and_version,                           \
+            (u)->clock_seq_and_node[0], (u)->clock_seq_and_node[1],                                \
+            (u)->clock_seq_and_node[2], (u)->clock_seq_and_node[3],                                \
+            (u)->clock_seq_and_node[4], (u)->clock_seq_and_node[5],                                \
             (u)->clock_seq_and_node[6], (u)->clock_seq_and_node[7]);
 
 static bool address_range_within_bounds(const void* range_start,
