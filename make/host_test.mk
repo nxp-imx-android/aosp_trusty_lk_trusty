@@ -70,7 +70,7 @@ $(foreach t,$(HOST_DEPS),\
 GENERIC_CC := $(HOST_CC)
 GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(HOST_TEST_BUILDDIR)/host_tests/obj/$(HOST_TEST)
-GENERIC_FLAGS := $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS) $(addprefix -I, $(HOST_INCLUDE_DIRS))
+GENERIC_FLAGS := $(addprefix -I, $(HOST_INCLUDE_DIRS)) $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS)
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809 -Wno-missing-field-initializers
 GENERIC_CPPFLAGS := -std=c++11 -Wno-c99-designator $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
