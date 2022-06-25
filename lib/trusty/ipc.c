@@ -762,7 +762,6 @@ int ipc_port_connect_async(const uuid_t* cid,
                            struct handle** chandle_ptr) {
     struct ipc_port* port;
     struct ipc_chan* client;
-    status_t start_request;
     int ret;
 
     if (!cid) {
@@ -801,10 +800,21 @@ int ipc_port_connect_async(const uuid_t* cid,
          * Check if an app has registered to be started on connections
          * to this port
          */
-        start_request = trusty_app_request_start_by_port(path, cid);
-        if (!(flags & IPC_CONNECT_WAIT_FOR_PORT) &&
-            start_request == ERR_NOT_FOUND) {
-            ret = ERR_NOT_FOUND;
+        ret = trusty_app_request_start_by_port(path, cid);
+        switch (ret) {
+        case NO_ERROR:
+        case ERR_ALREADY_STARTED:
+            break;
+        case ERR_NOT_FOUND:
+            /*
+             * App has not been loaded yet, but we wait for it if the caller
+             * asked to
+             */
+            if (flags & IPC_CONNECT_WAIT_FOR_PORT) {
+                break;
+            }
+            __FALLTHROUGH;
+        default:
             goto err_find_ports;
         }
 

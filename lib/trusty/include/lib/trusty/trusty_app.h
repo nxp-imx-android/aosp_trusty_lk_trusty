@@ -40,6 +40,8 @@ enum app_state {
     APP_STARTING,
     APP_RUNNING,
     APP_TERMINATING,
+    APP_RESTARTING,
+    APP_FAILED_TO_START,
 };
 
 /**
@@ -192,7 +194,8 @@ bool trusty_app_is_startup_port(const char* port_path);
  *
  * Return: ERR_NOT_FOUND if no application has registered @port_path or if the
  * port is not accessible to @uuid, ERR_ALREADY_STARTED
- * if the application is already running or NO_ERROR otherwise.
+ * if the application is already running, ERR_CANCELLED if the application
+ * failed to start, or NO_ERROR otherwise.
  */
 status_t trusty_app_request_start_by_port(const char* port_path,
                                           const uuid_t* uuid);

@@ -1193,13 +1193,32 @@ static void kill_waiting_connections(struct trusty_app* app) {
 static status_t request_app_start_locked(struct trusty_app* app) {
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
 
-    if (app->state == APP_NOT_RUNNING) {
+    switch (app->state) {
+    case APP_NOT_RUNNING:
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
         return NO_ERROR;
+    case APP_STARTING:
+    case APP_RUNNING:
+    case APP_RESTARTING:
+        return ERR_ALREADY_STARTED;
+    case APP_TERMINATING:
+        /*
+         * We got a new connection while terminating, change the state so
+         * app_mgr_handle_terminating can restart the app.
+         */
+        app->state = APP_RESTARTING;
+        return ERR_ALREADY_STARTED;
+    case APP_FAILED_TO_START:
+        /* The app failed to start so it shouldn't accept new connections. */
+        return ERR_CANCELLED;
+        /*
+         * There is no default case here because we want the compiler to warn us
+         * if we forget a state (controlled by the -Wswitch option which is
+         * included in -Wall). Whenever someone adds a new state without
+         * handling it here, they should get a compiler error.
+         */
     }
-
-    return ERR_ALREADY_STARTED;
 }
 
 /*
@@ -1317,10 +1336,8 @@ status_t trusty_app_create_and_start(struct trusty_app_img* app_img,
         mutex_acquire(&apps_lock);
         ret = request_app_start_locked(trusty_app);
         mutex_release(&apps_lock);
+
         /*
-         * request_app_start_locked always returns one of
-         * NO_ERROR or ERR_ALREADY_STARTED.
-         *
          * Since we drop apps_lock between trusty_app_create and here,
          * it is possible for another thread to race us and start the
          * app from trusty_app_request_start_by_port before we
@@ -1330,10 +1347,12 @@ status_t trusty_app_create_and_start(struct trusty_app_img* app_img,
          * running and we don't want the kernel service to
          * free its memory.
          */
-        DEBUG_ASSERT(ret == NO_ERROR || ret == ERR_ALREADY_STARTED);
+        if (ret == ERR_ALREADY_STARTED) {
+            ret = NO_ERROR;
+        }
     }
 
-    return NO_ERROR;
+    return ret;
 }
 
 status_t trusty_app_setup_mmio(struct trusty_app* trusty_app,
@@ -1528,15 +1547,17 @@ static status_t app_mgr_handle_starting(struct trusty_app* app) {
 
     if (ret != NO_ERROR) {
         /*
-         * Drop the lock to call into ipc to kill waiting connections. This is
-         * safe since the app is in the APP_STARTING state so it cannot be
-         * removed.
+         * Drop the lock to call into ipc to kill waiting connections.
+         * We put the app in the APP_FAILED_TO_START state so no new
+         * connections are accepted and also to prevent it from being removed.
          */
+        app->state = APP_FAILED_TO_START;
+
         mutex_release(&apps_lock);
         kill_waiting_connections(app);
         mutex_acquire(&apps_lock);
 
-        app->state = APP_NOT_RUNNING;
+        DEBUG_ASSERT(app->state == APP_FAILED_TO_START);
     }
     return ret;
 }
@@ -1544,10 +1565,10 @@ static status_t app_mgr_handle_starting(struct trusty_app* app) {
 static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     status_t ret;
     int retcode;
-    bool has_connection;
+    bool restart_app;
 
     DEBUG_ASSERT(is_mutex_held(&apps_lock));
-    DEBUG_ASSERT(app->state == APP_TERMINATING);
+    DEBUG_ASSERT(app->state == APP_TERMINATING || app->state == APP_RESTARTING);
 
     LTRACEF("waiting for app %u, %s to exit\n", app->app_id,
             app->props.app_name);
@@ -1558,16 +1579,35 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     app->thread = NULL;
     ret = vmm_free_aspace(app->aspace);
     app->aspace = NULL;
-    /*
-     * Drop the lock to call into ipc to check for connections. This is safe
-     * since the app is in the APP_TERMINANTING state so it cannot be removed.
-     */
-    mutex_release(&apps_lock);
-    has_connection = has_waiting_connection(app);
-    mutex_acquire(&apps_lock);
 
-    if (app->props.mgmt_flags & APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT ||
-        has_connection) {
+    if (app->props.mgmt_flags & APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT) {
+        restart_app = true;
+    } else if (app->state == APP_TERMINATING) {
+        /*
+         * Drop the lock to call into ipc to check for connections. This is safe
+         * since the app is in the APP_TERMINANTING state so it cannot be
+         * removed. We don't need to do this in APP_RESTARTING since that state
+         * already marks that a connection is pending. If the app is marked
+         * restart-on-exit, then we also go ahead with the restart.
+         */
+        mutex_release(&apps_lock);
+        restart_app = has_waiting_connection(app);
+        /*
+         * We might get a new connection after has_waiting_connection returns
+         * false. In that case, request_app_start_locked should change the state
+         * to APP_RESTARTING
+         */
+        mutex_acquire(&apps_lock);
+    } else {
+        restart_app = false;
+    }
+
+    DEBUG_ASSERT(app->state == APP_TERMINATING || app->state == APP_RESTARTING);
+    if (app->state == APP_RESTARTING) {
+        restart_app = true;
+    }
+
+    if (restart_app) {
         app->state = APP_STARTING;
         event_signal(&app_mgr_event, false);
     } else {
@@ -1590,6 +1630,7 @@ static int app_mgr(void* arg) {
         list_for_every_entry(&trusty_app_list, app, struct trusty_app, node) {
             switch (app->state) {
             case APP_TERMINATING:
+            case APP_RESTARTING:
                 ret = app_mgr_handle_terminating(app);
                 if (ret != NO_ERROR)
                     panic("failed(%d) to terminate app %u, %s\n", ret,
@@ -1610,6 +1651,8 @@ static int app_mgr(void* arg) {
                 }
                 break;
             case APP_RUNNING:
+                break;
+            case APP_FAILED_TO_START:
                 break;
             default:
                 panic("unknown state %u for app %u, %s\n", app->state,
