@@ -22,24 +22,24 @@
 
 #include <debug.h>
 
-#define _tlog(level, fmt, x...)                                \
-    do {                                                       \
-        dprintf(level, "%s: %d: " fmt, TLOG_TAG, __LINE__, x); \
+#define _tlog(level, fmt, x...)                                  \
+    do {                                                         \
+        dprintf(level, "%s: %d: " fmt, TLOG_TAG, __LINE__, ##x); \
     } while (0)
 
-#define TLOG(fmt, x...) _tlog(ALWAYS, fmt, x)
+#define TLOG(fmt, x...) _tlog(ALWAYS, fmt, ##x)
 
 /* debug  */
-#define TLOGD(fmt, x...) _tlog(SPEW, fmt, x)
+#define TLOGD(fmt, x...) _tlog(SPEW, fmt, ##x)
 
 /* info */
-#define TLOGI(fmt, x...) _tlog(SPEW, fmt, x)
+#define TLOGI(fmt, x...) _tlog(SPEW, fmt, ##x)
 
 /* warning */
-#define TLOGW(fmt, x...) _tlog(INFO, x)
+#define TLOGW(fmt, x...) _tlog(INFO, fmt, ##x)
 
 /* error */
-#define TLOGE(fmt, x...) _tlog(CRITICAL, fmt, x)
+#define TLOGE(fmt, x...) _tlog(CRITICAL, fmt, ##x)
 
 /* critical */
-#define TLOGC(fmt, x...) _tlog(CRITICAL, fmt, x)
+#define TLOGC(fmt, x...) _tlog(CRITICAL, fmt, ##x)
