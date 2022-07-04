@@ -36,6 +36,8 @@
 #include <lib/trusty/trusty_app.h>
 #include <lib/trusty/uuid.h>
 
+__BEGIN_CDECLS
+
 enum {
     IPC_PORT_STATE_INVALID = 0,
     IPC_PORT_STATE_LISTENING = 1,
@@ -195,3 +197,5 @@ bool is_ns_client(const uuid_t* uuid);
  * Return: NO_ERROR if the access is allowed, ERR_ACCESS_DENIED otherwise.
  */
 int ipc_port_check_access(uint32_t port_flags, const uuid_t* uuid);
+
+__END_CDECLS

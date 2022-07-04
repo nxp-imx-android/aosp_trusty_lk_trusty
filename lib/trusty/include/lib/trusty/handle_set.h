@@ -30,6 +30,8 @@
 #define HSET_DEL 1
 #define HSET_MOD 2
 
+__BEGIN_CDECLS
+
 struct handle* handle_set_create(void);
 
 int handle_set_attach(struct handle* h, struct handle_ref* ref);
@@ -45,3 +47,5 @@ int handle_set_wait(struct handle* h,
                     lk_time_t timeout);
 
 bool handle_set_ready(struct handle* h);
+
+__END_CDECLS

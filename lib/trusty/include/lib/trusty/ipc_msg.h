@@ -31,6 +31,8 @@
 #include <lib/trusty/uctx.h>
 #include <lib/trusty/uio.h>
 
+__BEGIN_CDECLS
+
 struct ipc_msg_queue;
 int ipc_msg_queue_create(uint num_items,
                          size_t item_sz,
@@ -82,3 +84,5 @@ int ipc_read_msg(struct handle* chandle,
                  struct ipc_msg_kern* msg);
 int ipc_put_msg(struct handle* chandle, uint32_t msg_id);
 int ipc_send_msg(struct handle* chandle, struct ipc_msg_kern* msg);
+
+__END_CDECLS

@@ -34,6 +34,8 @@
 
 #include <lib/trusty/refcount.h>
 
+__BEGIN_CDECLS
+
 /* bitmask */
 enum {
     IPC_HANDLE_POLL_NONE = 0x0,
@@ -196,3 +198,5 @@ status_t handle_mmap(struct handle* handle,
                      user_size_t size,
                      uint32_t mmap_prot,
                      user_addr_t* addr);
+
+__END_CDECLS

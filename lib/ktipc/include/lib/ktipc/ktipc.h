@@ -28,6 +28,8 @@
 #include <lib/trusty/ipc_msg.h>
 #include <lib/trusty/uio.h>
 
+__BEGIN_CDECLS
+
 struct ktipc_server {
     const char* name;
     struct handle* hset;
@@ -361,3 +363,5 @@ int ktipc_recv_iov(struct handle* chan,
  */
 #define ktipc_recv(chan, min_sz, buffers...) \
     ktipc_recv_handles(chan, min_sz, NULL, 0, buffers)
+
+__END_CDECLS
