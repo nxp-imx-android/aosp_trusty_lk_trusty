@@ -1585,7 +1585,7 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     } else if (app->state == APP_TERMINATING) {
         /*
          * Drop the lock to call into ipc to check for connections. This is safe
-         * since the app is in the APP_TERMINANTING state so it cannot be
+         * since the app is in the APP_TERMINATING state so it cannot be
          * removed. We don't need to do this in APP_RESTARTING since that state
          * already marks that a connection is pending. If the app is marked
          * restart-on-exit, then we also go ahead with the restart.
