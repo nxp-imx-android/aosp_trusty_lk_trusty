@@ -364,6 +364,13 @@ UBSAN_HANDLER(builtin_unreachable, struct unreachable_data* data) {
     ubsan_fail("executing through unreachable would be unwise");
 }
 
+UBSAN_HANDLER(missing_return, struct unreachable_data* data) {
+    UBSAN_START;
+    log(&data->loc, "hit a missing return statement", "");
+    UBSAN_FINISH;
+    ubsan_fail("executing past the end of a function would be unwise");
+}
+
 static bool is_negative(const struct type_descriptor* type,
                         value_handle_t val) {
     if (type_is_signed_integer(type)) {
