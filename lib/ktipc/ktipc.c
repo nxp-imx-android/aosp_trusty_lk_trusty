@@ -88,7 +88,7 @@ static void chan_event_handler(struct ktipc_server* ksrv,
 
     if ((event & IPC_HANDLE_POLL_ERROR) || (event & IPC_HANDLE_POLL_READY)) {
         /* should never happen for channel handles */
-        LTRACEF("error event (0x%" PRIx32 ")\n", event);
+        TRACEF("error event (0x%" PRIx32 ")\n", event);
         ktipc_chan_close(kchan);
         return;
     }
@@ -100,8 +100,8 @@ static void chan_event_handler(struct ktipc_server* ksrv,
                                     kchan->user_ctx);
         if (rc < 0) {
             /* report an error and close channel */
-            LTRACEF("failed (%d) to handle event on channel %p\n", rc,
-                    kchan->href.handle);
+            TRACEF("failed (%d) to handle event on channel %p\n", rc,
+                   kchan->href.handle);
             ktipc_chan_close(kchan);
             return;
         }
@@ -127,8 +127,8 @@ static void chan_event_handler(struct ktipc_server* ksrv,
                                                kchan->user_ctx);
             if (rc < 0) {
                 /* report an error and close channel */
-                LTRACEF("failed (%d) to handle event on channel %p\n", rc,
-                        kchan->href.handle);
+                TRACEF("failed (%d) to handle event on channel %p\n", rc,
+                       kchan->href.handle);
                 ktipc_chan_close(kchan);
                 return;
             }
@@ -174,19 +174,19 @@ static void handle_connect(struct ktipc_server* ksrv, struct ksrv_port* kport) {
     /* incoming connection: accept it */
     rc = ipc_port_accept(kport->href.handle, &hchan, &peer);
     if (rc < 0) {
-        LTRACEF("failed (%d) to accept on port %s\n", rc, kport->port->name);
+        TRACEF("failed (%d) to accept on port %s\n", rc, kport->port->name);
         return;
     }
 
     /* do access control */
     if (!client_is_allowed(kport->port->acl, peer)) {
-        LTRACEF("access denied on port %s\n", kport->port->name);
+        TRACEF("access denied on port %s\n", kport->port->name);
         goto err_access;
     }
 
     kchan = calloc(1, sizeof(*kchan));
     if (!kchan) {
-        LTRACEF("oom handling connect on port %s\n", kport->port->name);
+        TRACEF("oom handling connect on port %s\n", kport->port->name);
         goto err_oom;
     }
 
@@ -202,7 +202,7 @@ static void handle_connect(struct ktipc_server* ksrv, struct ksrv_port* kport) {
 
     rc = handle_set_attach(ksrv->hset, &kchan->href);
     if (rc != NO_ERROR) {
-        LTRACEF("failed (%d) to add chan to hset\n", rc);
+        TRACEF("failed (%d) to add chan to hset\n", rc);
         goto err_hset_add;
     }
 
@@ -210,8 +210,8 @@ static void handle_connect(struct ktipc_server* ksrv, struct ksrv_port* kport) {
     if (kport->ops->on_connect) {
         rc = kport->ops->on_connect(kport->port, hchan, peer, &user_ctx);
         if (rc < 0) {
-            LTRACEF("on_connect failed (%d) on port %s\n", rc,
-                    kport->port->name);
+            TRACEF("on_connect failed (%d) on port %s\n", rc,
+                   kport->port->name);
             goto err_on_connect;
         }
     }
@@ -261,18 +261,18 @@ int ktipc_server_add_port(struct ktipc_server* ksrv,
 
     /* validate ops structure */
     if (!ops) {
-        LTRACEF("ktipc_srv_ops structure is NULL\n");
+        TRACEF("ktipc_srv_ops structure is NULL\n");
         rc = ERR_INVALID_ARGS;
         goto err_null_ops;
     }
     if (!ops->on_message) {
-        LTRACEF("on_message handler is NULL\n");
+        TRACEF("on_message handler is NULL\n");
         rc = ERR_INVALID_ARGS;
         goto err_null_on_message;
     }
     /* on_channel_cleanup is required if on_connect is present */
     if (ops->on_connect && !ops->on_channel_cleanup) {
-        LTRACEF("on_connect handler without on_channel_cleanup\n");
+        TRACEF("on_connect handler without on_channel_cleanup\n");
         rc = ERR_INVALID_ARGS;
         goto err_null_on_channel_cleanup;
     }
@@ -280,6 +280,7 @@ int ktipc_server_add_port(struct ktipc_server* ksrv,
     /* allocate port tracking structure */
     kport = calloc(1, sizeof(*kport));
     if (!kport) {
+        TRACEF("failed to allocate port\n");
         rc = ERR_NO_MEMORY;
         goto err_oom;
     }
@@ -289,14 +290,14 @@ int ktipc_server_add_port(struct ktipc_server* ksrv,
                          port->msg_max_size, port->acl->flags,
                          &kport->href.handle);
     if (rc) {
-        LTRACEF("failed (%d) to create port %s\n", rc, port->name);
+        TRACEF("failed (%d) to create port %s\n", rc, port->name);
         goto err_port_create;
     }
 
     /* and publish it */
     rc = ipc_port_publish(kport->href.handle);
     if (rc) {
-        LTRACEF("failed (%d) to publish port %s\n", rc, port->name);
+        TRACEF("failed (%d) to publish port %s\n", rc, port->name);
         goto err_port_publish;
     }
 
@@ -311,7 +312,7 @@ int ktipc_server_add_port(struct ktipc_server* ksrv,
 
     rc = handle_set_attach(ksrv->hset, &kport->href);
     if (rc < 0) {
-        LTRACEF("failed (%d) to attach handle for port %s\n", rc, port->name);
+        TRACEF("failed (%d) to attach handle for port %s\n", rc, port->name);
         goto err_hset_add_port;
     }
 
@@ -364,7 +365,7 @@ static int ksrv_thread(void* args) {
 
     ksrv->hset = handle_set_create();
     if (!ksrv->hset) {
-        LTRACEF("failed to create handle set\n");
+        TRACEF("failed to create handle set\n");
         return ERR_NO_MEMORY;
     }
 
@@ -384,7 +385,7 @@ int ktipc_server_start(struct ktipc_server* ksrv) {
     ksrv->thread = thread_create(ksrv->name, ksrv_thread, ksrv,
                                  DEFAULT_PRIORITY, DEFAULT_STACK_SIZE);
     if (!ksrv->thread) {
-        LTRACEF("failed to create %s thread\n", ksrv->name);
+        TRACEF("failed to create %s thread\n", ksrv->name);
         return ERR_NO_MEMORY;
     }
     thread_resume(ksrv->thread);
