@@ -72,7 +72,7 @@ GENERIC_SRCS := $(HOST_SRCS)
 GENERIC_OBJ_DIR := $(HOST_TEST_BUILDDIR)/host_tests/obj/$(HOST_TEST)
 GENERIC_FLAGS := $(addprefix -I, $(HOST_INCLUDE_DIRS)) $(HOST_FLAGS) -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror $(HOST_SANITIZER_FLAGS)
 GENERIC_CFLAGS := -std=c11 -D_POSIX_C_SOURCE=200809 -Wno-missing-field-initializers
-GENERIC_CPPFLAGS := -std=c++11 -Wno-c99-designator $(HOST_LIBCXX_CPPFLAGS)
+GENERIC_CPPFLAGS := -std=c++17 -Wno-c99-designator $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
 # Link
