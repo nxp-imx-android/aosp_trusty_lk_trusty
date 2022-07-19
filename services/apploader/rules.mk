@@ -31,10 +31,11 @@ MODULE_DEPS += \
 	trusty/kernel/lib/ktipc \
 	trusty/user/base/interface/apploader \
 
-# We need to add the package tool as a dependency here, since there are very
-# few places where we can add a host tool, basically only kernel and project
-# build files
+# We need to add the package tool and apploader tests as dependencies here,
+# since there are very few places where we can add a host tool, basically only
+# kernel and project build files
 MODULE_DEPS += \
 	trusty/user/base/app/apploader/package_tool \
+	trusty/user/base/app/apploader/tests/cbor_test \
 
 include make/module.mk
