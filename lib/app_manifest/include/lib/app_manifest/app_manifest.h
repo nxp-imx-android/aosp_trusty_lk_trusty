@@ -39,6 +39,7 @@ __BEGIN_CDECLS
  * @APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS: Key for "mgmt_flags"
  * @APP_MANIFEST_CONFIG_KEY_START_PORT: Key for "start_ports"
  * @APP_MANIFEST_CONFIG_KEY_PINNED_CPU: Key for "pinned_cpu"
+ * @APP_MANIFEST_CONFIG_KEY_PRIORITY: Key for "priority" value
  * @APP_MANIFEST_CONFIG_KEY_VERSION: Key for "version"
  * @APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE: Key for "min_shadow_stack"
  * @APP_MANIFEST_CONFIG_KEY_APPLOADER: Key for "apploader_flags"
@@ -52,9 +53,10 @@ enum app_manifest_config_key {
     APP_MANIFEST_CONFIG_KEY_MGMT_FLAGS = 4,
     APP_MANIFEST_CONFIG_KEY_START_PORT = 5,
     APP_MANIFEST_CONFIG_KEY_PINNED_CPU = 6,
-    APP_MANIFEST_CONFIG_KEY_VERSION = 7,
-    APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8,
-    APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS = 9,
+    APP_MANIFEST_CONFIG_KEY_PRIORITY = 7,
+    APP_MANIFEST_CONFIG_KEY_VERSION = 8,
+    APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 9,
+    APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS = 10,
 
     /* Pseudo-keys for required entries */
     APP_MANIFEST_CONFIG_KEY_UUID = 0xfffffffeU,
@@ -139,6 +141,7 @@ struct app_manifest_config_entry {
         } start_port;
         int pinned_cpu;
         uint32_t version;
+        uint32_t priority;
         uint32_t apploader_flags;
     } value;
 };

@@ -792,6 +792,7 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
                         trusty_app->props.app_name);
                 return ERR_NOT_VALID;
             }
+
             trusty_app->props.priority = manifest_entry.value.priority;
             break;
 
@@ -839,8 +840,8 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         return ERR_ALREADY_EXISTS;
     }
 
-    dprintf(SPEW, "trusty_app %u name: %s\n", trusty_app->app_id,
-            trusty_app->props.app_name);
+    dprintf(SPEW, "trusty_app %u name: %s priority: %u\n", trusty_app->app_id,
+            trusty_app->props.app_name, trusty_app->props.priority);
 
     LTRACEF("trusty_app %p: stack_sz=0x%x\n", trusty_app,
             trusty_app->props.min_stack_size);
