@@ -81,6 +81,7 @@ struct trusty_app_props {
     struct list_node port_entry_list;
     struct list_node mmio_entry_list;
     int pinned_cpu;
+    int priority;
 };
 
 struct trusty_app_img {

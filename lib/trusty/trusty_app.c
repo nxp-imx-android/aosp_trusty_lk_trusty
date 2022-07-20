@@ -615,9 +615,11 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.min_shadow_stack_size = 0;
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
     trusty_app->props.pinned_cpu = APP_MANIFEST_PINNED_CPU_NONE;
+    trusty_app->props.priority = DEFAULT_PRIORITY;
 
     manifest_data = NULL;
     manifest_size = 0;
+
     ret = get_app_manifest_config_data(trusty_app, &manifest_data,
                                        &manifest_size);
     if (ret != NO_ERROR) {
@@ -780,6 +782,19 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
 
             trusty_app->props.pinned_cpu = manifest_entry.value.pinned_cpu;
             break;
+
+        case APP_MANIFEST_CONFIG_KEY_PRIORITY:
+            if (manifest_entry.value.priority < LOWEST_PRIORITY ||
+                manifest_entry.value.priority > HIGHEST_PRIORITY) {
+                dprintf(CRITICAL,
+                        "priority value %u out of range, app %u, %s\n",
+                        manifest_entry.value.priority, trusty_app->app_id,
+                        trusty_app->props.app_name);
+                return ERR_NOT_VALID;
+            }
+            trusty_app->props.priority = manifest_entry.value.priority;
+            break;
+
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
 #if !USER_SCS_ENABLED
             if (manifest_entry.value.min_shadow_stack_size) {
@@ -1453,8 +1468,10 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
     vaddr_t entry;
     __builtin_add_overflow(elf_hdr->e_entry, trusty_app->load_bias, &entry);
     trusty_thread = trusty_thread_create(
-            name, entry, DEFAULT_PRIORITY, trusty_app->props.min_stack_size,
+            name, entry, trusty_app->props.priority,
+            trusty_app->props.min_stack_size,
             trusty_app->props.min_shadow_stack_size, trusty_app);
+
     if (!trusty_thread) {
         dprintf(CRITICAL, "failed to allocate trusty thread for %s\n", name);
         ret = ERR_NO_MEMORY;
