@@ -83,6 +83,7 @@ struct trusty_app_props {
     /* record paddrs mapped by prepare_dma until released by finish_dma */
     struct list_node dma_entry_list;
     int pinned_cpu;
+    int priority;
 };
 
 struct trusty_app_img {
