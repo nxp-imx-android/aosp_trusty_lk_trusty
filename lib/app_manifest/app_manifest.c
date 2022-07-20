@@ -235,6 +235,15 @@ bool app_manifest_iterator_next(struct app_manifest_iterator* iterator,
         }
         break;
 
+    case APP_MANIFEST_CONFIG_KEY_PRIORITY:
+        entry->value.priority = (int)app_manifest_read_entry(iterator);
+        if (iterator->error != NO_ERROR) {
+            TLOGE("manifest missing PRIORITY value of app %s\n",
+                  iterator->app_name);
+            goto error;
+        }
+        break;
+
     case APP_MANIFEST_CONFIG_KEY_VERSION:
         entry->value.version = app_manifest_read_entry(iterator);
         if (iterator->error != NO_ERROR) {

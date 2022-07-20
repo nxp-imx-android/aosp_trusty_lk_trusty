@@ -42,6 +42,7 @@ __BEGIN_CDECLS
  * @APP_MANIFEST_CONFIG_KEY_VERSION: Key for "version"
  * @APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE: Key for "min_shadow_stack"
  * @APP_MANIFEST_CONFIG_KEY_APPLOADER: Key for "apploader_flags"
+ * @APP_MANIFEST_CONFIG_KEY_PRIORITY: Key for "priority" value
  * @APP_MANIFEST_CONFIG_KEY_UUID: Pseudo-key for "uuid"
  * @APP_MANIFEST_CONFIG_KEY_APP_NAME: Pseudo-key for name of application
  */
@@ -55,6 +56,7 @@ enum app_manifest_config_key {
     APP_MANIFEST_CONFIG_KEY_VERSION = 7,
     APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8,
     APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS = 9,
+    APP_MANIFEST_CONFIG_KEY_PRIORITY = 10,
 
     /* Pseudo-keys for required entries */
     APP_MANIFEST_CONFIG_KEY_UUID = 0xfffffffeU,
@@ -116,6 +118,7 @@ enum app_manifest_apploader_flags {
  * @value.pinned_cpu: Value of "pinned_cpu"
  * @value.version: Value of "version"
  * @value.apploader_flags: Flags for apploading
+ * @value.priority: Value of "priority"
  */
 struct app_manifest_config_entry {
     enum app_manifest_config_key key;
@@ -140,6 +143,7 @@ struct app_manifest_config_entry {
         int pinned_cpu;
         uint32_t version;
         uint32_t apploader_flags;
+        uint32_t priority;
     } value;
 };
 

@@ -914,6 +914,9 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
 
             trusty_app->props.pinned_cpu = manifest_entry.value.pinned_cpu;
             break;
+        case APP_MANIFEST_CONFIG_KEY_PRIORITY:
+            /* TODO: Validate and use the priority value. */
+            break;
         case APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE:
 #if !USER_SCS_ENABLED
             if (manifest_entry.value.min_shadow_stack_size) {
