@@ -137,7 +137,7 @@ static void render_val(char* out,
          */
         scnprintf(out, out_size, "<floating point value>");
     } else {
-        scnprintf(out, out_size, "value with unknown type");
+        scnprintf(out, out_size, "<value with unknown type>");
     }
 }
 
@@ -481,5 +481,35 @@ UBSAN_HANDLER(vla_bound_not_positive,
               rendered_val, data->type->name);
     log(&data->loc,
         "variable length array bound evaluates to non-positive value", details);
+    UBSAN_FINISH;
+}
+
+UBSAN_HANDLER(alignment_assumption,
+              struct alignment_assumption_data* data,
+              value_handle_t pointer,
+              value_handle_t alignment,
+              value_handle_t offset) {
+    UBSAN_START;
+    char details[DETAIL_RENDER_SIZE];
+
+    if (location_is_valid(data->assumption_loc)) {
+        log(&data->assumption_loc, "alignment assumption was specified here",
+            /* Details: */ "below");
+    }
+
+    if (!offset) {
+        scnprintf(details, sizeof(details),
+                  "assumption of %" PRIuPTR
+                  " byte alignment for pointer of type %s failed",
+                  alignment, data->type->name);
+    } else {
+        scnprintf(details, sizeof(details),
+                  "assumption of %" PRIuPTR
+                  " byte alignment (with offset of %" PRIuPTR
+                  " bytes) for pointer of type %s failed",
+                  alignment, offset, data->type->name);
+    }
+
+    log(&data->loc, "alignment assumption is incorrect", details);
     UBSAN_FINISH;
 }

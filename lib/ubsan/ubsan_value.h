@@ -38,6 +38,10 @@ struct source_location {
     uint32_t column;
 };
 
+static inline bool location_is_valid(struct source_location loc) {
+    return !!loc.filename;
+}
+
 struct type_descriptor {
     uint16_t kind;
     uint16_t info;
