@@ -96,12 +96,12 @@ static void print_stack_address(struct thread* thread, uintptr_t addr) {
         struct trusty_thread* trusty_thread = trusty_thread_get(thread);
         uintptr_t stack_low_addr =
                 trusty_thread->stack_start - trusty_thread->stack_size;
-        printf("uSP+0x%" PRI0xSTKOFF, addr - stack_low_addr);
+        printf("uSP+0x%" PRI0xSTKOFF "x", addr - stack_low_addr);
         return;
     }
 
     if (is_on_kernel_stack(thread, addr)) {
-        printf("kSP+0x%" PRI0xSTKOFF, addr - (uintptr_t)thread->stack);
+        printf("kSP+0x%" PRI0xSTKOFF "x", addr - (uintptr_t)thread->stack);
         return;
     }
 
@@ -134,10 +134,10 @@ static void print_function_info(struct thread* thread,
      */
     printf("0x%" PRI0xPTR "/", pc);
 #endif
-    printf("0x%" PRI0xPTR, pc_offset);
+    printf("0x%" PRI0xPTR "x", pc_offset);
 
     if (info) {
-        printf(" %s+0x%lx/0x%lx\n", info->symbol, info->offset, info->size);
+        printf(" %s+0x%lxx/0x%lxx\n", info->symbol, info->offset, info->size);
     } else {
         printf("\n");
     }
