@@ -87,13 +87,19 @@ test_abort:
     return ERR_OUT_OF_RANGE;
 }
 
+struct scs_test_status {
+    uint32_t running_apps;
+    uint32_t invalid_apps;
+};
+
 /**
  * trusty_app_callback() - Test that app has a valid user shadow call stack
  *
  * @ta: Application to test
- * @data: Pointer to the current count of apps that passed inspection
+ * @status: Pointer to a structure tracking the current test status.
  */
-static void trusty_app_callback(struct trusty_app* ta, void* failures) {
+static void trusty_app_callback(struct trusty_app* ta, void* status) {
+    struct scs_test_status* status_ptr = (struct scs_test_status*)status;
     if (strcmp(ta->props.app_name, "userscs-custom") == 0) {
         /* were we able to request a custom shadow stack size? */
         ASSERT_EQ(ta->props.min_shadow_stack_size, 128);
@@ -119,12 +125,13 @@ static void trusty_app_callback(struct trusty_app* ta, void* failures) {
      * Apps that aren't running may not have a thread allocated. Moreover,
      * apps that opt out of shadow call stacks need no further inspection.
      */
-    if (ta->state == APP_NOT_RUNNING || ta->props.min_shadow_stack_size == 0) {
+    if (ta->state != APP_RUNNING || ta->props.min_shadow_stack_size == 0) {
         return;
     }
+    status_ptr->running_apps++;
 
     struct trusty_thread* tt = ta->thread;
-    ASSERT_NE((void*)tt, NULL, "App has thread");
+    ASSERT_NE((void*)tt, NULL, "Running trusty app must have a valid thread");
     ASSERT_NE((void*)tt->shadow_stack_base, NULL,
               "Shadow call stack must point to allocation");
 
@@ -181,14 +188,17 @@ static void trusty_app_callback(struct trusty_app* ta, void* failures) {
               "Expected guard page before shadow stack on user thread");
 
     return;
-test_abort:;
-    (*(uint32_t*)failures)++;
+test_abort:
+    status_ptr->invalid_apps++;
 }
 
 static int inspect_trusty_threads() {
-    uint32_t test_failures = 0;
-    trusty_app_forall(trusty_app_callback, &test_failures);
-    return test_failures;
+    struct scs_test_status status = {0};
+    trusty_app_forall(trusty_app_callback, &status);
+    ASSERT_NE(0, status.running_apps);
+    return status.invalid_apps;
+test_abort:
+    return -1;
 }
 #else
 #define FEATURE_GATED_TEST_NAME(name) DISABLED_##name
@@ -200,7 +210,9 @@ static int inspect_trusty_threads() {
 #endif
 
 TEST(userscstest, FEATURE_GATED_TEST_NAME(user_threads_have_scs)) {
-    EXPECT_EQ(0, inspect_trusty_threads(),
+    int res = inspect_trusty_threads();
+    EXPECT_NE(-1, res, "There were no running apps with threads to inspect");
+    EXPECT_EQ(0, res,
               "One or more apps did not have the expected shadow call stack");
 }
 
