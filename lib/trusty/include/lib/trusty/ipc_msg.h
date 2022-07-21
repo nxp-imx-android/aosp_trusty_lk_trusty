@@ -21,8 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIB_TRUSTY_IPC_MSG_H
-#define __LIB_TRUSTY_IPC_MSG_H
+#pragma once
 
 #include <kernel/usercopy.h>
 #include <stdbool.h>
@@ -83,5 +82,3 @@ int ipc_read_msg(struct handle* chandle,
                  struct ipc_msg_kern* msg);
 int ipc_put_msg(struct handle* chandle, uint32_t msg_id);
 int ipc_send_msg(struct handle* chandle, struct ipc_msg_kern* msg);
-
-#endif

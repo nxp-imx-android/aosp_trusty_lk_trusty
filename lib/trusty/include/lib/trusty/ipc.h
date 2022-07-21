@@ -21,8 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIB_TRUSTY_IPC_H
-#define __LIB_TRUSTY_IPC_H
+#pragma once
 
 #include <bits.h>
 #include <kernel/mutex.h>
@@ -196,4 +195,3 @@ bool is_ns_client(const uuid_t* uuid);
  * Return: NO_ERROR if the access is allowed, ERR_ACCESS_DENIED otherwise.
  */
 int ipc_port_check_access(uint32_t port_flags, const uuid_t* uuid);
-#endif

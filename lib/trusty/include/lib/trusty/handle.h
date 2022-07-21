@@ -21,8 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __LIB_TRUSTY_HANDLE_H
-#define __LIB_TRUSTY_HANDLE_H
+#pragma once
 
 #include <list.h>
 #include <stdbool.h>
@@ -197,5 +196,3 @@ status_t handle_mmap(struct handle* handle,
                      user_size_t size,
                      uint32_t mmap_prot,
                      user_addr_t* addr);
-
-#endif
