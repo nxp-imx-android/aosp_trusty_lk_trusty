@@ -77,12 +77,32 @@
 /* Format for canonical stack offsets */
 #define PRI0xSTKOFF "04" PRIxPTR
 
+#define SNPRINTF_BUFFER_SIZE 21
+
 extern char _start;
 
 static bool is_on_user_stack(struct thread* _thread, uintptr_t addr);
 static bool is_on_kernel_stack(struct thread* thread, uintptr_t addr);
 
+/* TODO: Delete function once code is using new filter modifier.*/
+static void snprintf_checked(char* output_buffer,
+                             int buffer_size,
+                             const char* fmt,
+                             ...) {
+    int written_num_chars;
+    va_list args;
+
+    va_start(args, fmt);
+    written_num_chars = vsnprintf(output_buffer, buffer_size, fmt, args);
+    if ((written_num_chars < 0) || (written_num_chars >= buffer_size)) {
+        /*Error Writing to buffer, return an empty one*/
+        output_buffer[0] = 0;
+    }
+    va_end(args);
+}
+
 static void print_stack_address(struct thread* thread, uintptr_t addr) {
+    char address_buffer[SNPRINTF_BUFFER_SIZE];
 #if TEST_BUILD
     /*
      * For security reasons, never print absolute addresses in
@@ -96,12 +116,18 @@ static void print_stack_address(struct thread* thread, uintptr_t addr) {
         struct trusty_thread* trusty_thread = trusty_thread_get(thread);
         uintptr_t stack_low_addr =
                 trusty_thread->stack_start - trusty_thread->stack_size;
-        printf("uSP+0x%" PRI0xSTKOFF, addr - stack_low_addr);
+        /* TODO: Modify code to use new filter modifier instead of workaround.*/
+        snprintf_checked(address_buffer, SNPRINTF_BUFFER_SIZE, "%" PRI0xSTKOFF,
+                         addr - stack_low_addr);
+        printf("uSP+0x%s", address_buffer);
         return;
     }
 
     if (is_on_kernel_stack(thread, addr)) {
-        printf("kSP+0x%" PRI0xSTKOFF, addr - (uintptr_t)thread->stack);
+        /* TODO: Modify code to use new filter modifier instead of workaround.*/
+        snprintf_checked(address_buffer, SNPRINTF_BUFFER_SIZE, "%" PRI0xSTKOFF,
+                         addr - (uintptr_t)thread->stack);
+        printf("kSP+0x%s", address_buffer);
         return;
     }
 
@@ -122,6 +148,9 @@ static void print_function_info(struct thread* thread,
                                 struct pc_symbol_info* info) {
     uintptr_t pc_offset;
     uintptr_t pc = frame->ret_addr;
+    char address_buffer1[SNPRINTF_BUFFER_SIZE];
+    char address_buffer2[SNPRINTF_BUFFER_SIZE];
+
     __builtin_sub_overflow(pc, load_bias, &pc_offset);
 
     print_stack_address(thread, frame->frame_addr);
@@ -134,10 +163,20 @@ static void print_function_info(struct thread* thread,
      */
     printf("0x%" PRI0xPTR "/", pc);
 #endif
-    printf("0x%" PRI0xPTR, pc_offset);
+    /* TODO: Modify code to use new filter modifier instead of workaround.*/
+    snprintf_checked(address_buffer1, SNPRINTF_BUFFER_SIZE, "%" PRI0xPTR,
+                     pc_offset);
+    printf("0x%s", address_buffer1);
 
     if (info) {
-        printf(" %s+0x%lx/0x%lx\n", info->symbol, info->offset, info->size);
+        /* TODO: Modify code to use new filter modifier instead of
+         * workaround.*/
+        snprintf_checked(address_buffer1, SNPRINTF_BUFFER_SIZE, "%lx",
+                         info->offset);
+        snprintf_checked(address_buffer2, SNPRINTF_BUFFER_SIZE, "%lx",
+                         info->size);
+        printf(" %s+0x%s/0x%s\n", info->symbol, address_buffer1,
+               address_buffer2);
     } else {
         printf("\n");
     }
