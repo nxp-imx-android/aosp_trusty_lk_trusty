@@ -318,21 +318,7 @@ static int msg_write_locked(struct ipc_chan* chan,
         peer->aux_state |= IPC_CHAN_AUX_STATE_PEER_SEND_BLOCKED;
         return ERR_NOT_ENOUGH_BUFFER;
     }
-    if (!list_is_empty(&chan->msg_queue->read_list)) {
-        /**
-         * Application shall retire read messages (via put_msg api)
-         * before sending responses. This not only allows to not waste
-         * receive message queue spots, but more importantly prevents
-         * a hard-to-debug race condition where incoming messages from linux
-         * are silently dropped due to the receive queue being freed
-         * only after the response is sent.
-         */
-        TRACEF("WARNING: sending outgoing messages while incoming messages are in read state is not allowed\n");
-        /**
-         * todo: return an error after sufficient soak time of the warning log
-         * return ERR_NOT_ALLOWED;
-         */
-    }
+
     DEBUG_ASSERT(item->state == MSG_ITEM_STATE_FREE);
 
     item->num_handles = 0;
