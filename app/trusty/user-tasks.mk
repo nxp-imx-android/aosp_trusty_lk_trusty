@@ -87,7 +87,9 @@ TRUSTY_SDK_MODULES := \
 	trusty/user/base/interface/system_state \
 	trusty/user/base/lib/googletest \
 	trusty/user/base/lib/hwaes \
+	trusty/user/base/lib/hwbcc/rust \
 	trusty/user/base/lib/hwkey \
+	trusty/user/base/lib/hwkey/rust \
 	trusty/user/base/lib/keymaster \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/libcxxabi-trusty \
@@ -98,8 +100,11 @@ TRUSTY_SDK_MODULES := \
 	trusty/user/base/lib/storage \
 	trusty/user/base/lib/syscall-stubs \
 	trusty/user/base/lib/system_state \
+	trusty/user/base/lib/system_state/rust \
 	trusty/user/base/lib/tipc \
+	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/unittest \
+	trusty/user/base/lib/unittest-rust \
 	$(EXTRA_TRUSTY_SDK_MODULES)
 
 ALL_SDK_EXTRA_FILES :=
