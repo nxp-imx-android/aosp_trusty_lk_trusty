@@ -90,7 +90,7 @@ static int recv_resp(struct handle* chan, uint32_t cmd) {
 
     rc = ipc_get_msg(chan, &msg_info);
     if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) to get message\n", __func__, rc);
+        TRACEF("failed (%d) to get message\n", rc);
         return rc;
     }
 
@@ -108,22 +108,22 @@ static int recv_resp(struct handle* chan, uint32_t cmd) {
     ipc_put_msg(chan, msg_info.id);
 
     if (rc < 0) {
-        TRACEF("%s: failed (%d) ipc_read_msg().\n", __func__, rc);
+        TRACEF("failed (%d) ipc_read_msg().\n", rc);
         return rc;
     }
 
     if (rc != sizeof(resp)) {
-        TRACEF("%s: unexpected number of bytes received: %d.\n", __func__, rc);
+        TRACEF("unexpected number of bytes received: %d.\n", rc);
         return ERR_BAD_LEN;
     }
 
     if (resp.cmd != (cmd | METRICS_CMD_RESP_BIT)) {
-        TRACEF("%s: unknown command received: %u.\n", __func__, resp.cmd);
+        TRACEF("unknown command received: %u.\n", resp.cmd);
         return ERR_CMD_UNKNOWN;
     }
 
     if (resp.status != METRICS_NO_ERROR) {
-        TRACEF("%s: event report failure: %d.\n", __func__, resp.status);
+        TRACEF("event report failure: %d.\n", resp.status);
         /* This error is not severe enough to close the connection. */
     }
 
@@ -135,12 +135,12 @@ static int send_req(struct handle* chan,
                     size_t total_len) {
     int rc = ipc_send_msg(chan, ipc_msg);
     if (rc < 0) {
-        TRACEF("%s: failed (%d) to send message\n", __func__, rc);
+        TRACEF("failed (%d) to send message\n", rc);
         return rc;
     }
 
     if (rc != (int)total_len) {
-        TRACEF("%s: unexpected number of bytes sent: %d\n", __func__, rc);
+        TRACEF("unexpected number of bytes sent: %d\n", rc);
         return ERR_BAD_LEN;
     }
 
@@ -199,7 +199,7 @@ static int report_crash(struct handle* chan, struct trusty_app* app) {
     total_len = sizeof(req) + sizeof(args) + payload_len;
     rc = send_req(chan, &ipc_msg, total_len);
     if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) report app crash\n", __func__, rc);
+        TRACEF("failed (%d) report app crash\n", rc);
         return rc;
     }
 
@@ -226,7 +226,7 @@ static int report_event_drop(struct handle* chan) {
 
     rc = send_req(chan, &ipc_msg, sizeof(req));
     if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) report event drop\n", __func__, rc);
+        TRACEF("failed (%d) report event drop\n", rc);
         return rc;
     }
 
@@ -239,21 +239,20 @@ static int on_ta_shutdown(struct trusty_app* app) {
     mutex_acquire(&ctx_lock);
 
     if (ctx.chan_state != CHAN_STATE_IDLE) {
-        TRACEF("%s: there is a metrics event still in progress or metrics TA "
-               "is unavailable\n",
-               __func__);
+        TRACEF("there is a metrics event still in progress or metrics TA "
+               "is unavailable\n");
         ctx.event_dropped = true;
         goto out;
     }
 
     if (!ctx.chan) {
-        TRACEF("%s: failed get metrics consumer channel\n", __func__);
+        TRACEF("failed get metrics consumer channel\n");
         goto out;
     }
 
     rc = report_crash(ctx.chan, app);
     if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) report app crash\n", __func__, rc);
+        TRACEF("failed (%d) report app crash\n", rc);
         goto err;
     }
 
@@ -285,14 +284,14 @@ static void handle_chan(struct dpc* work) {
 
     event = ctx.chan->ops->poll(ctx.chan, ~0U, true);
     if (event & IPC_HANDLE_POLL_HUP) {
-        TRACEF("%s: received IPC_HANDLE_POLL_HUP, closing channel\n", __func__);
+        TRACEF("received IPC_HANDLE_POLL_HUP, closing channel\n");
         goto err;
     }
 
     switch (ctx.chan_state) {
     case CHAN_STATE_WAITING_CHAN_READY:
         if (!(event & IPC_HANDLE_POLL_READY)) {
-            TRACEF("%s: unexpected channel event: 0x%x\n", __func__, event);
+            TRACEF("unexpected channel event: 0x%x\n", event);
             goto err;
         }
 
@@ -300,18 +299,18 @@ static void handle_chan(struct dpc* work) {
         goto out;
 
     case CHAN_STATE_IDLE:
-        TRACEF("%s: unexpected channel event: 0x%x\n", __func__, event);
+        TRACEF("unexpected channel event: 0x%x\n", event);
         goto err;
 
     case CHAN_STATE_WAITING_CRASH_RESP:
         if (!(event & IPC_HANDLE_POLL_MSG)) {
-            TRACEF("%s: unexpected channel event: 0x%x\n", __func__, event);
+            TRACEF("unexpected channel event: 0x%x\n", event);
             goto err;
         }
 
         rc = recv_resp(ctx.chan, METRICS_CMD_REPORT_CRASH);
         if (rc != NO_ERROR) {
-            TRACEF("%s: failed (%d) receive response\n", __func__, rc);
+            TRACEF("failed (%d) receive response\n", rc);
             goto err;
         }
 
@@ -320,7 +319,7 @@ static void handle_chan(struct dpc* work) {
         if (ctx.event_dropped) {
             rc = report_event_drop(ctx.chan);
             if (rc != NO_ERROR) {
-                TRACEF("%s: failed (%d) report event drop\n", __func__, rc);
+                TRACEF("failed (%d) report event drop\n", rc);
                 goto err;
             }
             ctx.chan_state = CHAN_STATE_WAITING_EVENT_DROP_RESP;
@@ -331,13 +330,13 @@ static void handle_chan(struct dpc* work) {
 
     case CHAN_STATE_WAITING_EVENT_DROP_RESP:
         if (!(event & IPC_HANDLE_POLL_MSG)) {
-            TRACEF("%s: unexpected channel event: 0x%x\n", __func__, event);
+            TRACEF("unexpected channel event: 0x%x\n", event);
             goto err;
         }
 
         rc = recv_resp(ctx.chan, METRICS_CMD_REPORT_EVENT_DROP);
         if (rc != NO_ERROR) {
-            TRACEF("%s: failed (%d) receive response\n", __func__, rc);
+            TRACEF("failed (%d) receive response\n", rc);
             goto err;
         }
 
@@ -361,7 +360,7 @@ static struct dpc chan_event_work = {
 static void on_handle_event(struct handle_waiter* waiter) {
     int rc = dpc_enqueue_work(NULL, &chan_event_work, false);
     if (rc != NO_ERROR) {
-        TRACEF("%s: failed (%d) to enqueue dpc work\n", __func__, rc);
+        TRACEF("failed (%d) to enqueue dpc work\n", rc);
     }
 }
 
@@ -375,13 +374,13 @@ static void metrics_init(uint level) {
                                     IPC_PORT_PATH_MAX,
                                     IPC_CONNECT_WAIT_FOR_PORT, &ctx.chan);
     if (rc) {
-        TRACEF("%s: failed (%d) to connect to port\n", __func__, rc);
+        TRACEF("failed (%d) to connect to port\n", rc);
         goto err_port_connect;
     }
 
     rc = trusty_register_app_notifier(&notifier);
     if (rc) {
-        TRACEF("%s: failed (%d) to register app notifier\n", __func__, rc);
+        TRACEF("failed (%d) to register app notifier\n", rc);
         goto err_app_notifier;
     }
 
