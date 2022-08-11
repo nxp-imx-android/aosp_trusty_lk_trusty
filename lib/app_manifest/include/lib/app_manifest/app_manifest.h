@@ -41,6 +41,7 @@ __BEGIN_CDECLS
  * @APP_MANIFEST_CONFIG_KEY_PINNED_CPU: Key for "pinned_cpu"
  * @APP_MANIFEST_CONFIG_KEY_VERSION: Key for "version"
  * @APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE: Key for "min_shadow_stack"
+ * @APP_MANIFEST_CONFIG_KEY_APPLOADER: Key for "apploader_flags"
  * @APP_MANIFEST_CONFIG_KEY_UUID: Pseudo-key for "uuid"
  * @APP_MANIFEST_CONFIG_KEY_APP_NAME: Pseudo-key for name of application
  */
@@ -53,6 +54,7 @@ enum app_manifest_config_key {
     APP_MANIFEST_CONFIG_KEY_PINNED_CPU = 6,
     APP_MANIFEST_CONFIG_KEY_VERSION = 7,
     APP_MANIFEST_CONFIG_KEY_MIN_SHADOW_STACK_SIZE = 8,
+    APP_MANIFEST_CONFIG_KEY_APPLOADER_FLAGS = 9,
 
     /* Pseudo-keys for required entries */
     APP_MANIFEST_CONFIG_KEY_UUID = 0xfffffffeU,
@@ -75,6 +77,19 @@ enum app_manifest_mgmt_flags {
     APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT = (1u << 0),
     APP_MANIFEST_MGMT_FLAGS_DEFERRED_START = (1u << 1),
     APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP = (1u << 2),
+};
+
+/**
+ * enum app_manifest_apploader_flags - Masks for apploader_flags configuration
+ *                                     value
+ * @APP_MANIFEST_APPLOADER_FLAGS_NONE:
+ *      No flags
+ * @APP_MANIFEST_APPLOADER_FLAGS_REQUIRES_ENCRYPTION:
+ *      Unless apploading is unlocked, require that the ELF image was encrypted
+ */
+enum app_manifest_apploader_flags {
+    APP_MANIFEST_APPLOADER_FLAGS_NONE = 0u,
+    APP_MANIFEST_APPLOADER_FLAGS_REQUIRES_ENCRYPTION = (1u << 0),
 };
 
 #define APP_MANIFEST_PINNED_CPU_NONE (-1)
@@ -100,6 +115,7 @@ enum app_manifest_mgmt_flags {
  * @value.start_port.name: Value of "start_ports[...].name"
  * @value.pinned_cpu: Value of "pinned_cpu"
  * @value.version: Value of "version"
+ * @value.apploader_flags: Flags for apploading
  */
 struct app_manifest_config_entry {
     enum app_manifest_config_key key;
@@ -123,6 +139,7 @@ struct app_manifest_config_entry {
         } start_port;
         int pinned_cpu;
         uint32_t version;
+        uint32_t apploader_flags;
     } value;
 };
 
