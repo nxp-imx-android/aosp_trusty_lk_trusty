@@ -575,6 +575,34 @@ long __SYSCALL sys_wait_any(user_addr_t user_event, uint32_t timeout_msecs) {
 #endif
 }
 
+long __SYSCALL sys_dup(uint32_t old_handle_id) {
+    int rc;
+    struct handle* h;
+    struct uctx* ctx = current_uctx();
+    handle_id_t new_handle_id;
+
+    LTRACEF("[%p][%d]\n", current_trusty_thread(), old_handle_id);
+
+    rc = uctx_handle_get(ctx, (handle_id_t)old_handle_id, &h);
+    if (rc != NO_ERROR) {
+        goto err_get;
+    }
+
+    rc = uctx_handle_install(ctx, h, &new_handle_id);
+    if (rc != NO_ERROR) {
+        goto err_install;
+    }
+
+    /* Drop ref grabbed by uctx_handle_get */
+    handle_decref(h);
+    return (long)new_handle_id;
+
+err_install:
+    handle_decref(h);
+err_get:
+    return rc;
+}
+
 long __SYSCALL sys_close(uint32_t handle_id) {
     struct handle* handle;
 
