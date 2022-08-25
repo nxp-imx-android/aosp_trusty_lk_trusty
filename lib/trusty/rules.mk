@@ -88,6 +88,10 @@ MODULE_DEPS += \
 	trusty/kernel/lib/rand \
 	trusty/kernel/lib/version \
 
+ifneq (,$(wildcard $(LOCAL_DIR)/arch/$(ARCH)/rules.mk))
+include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
+endif
+
 GLOBAL_DEFINES += \
 	WITH_SYSCALL_TABLE=1 \
 

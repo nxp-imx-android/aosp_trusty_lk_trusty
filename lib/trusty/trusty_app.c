@@ -36,6 +36,7 @@
 #include <kernel/mutex.h>
 #include <kernel/thread.h>
 #include <lib/app_manifest/app_manifest.h>
+#include <lib/mte.h>
 #include <lib/rand/rand.h>
 #include <lib/trusty/ipc.h>
 #include <lk/init.h>
@@ -319,6 +320,12 @@ static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
 #define AT_PAGESZ 6
 #define AT_BASE 7
 #define AT_RANDOM 25
+#define AT_HWCAP2 26
+#define HWCAP2_MTE (1 << 18)
+
+__WEAK bool trusty_mte_enabled() {
+    return false;
+}
 
 /*
  * Pass data to libc on the user stack.
@@ -344,11 +351,12 @@ trusty_thread_write_elf_tables(struct trusty_thread* trusty_thread,
             add_to_user_stack(trusty_thread, app_name, strlen(app_name) + 1,
                               sizeof(user_addr_t), stack_ptr);
 
+    bool mte = trusty_mte_enabled();
     /* auxv */
     user_addr_t auxv[] = {
-            AT_PAGESZ, PAGE_SIZE,       AT_BASE, load_bias,
-            AT_RANDOM, rand_bytes_addr, 0,
-    };
+            AT_PAGESZ, PAGE_SIZE,       AT_BASE,   load_bias,
+            AT_RANDOM, rand_bytes_addr, AT_HWCAP2, mte ? HWCAP2_MTE : 0,
+            0};
     add_to_user_stack(trusty_thread, auxv, sizeof(auxv), sizeof(user_addr_t),
                       stack_ptr);
 
