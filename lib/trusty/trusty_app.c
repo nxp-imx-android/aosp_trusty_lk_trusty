@@ -784,8 +784,8 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
             break;
 
         case APP_MANIFEST_CONFIG_KEY_PRIORITY:
-            if (manifest_entry.value.priority < LOWEST_PRIORITY ||
-                manifest_entry.value.priority > HIGHEST_PRIORITY) {
+            if (manifest_entry.value.priority < (LOWEST_PRIORITY + 2) ||
+                manifest_entry.value.priority > (HIGHEST_PRIORITY - 1)) {
                 dprintf(CRITICAL,
                         "priority value %u out of range, app %u, %s\n",
                         manifest_entry.value.priority, trusty_app->app_id,

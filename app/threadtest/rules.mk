@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (c) 2021, Google Inc. All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -18,21 +18,17 @@
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
 
-MODULES += \
-	trusty/kernel/app/threadtest \
-	trusty/kernel/app/busytest \
-	trusty/kernel/app/consoletest \
-	trusty/kernel/app/dpctest \
-	trusty/kernel/app/memorytest \
-	trusty/kernel/app/mmutest \
-	trusty/kernel/app/smptest \
-	trusty/kernel/app/stdcalltest \
-	trusty/kernel/app/uirqtest \
-	trusty/kernel/app/usercopytest \
-	trusty/kernel/app/userscstest \
-	trusty/kernel/lib/ktipc/test/srv \
-	trusty/kernel/lib/ktipc/test/main \
+LOCAL_DIR := $(GET_LOCAL_DIR)
 
-include external/lk/kerneltests-inc.mk
+MODULE := $(LOCAL_DIR)
+
+MODULE_SRCS += \
+	$(LOCAL_DIR)/thread_service.c \
+	$(LOCAL_DIR)/thread_service_policy.c \
+
+MODULE_DEPS += \
+	trusty/kernel/lib/trusty \
+	trusty/user/base/experimental/interface/thread/ \
+
+include make/module.mk
