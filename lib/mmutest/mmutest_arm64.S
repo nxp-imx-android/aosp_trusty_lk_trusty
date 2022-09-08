@@ -62,7 +62,7 @@ FUNCTION(mmutest_arch_data_pnx)
  * Returns 0 if rodata is writable
  */
 FUNCTION(mmutest_arch_rodata_ro)
-	adr	x0, .Ltest_rodata_long
+	adrl	x0, .Ltest_rodata_long
 
 	set_fault_handler	.Lmmutest_fault
 	str	wzr, [x0]
