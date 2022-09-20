@@ -70,5 +70,9 @@ status_t xlat_flags(uint32_t access_prot,
         *arch_mmu_flags |= ARCH_MMU_FLAG_PERM_RO;
     }
 
+    if (mmap_prot & MMAP_FLAG_PROT_MTE) {
+        *arch_mmu_flags |= ARCH_MMU_FLAG_TAGGED;
+    }
+
     return NO_ERROR;
 }

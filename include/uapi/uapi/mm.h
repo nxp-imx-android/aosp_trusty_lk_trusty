@@ -78,15 +78,19 @@
  * %MMAP_FLAG_PROT_READ:  specifies that mapped region should be readable
  * %MMAP_FLAG_PROT_WRITE: specifies that mapped region should be writable
  * %MMAP_FLAG_PROT_EXEC:  specifies that mapped region should be executable
+ * %MMAP_FLAG_PROT_MTE:   specifies that mapped region should use MTE. Note
+ *                        that the value of this flag does not match linux.
  * %MMAP_FLAG_PROT_MASK:  a combination of all possible PROT attributes
  */
 #define MMAP_FLAG_PROT_NONE 0x0
 #define MMAP_FLAG_PROT_READ 0x1
 #define MMAP_FLAG_PROT_WRITE 0x2
 #define MMAP_FLAG_PROT_EXEC 0x4
+#define MMAP_FLAG_PROT_MTE 0x8
 
-#define MMAP_FLAG_PROT_MASK \
-    (MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_EXEC)
+#define MMAP_FLAG_PROT_MASK                                             \
+    (MMAP_FLAG_PROT_READ | MMAP_FLAG_PROT_WRITE | MMAP_FLAG_PROT_EXEC | \
+     MMAP_FLAG_PROT_MTE)
 
 /**
  * struct dma_pmem - a contiguous physical memory block
