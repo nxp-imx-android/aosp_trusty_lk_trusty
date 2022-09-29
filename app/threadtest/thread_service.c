@@ -615,7 +615,7 @@ static int thread_service_handle_msg(struct thread_service_chan_ctx* chan_ctx) {
 
     resp.hdr.cmd = req.hdr.cmd | THREAD_SERVICE_CMD_RESP_BIT;
     resp.hdr.result = rc;
-    LTRACEF("sending response cmd (%08x) resp_paylod (%zd)\n", resp.hdr.cmd,
+    LTRACEF("sending response cmd (%08x) resp_payload (%zd)\n", resp.hdr.cmd,
             resp_payload_size);
     rc = thread_service_send_response(channel, &resp,
                                       sizeof(resp.hdr) + resp_payload_size);
