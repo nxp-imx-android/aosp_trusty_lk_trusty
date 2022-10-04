@@ -27,6 +27,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <uapi/trusty_ipc.h>
 
 #include <lib/trusty/uctx.h>
 #include <lib/trusty/uio.h>
@@ -47,7 +48,7 @@ bool ipc_msg_queue_is_full(struct ipc_msg_queue* mq);
 /* The layout for iovec_user and ipc_msg_user MUST match
  * the layout of iovec_kern and ipc_msg_kern
  */
-#define MAX_MSG_HANDLES 8
+#define MAX_MSG_HANDLES IPC_MAX_MSG_HANDLES
 
 struct ipc_msg_kern {
     uint32_t num_iov;
