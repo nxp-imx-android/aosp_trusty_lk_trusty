@@ -323,7 +323,7 @@ static user_addr_t add_to_user_stack(struct trusty_thread* trusty_thread,
 #define AT_HWCAP2 26
 #define HWCAP2_MTE (1 << 18)
 
-__WEAK bool trusty_mte_enabled() {
+__WEAK bool trusty_mte_enabled(void) {
     return false;
 }
 

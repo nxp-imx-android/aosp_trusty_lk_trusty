@@ -157,7 +157,7 @@ static void ubsan_fail(const char* msg) {
 #endif
 }
 
-static bool start() {
+static bool start(void) {
     if (in_ubsan_get()) {
         return false;
     }
@@ -165,7 +165,7 @@ static bool start() {
     return true;
 }
 
-static void finish() {
+static void finish(void) {
     assert(in_ubsan_get());
     ubsan_fail("UBSan violation");
 }

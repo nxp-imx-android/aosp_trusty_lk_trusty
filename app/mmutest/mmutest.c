@@ -145,7 +145,7 @@ static int mmu_test_execute_thread_func(void* arg)
     return 0;
 }
 
-static int mmu_test_execute(arch_mmu_flags) {
+static int mmu_test_execute(uint arch_mmu_flags) {
     int ret;
     void* ptr;
     size_t len;

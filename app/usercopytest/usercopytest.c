@@ -58,19 +58,19 @@
 #define TEST_BUF_ADDR \
     ((user_addr_t)((uintptr_t)(START_PAGE_ADDR + PAGE_SIZE - TEST_BUF1_SIZE)))
 
-static inline user_addr_t get_addr_param() {
+static inline user_addr_t get_addr_param(void) {
     const void* const* param_arr = GetParam();
     const user_addr_t* addr = param_arr[0];
     return *addr;
 }
 
-static inline uint32_t get_start_flags_param() {
+static inline uint32_t get_start_flags_param(void) {
     const void* const* param_arr = GetParam();
     const uint32_t* start_flags = param_arr[1];
     return *start_flags;
 }
 
-static inline uint32_t get_end_flags_param() {
+static inline uint32_t get_end_flags_param(void) {
     const void* const* param_arr = GetParam();
     const uint32_t* end_flags = param_arr[2];
     return *end_flags;

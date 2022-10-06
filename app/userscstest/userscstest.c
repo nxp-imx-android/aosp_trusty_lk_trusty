@@ -192,7 +192,7 @@ test_abort:
     status_ptr->invalid_apps++;
 }
 
-static int inspect_trusty_threads() {
+static int inspect_trusty_threads(void) {
     struct scs_test_status status = {0};
     trusty_app_forall(trusty_app_callback, &status);
     ASSERT_NE(0, status.running_apps);
@@ -203,7 +203,7 @@ test_abort:
 #else
 #define FEATURE_GATED_TEST_NAME(name) DISABLED_##name
 
-static int inspect_trusty_threads() {
+static int inspect_trusty_threads(void) {
     return 0;
 }
 

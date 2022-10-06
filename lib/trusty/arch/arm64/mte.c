@@ -25,7 +25,7 @@
 #include <inttypes.h>
 #include <lib/mte.h>
 
-bool trusty_mte_enabled() {
+bool trusty_mte_enabled(void) {
     uint64_t v = ARM64_READ_SYSREG(id_aa64pfr1_el1);
     return (v & 0xf00) >= 0x200;
 }

@@ -4,7 +4,7 @@
 #include <malloc.h>
 #include <stdatomic.h>
 
-static uintptr_t expected_malloc_alignment(size) {
+static uintptr_t expected_malloc_alignment(size_t size) {
     /* TODO use ffs? */
     if (size >= 16) {
         return sizeof(void*) * 2;
