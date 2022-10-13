@@ -91,39 +91,48 @@ FUNCTION(mmutest_arch_store_uint32)
 	cbnz	x1, .Lmmutest_arch_store_uint32_user
 
 	set_fault_handler	.Lmmutest_setup_fault
-	ldr	w1, [x0]
-	neg	w1, w1
+	ldr	w3, [x0]
+	neg	w3, w3
 
 	set_fault_handler	.Lmmutest_fault
-	str	w1, [x0]
+	str	w3, [x0]
+	dmb	sy
+	ldr	w2, [x0]
 
 	b	.Lmmutest_arch_store_uint32_str_done
 
 .Lmmutest_arch_store_uint32_user:
 	set_fault_handler	.Lmmutest_setup_fault
-	ldtr	w1, [x0]
-	neg	w1, w1
+	ldtr	w3, [x0]
+	neg	w3, w3
 
 	set_fault_handler	.Lmmutest_fault
-	sttr	w1, [x0]
+	sttr	w3, [x0]
+	dmb	sy
+	ldtr	w2, [x0]
 
 .Lmmutest_arch_store_uint32_str_done:
 
-	dmb	sy
-
-	ldr	w2, [x0]
-	cmp	w1, w2
+	cmp	w3, w2
 	bne	.Lmmutest_arch_store_uint32_cache_read_mismatch
 
 	push	x0, x1
-	push	x2, x30
+	push	x3, x30
 	mov	x1, #4
 	bl	arch_clean_invalidate_cache_range
-	pop	x2, x30
+	pop	x3, x30
 	pop	x0, x1
 
+	cbnz	x1, .Lmmutest_arch_store_uint32_memory_reload_user
+
 	ldr	w2, [x0]
-	cmp	w1, w2
+	b	.Lmmutest_arch_store_uint32_memory_reload_done
+
+.Lmmutest_arch_store_uint32_memory_reload_user:
+	ldtr	w2, [x0]
+
+.Lmmutest_arch_store_uint32_memory_reload_done:
+	cmp	w3, w2
 	bne	.Lmmutest_arch_store_uint32_memory_mismatch
 
 	mov	x0, xzr
