@@ -51,9 +51,9 @@
 #define GICC_SIZE (0x10000)
 #define GICD_SIZE (0x10000)
 #if GIC_VERSION < 4
-#define GICR_SIZE (0x20000 * 8)
+#define GICR_SIZE (0x20000 * SMP_MAX_CPUS)
 #else
-#define GICR_SIZE (0x30000 * 8)
+#define GICR_SIZE (0x30000 * SMP_MAX_CPUS)
 #endif
 #endif
 
