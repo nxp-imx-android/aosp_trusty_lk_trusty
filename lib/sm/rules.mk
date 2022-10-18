@@ -36,6 +36,7 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/smcall.c \
 	$(LOCAL_DIR)/ns_mem.c \
 	$(LOCAL_DIR)/shared_mem.c \
+        $(LOCAL_DIR)/trusty_sched_share.c \
 
 MODULE_DEPS += \
 	trusty/kernel/lib/extmem \

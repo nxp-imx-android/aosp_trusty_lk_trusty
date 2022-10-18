@@ -34,6 +34,7 @@
 #include <lib/sm.h>
 #include <lib/sm/sm_err.h>
 #include <lib/sm/smcall.h>
+#include <lib/sm/trusty_sched_share_api.h>
 #include <lk/init.h>
 #include <string.h>
 #include <trace.h>
@@ -88,6 +89,10 @@ static smc32_handler_t sm_stdcall_function_table[] = {
         [SMC_FUNCTION(SMC_SC_RESTART_LAST)] = smc_restart_stdcall,
         [SMC_FUNCTION(SMC_SC_LOCKED_NOP)] = smc_nop_stdcall,
         [SMC_FUNCTION(SMC_SC_RESTART_FIQ)] = smc_restart_stdcall,
+        [SMC_FUNCTION(SMC_SC_SCHED_SHARE_REGISTER)] =
+                smc_trusty_sched_share_register,
+        [SMC_FUNCTION(SMC_SC_SCHED_SHARE_UNREGISTER)] =
+                smc_trusty_sched_share_unregister,
         /* reserve slot in table, not called */
         [SMC_FUNCTION(SMC_SC_NOP)] = smc_undefined,
 };
