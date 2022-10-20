@@ -475,7 +475,8 @@ static struct trusty_thread* trusty_thread_create(
                 ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
         if (err != NO_ERROR) {
             dprintf(CRITICAL,
-                    "failed(%d) to allocate shadow stack(0x%lx) for app %u\n",
+                    "failed(%d) to allocate shadow stack(0x%" PRIxVADDR
+                    ") for app %u\n",
                     err, shadow_stack_base, trusty_app->app_id);
             goto err_shadow_stack;
         }
@@ -913,7 +914,7 @@ static status_t select_load_bias(ELF_PHDR* phdr,
             return ERR_NOT_VALID;
         }
     }
-    LTRACEF("ELF Segment range: %lx->%lx\n", low, high);
+    LTRACEF("ELF Segment range: %" PRIxVADDR "->%" PRIxVADDR "\n", low, high);
 
     DEBUG_ASSERT(high >= low);
     size_t size = round_up(high - low, PAGE_SIZE);
@@ -923,7 +924,7 @@ static status_t select_load_bias(ELF_PHDR* phdr,
     if (!vmm_find_spot(aspace, size, &spot)) {
         return ERR_NO_MEMORY;
     }
-    LTRACEF("Load target: %lx\n", spot);
+    LTRACEF("Load target: %" PRIxVADDR "\n", spot);
 
     /*
      * Overflow is acceptable here, since adding the delta to the lowest
