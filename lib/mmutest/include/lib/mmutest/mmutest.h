@@ -21,6 +21,9 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <stdbool.h>
+#include <stdint.h>
+
 /**
  * mmutest_arch_rodata_pnx() - Test that rodata section is mapped pnx
  *
@@ -64,3 +67,21 @@ int mmutest_arch_rodata_ro(void);
  * * 0           - if ptr is writable
  */
 int mmutest_arch_store_uint32(uint32_t* ptr, bool user);
+
+/**
+ * mmutest_arch_pan_supported() - Test is FEAT_PAN indicates PAN support.
+ *
+ * Return:
+ * * true - if PAN is supported.
+ * * false - if PAN is not supported.
+ */
+bool mmutest_arch_pan_supported(void);
+
+/**
+ * mmutest_arch_pan_enabled() - Test if PAN is supported and enabled.
+ *
+ * Return:
+ * * true - PAN is supported and has been enabled.
+ * * false - PAN is not enabled or not supported.
+ */
+bool mmutest_arch_pan_enabled(void);

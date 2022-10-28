@@ -679,13 +679,15 @@ TEST(mmutest, store_kernel) {
     int expected_user_rw_access;
     int expected_user_ro_access;
 
-#ifdef MMUTEST_REQUIRE_PAN
-    expected_user_rw_access = ERR_GENERIC;
-    expected_user_ro_access = ERR_GENERIC;
-#else
-    expected_user_rw_access = 0;
-    expected_user_ro_access = ERR_FAULT;
-#endif
+    EXPECT_EQ(mmutest_arch_pan_supported(), mmutest_arch_pan_enabled());
+
+    if (mmutest_arch_pan_enabled()) {
+        expected_user_rw_access = ERR_GENERIC;
+        expected_user_ro_access = ERR_GENERIC;
+    } else {
+        expected_user_rw_access = 0;
+        expected_user_ro_access = ERR_FAULT;
+    }
 
     EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED));
     EXPECT_EQ(expected_user_rw_access,
