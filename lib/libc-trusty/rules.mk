@@ -107,14 +107,16 @@ MODULE_COMPILEFLAGS += \
 MODULE_SRCS := \
 	$(LOCAL_DIR)/abort.c \
 	$(LOCAL_DIR)/close.c \
-	$(LOCAL_DIR)/io_handle.c \
 	$(LOCAL_DIR)/fflush.c \
 	$(LOCAL_DIR)/libc_state.c \
 	$(LOCAL_DIR)/writev.c \
 	$(LK_DIR)/lib/libc/atoi.c \
 	$(LK_DIR)/lib/libc/eabi.c \
 	$(LK_DIR)/lib/libc/eabi_unwind_stubs.c \
+	$(LK_DIR)/lib/libc/io_handle.c \
+	$(LK_DIR)/lib/libc/printf.c \
 	$(LK_DIR)/lib/libc/rand.c \
+	$(LK_DIR)/lib/libc/stdio.c \
 	$(LK_DIR)/lib/libc/strtol.c \
 	$(LK_DIR)/lib/libc/strtoll.c \
 
@@ -175,41 +177,20 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/string/strtok_r.c \
 	$(MUSL_DIR)/src/string/strverscmp.c \
 	$(MUSL_DIR)/src/string/swab.c \
-	$(MUSL_DIR)/src/stdio/asprintf.c \
-	$(MUSL_DIR)/src/stdio/fclose.c \
-	$(MUSL_DIR)/src/stdio/fputs.c \
-	$(MUSL_DIR)/src/stdio/fprintf.c \
-	$(MUSL_DIR)/src/stdio/fseek.c \
-	$(MUSL_DIR)/src/stdio/fwrite.c \
-	$(MUSL_DIR)/src/stdio/getc.c \
-	$(MUSL_DIR)/src/stdio/printf.c \
-	$(MUSL_DIR)/src/stdio/putc_unlocked.c \
-	$(MUSL_DIR)/src/stdio/putchar.c \
-	$(MUSL_DIR)/src/stdio/puts.c \
-	$(MUSL_DIR)/src/stdio/sscanf.c \
-	$(MUSL_DIR)/src/stdio/snprintf.c \
-	$(MUSL_DIR)/src/stdio/sprintf.c \
+
+# We use the lk implementation of stdio but export
+# the musl stdio.h headers, which expose different
+# definitions of stdin/out/err. The files below contain
+# the musl definitions of those FILE structures, along
+# with their dependencies.
+MODULE_SRCS += \
 	$(MUSL_DIR)/src/stdio/stderr.c \
 	$(MUSL_DIR)/src/stdio/stdin.c \
 	$(MUSL_DIR)/src/stdio/stdout.c \
-	$(MUSL_DIR)/src/stdio/ungetc.c \
-	$(MUSL_DIR)/src/stdio/vasprintf.c \
-	$(MUSL_DIR)/src/stdio/vprintf.c \
-	$(MUSL_DIR)/src/stdio/vfprintf.c \
-	$(MUSL_DIR)/src/stdio/vsnprintf.c \
-	$(MUSL_DIR)/src/stdio/vsprintf.c \
-	$(MUSL_DIR)/src/stdio/vfscanf.c \
-	$(MUSL_DIR)/src/stdio/vsscanf.c \
-	$(MUSL_DIR)/src/stdio/__overflow.c \
 	$(MUSL_DIR)/src/stdio/__stdio_close.c \
-	$(MUSL_DIR)/src/stdio/__stdio_exit.c \
 	$(MUSL_DIR)/src/stdio/__stdio_read.c \
 	$(MUSL_DIR)/src/stdio/__stdio_write.c \
 	$(MUSL_DIR)/src/stdio/__stdio_seek.c \
-	$(MUSL_DIR)/src/stdio/__string_read.c \
-	$(MUSL_DIR)/src/stdio/__toread.c \
-	$(MUSL_DIR)/src/stdio/__towrite.c \
-	$(MUSL_DIR)/src/stdio/__uflow.c \
 
 # These sources are only necessary to support C++
 MODULE_SRCS += \
