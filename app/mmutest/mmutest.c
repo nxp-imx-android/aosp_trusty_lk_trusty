@@ -675,11 +675,17 @@ TEST(mmutest, DISABLED_ON_ARM_NAME(rodata_ro)) {
     EXPECT_EQ(ERR_FAULT, mmutest_arch_rodata_ro());
 }
 
+TEST(mmutest, pan) {
+    if (!mmutest_arch_pan_supported()) {
+        trusty_unittest_printf("[  SKIPPED ] PAN is not supported\n");
+        return;
+    }
+    EXPECT_EQ(true, mmutest_arch_pan_enabled());
+}
+
 TEST(mmutest, store_kernel) {
     int expected_user_rw_access;
     int expected_user_ro_access;
-
-    EXPECT_EQ(mmutest_arch_pan_supported(), mmutest_arch_pan_enabled());
 
     if (mmutest_arch_pan_enabled()) {
         expected_user_rw_access = ERR_GENERIC;
