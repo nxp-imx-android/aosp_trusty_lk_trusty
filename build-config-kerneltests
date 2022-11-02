@@ -20,6 +20,7 @@
     porttest("com.android.kernel.iovectest"),
     porttest("com.android.kernel.ktipc.test"),
     porttest("com.android.kernel.libctest"),
+    porttest("com.android.kernel.libcxxtest"),
     porttest("com.android.kernel.memorytest"),
     porttest("com.android.kernel.mmutest"),
     porttest("com.android.kernel.smp-unittest").needs(smp4=True),

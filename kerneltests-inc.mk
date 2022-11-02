@@ -35,7 +35,10 @@ MODULES += \
 	trusty/kernel/lib/ktipc/test/main \
 
 ifeq ($(LK_LIBC_IMPLEMENTATION),musl)
-MODULES += trusty/kernel/lib/libc-trusty/test
+MODULES += \
+	trusty/kernel/lib/libc-trusty/test \
+	trusty/kernel/lib/libcxx-trusty/test \
+
 endif
 
 include external/lk/kerneltests-inc.mk
