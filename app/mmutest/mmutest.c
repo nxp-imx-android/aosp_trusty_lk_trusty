@@ -98,7 +98,7 @@ static int mmutest_alloc(void** ptrp, uint arch_mmu_flags) {
     ret = vmm_alloc_contiguous(aspace, "mmutest", PAGE_SIZE, ptrp, 0, 0,
                                arch_mmu_flags);
 
-    EXPECT_EQ(0, ret, "vmm_alloc_contiguous failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_alloc_contiguous failed\n");
     if (ret) {
         return ret;
     }
@@ -191,7 +191,7 @@ TEST_F_SETUP(mmutestvmm) {
         _state->aspace = vmm_get_kernel_aspace();
     } else {
         ret = vmm_create_aspace(&_state->aspace, "mmutestvmm", 0);
-        ASSERT_EQ(0, ret);
+        ASSERT_EQ(NO_ERROR, ret);
     }
 
     ASSERT_GE(_state->allocation_size, PAGE_SIZE);
@@ -216,10 +216,10 @@ TEST_P(mmutestvmm, vmm_alloc) {
     void* ptr = NULL;
     ret = vmm_alloc(_state->aspace, "mmutest", _state->allocation_size, &ptr, 0,
                     0, 0);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(NO_ERROR, ret);
     EXPECT_NE(NULL, ptr);
     ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
 }
 
 /* Smoke test for vmm_alloc_contiguous */
@@ -229,10 +229,10 @@ TEST_P(mmutestvmm, vmm_alloc_contiguous) {
     ret = vmm_alloc_contiguous(_state->aspace, "mmutest",
                                _state->allocation_size, &ptr,
                                log2_uint(_state->allocation_size), 0, 0);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(NO_ERROR, ret);
     EXPECT_NE(NULL, ptr);
     ret = vmm_free_region(_state->aspace, (vaddr_t)ptr);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -293,7 +293,7 @@ TEST(mmutest, alloc_last_kernel_page) {
                             VMM_FLAG_NO_END_GUARD,
                     0);
     /* TODO: allow this to fail as page could already be in use */
-    ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
+    ASSERT_EQ(NO_ERROR, ret, "vmm_alloc failed last page\n");
 
     /* While the last page is allocated, get an object corresponding to it */
     ret = vmm_get_obj(aspace, (vaddr_t)ptr1, PAGE_SIZE, &slice);
@@ -301,12 +301,12 @@ TEST(mmutest, alloc_last_kernel_page) {
     /* Check the slice we got back */
     EXPECT_NE(NULL, slice.obj);
     EXPECT_EQ(PAGE_SIZE, slice.size);
-    EXPECT_EQ(0, slice.offset);
+    EXPECT_EQ(NO_ERROR, slice.offset);
     vmm_obj_slice_release(&slice);
 
     /* Allocate page anywhere, while the last page is allocated. */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0, 0, 0);
-    ASSERT_EQ(0, ret, "vmm_alloc failed anywhere page\n");
+    ASSERT_EQ(NO_ERROR, ret, "vmm_alloc failed anywhere page\n");
 
     /* Try to allocate last kernel aspace page again, should fail */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
@@ -318,15 +318,15 @@ TEST(mmutest, alloc_last_kernel_page) {
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0,
                     VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
     /* TODO: allow this to fail as page could already be in use */
-    ASSERT_EQ(0, ret, "vmm_alloc failed 2nd last page\n");
+    ASSERT_EQ(NO_ERROR, ret, "vmm_alloc failed 2nd last page\n");
 
     /* Free allocated pages */
     ret = vmm_free_region(aspace, (vaddr_t)ptr1);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
     ret = vmm_free_region(aspace, (vaddr_t)ptr2);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
     ret = vmm_free_region(aspace, (vaddr_t)ptr3);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
 
     /* Try to allocate last page without VMM_FLAG_NO_END_GUARD flag */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
@@ -337,15 +337,15 @@ TEST(mmutest, alloc_last_kernel_page) {
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0,
                     VMM_FLAG_VALLOC_SPECIFIC | VMM_FLAG_NO_END_GUARD, 0);
     /* TODO: allow this to fail as page could be in use */
-    ASSERT_EQ(0, ret, "vmm_alloc failed last page\n");
+    ASSERT_EQ(NO_ERROR, ret, "vmm_alloc failed last page\n");
     ret = vmm_free_region(aspace, (vaddr_t)ptr1);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
 
     /* Allocate and free page anywhere, while last page is free */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr2, 0, 0, 0);
-    ASSERT_EQ(0, ret, "vmm_alloc failed anywhere page\n");
+    ASSERT_EQ(NO_ERROR, ret, "vmm_alloc failed anywhere page\n");
     ret = vmm_free_region(aspace, (vaddr_t)ptr2);
-    EXPECT_EQ(0, ret, "vmm_free_region failed\n");
+    EXPECT_EQ(NO_ERROR, ret, "vmm_free_region failed\n");
 
 test_abort:;
 }
@@ -362,7 +362,7 @@ TEST_F_SETUP(mmutestaspace) {
         _state->aspace = vmm_get_kernel_aspace();
     } else {
         ret = vmm_create_aspace(&_state->aspace, "mmutestaspace", 0);
-        ASSERT_EQ(0, ret);
+        ASSERT_EQ(NO_ERROR, ret);
     }
 
 test_abort:;
@@ -390,7 +390,7 @@ TEST_P(mmutestaspace, guard_page) {
 
     /* Allocate a page at a random spot with guard pages. */
     ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr1, 0, 0, 0);
-    ASSERT_EQ(0, ret);
+    ASSERT_EQ(NO_ERROR, ret);
 
     /*
      * We may get an allocation right at the beginning of the address space
@@ -399,7 +399,7 @@ TEST_P(mmutestaspace, guard_page) {
      */
     if (aspace->base > (vaddr_t)ptr1 - PAGE_SIZE) {
         ret = vmm_alloc(aspace, "mmutest", PAGE_SIZE, &ptr3, 0, 0, 0);
-        ASSERT_EQ(0, ret);
+        ASSERT_EQ(NO_ERROR, ret);
         ASSERT_GE((vaddr_t)ptr3 - PAGE_SIZE, aspace->base);
         vmm_free_region(aspace, (vaddr_t)ptr1);
         ptr1 = ptr3;
@@ -455,7 +455,7 @@ TEST_P(mmutestaspace, guard_page) {
          */
         ptr1 = NULL;
     }
-    ASSERT_EQ(0, ret);
+    ASSERT_EQ(NO_ERROR, ret);
 
     /* Test adjacent page. Should all fail as ptr1 has guard on both sides. */
     ptr2 = (void*)(base + PAGE_SIZE);
@@ -489,7 +489,7 @@ TEST_P(mmutestaspace, guard_page) {
     if (ret) {
         ptr2 = NULL;
     }
-    ASSERT_EQ(0, ret);
+    ASSERT_EQ(NO_ERROR, ret);
 
     /* Test page directly after ptr2 */
     ptr3 = (void*)(base + PAGE_SIZE * 3);
@@ -512,7 +512,7 @@ TEST_P(mmutestaspace, guard_page) {
     if (ret) {
         ptr3 = NULL;
     }
-    ASSERT_EQ(0, ret);
+    ASSERT_EQ(NO_ERROR, ret);
 
     /* Test page directly after ptr3 */
     ptr4 = (void*)(base + PAGE_SIZE * 4);
@@ -533,7 +533,7 @@ TEST_P(mmutestaspace, guard_page) {
     if (ret) {
         ptr4 = NULL;
     }
-    ASSERT_EQ(0, ret);
+    ASSERT_EQ(NO_ERROR, ret);
 
     /*
      * Test page directly after ptr4. Should all fail as ptr4 has end guard.
@@ -631,7 +631,7 @@ __attribute__((no_sanitize("bounds"))) {
     char data[4];
     void* ptr1 = data;
     void* ptr2 = data - DEFAULT_STACK_SIZE;
-    EXPECT_EQ(0, mmutest_arch_store_uint32(ptr1, false));
+    EXPECT_EQ(NO_ERROR, mmutest_arch_store_uint32(ptr1, false));
     EXPECT_EQ(ERR_GENERIC, mmutest_arch_store_uint32(ptr2, false));
 }
 
@@ -695,12 +695,13 @@ TEST(mmutest, store_kernel) {
         expected_user_ro_access = ERR_FAULT;
     }
 
-    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED));
+    EXPECT_EQ(NO_ERROR, mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED));
     EXPECT_EQ(expected_user_rw_access,
               mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
                                               ARCH_MMU_FLAG_PERM_USER));
-    EXPECT_EQ(0, mmutest_vmm_store_uint32_kernel(
-                         ARCH_MMU_FLAG_CACHED | ARCH_MMU_FLAG_PERM_NO_EXECUTE));
+    EXPECT_EQ(NO_ERROR,
+              mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
+                                              ARCH_MMU_FLAG_PERM_NO_EXECUTE));
     EXPECT_EQ(expected_user_rw_access,
               mmutest_vmm_store_uint32_kernel(ARCH_MMU_FLAG_CACHED |
                                               ARCH_MMU_FLAG_PERM_NO_EXECUTE |
@@ -715,14 +716,15 @@ TEST(mmutest, store_kernel) {
 
 TEST(mmutest, store_user) {
     EXPECT_EQ(ERR_GENERIC, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED));
-    EXPECT_EQ(0, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
-                                               ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(NO_ERROR, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                                      ARCH_MMU_FLAG_PERM_USER));
     EXPECT_EQ(ERR_GENERIC,
               mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
                                             ARCH_MMU_FLAG_PERM_NO_EXECUTE));
-    EXPECT_EQ(0, mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
-                                               ARCH_MMU_FLAG_PERM_NO_EXECUTE |
-                                               ARCH_MMU_FLAG_PERM_USER));
+    EXPECT_EQ(NO_ERROR,
+              mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
+                                            ARCH_MMU_FLAG_PERM_NO_EXECUTE |
+                                            ARCH_MMU_FLAG_PERM_USER));
     EXPECT_EQ(ERR_GENERIC,
               mmutest_vmm_store_uint32_user(ARCH_MMU_FLAG_CACHED |
                                             ARCH_MMU_FLAG_PERM_RO));
@@ -751,7 +753,7 @@ TEST(mmutest, DISABLED_store_ns) {
 }
 
 TEST(mmutest, run_x) {
-    EXPECT_EQ(0, mmu_test_execute(0));
+    EXPECT_EQ(NO_ERROR, mmu_test_execute(0));
 }
 
 TEST(mmutest, run_nx) {
@@ -776,11 +778,11 @@ TEST(mmutest, ns_conflict) {
      */
     ret = vmm_alloc(aspace, "ns_conflict_ns", PAGE_SIZE, &ptr_ns,
                     PAGE_SIZE_SHIFT + 2, 0, ARCH_MMU_FLAG_NS);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(NO_ERROR, ret);
 
     ret = arch_mmu_query(&aspace->arch_aspace, (vaddr_t)ptr_ns, NULL,
                          &arch_mmu_flags_query);
-    EXPECT_EQ(0, ret);
+    EXPECT_EQ(NO_ERROR, ret);
 
     ns_flag = arch_mmu_flags_query & ARCH_MMU_FLAG_NS;
     EXPECT_EQ(ARCH_MMU_FLAG_NS, ns_flag);
@@ -800,7 +802,7 @@ TEST(mmutest, ns_conflict) {
                              &arch_mmu_flags_query);
         if (!ret) {
             ns_flag = arch_mmu_flags_query & ARCH_MMU_FLAG_NS;
-            EXPECT_EQ(0, ns_flag);
+            EXPECT_EQ(NO_ERROR, ns_flag);
         }
     }
 
@@ -816,7 +818,7 @@ test_abort:
 /* Test suite for vmm_obj_slice and vmm_get_obj */
 
 typedef struct {
-    vmm_aspace_t *aspace;
+    vmm_aspace_t* aspace;
     vaddr_t spot_a_2_page;
     vaddr_t spot_b_1_page;
     struct vmm_obj_slice slice;
@@ -828,10 +830,10 @@ TEST_F_SETUP(mmutest_slice) {
     _state->spot_b_1_page = 0;
     vmm_obj_slice_init(&_state->slice);
     ASSERT_EQ(vmm_alloc(_state->aspace, "mmutest_slice", 2 * PAGE_SIZE,
-                        (void **)&_state->spot_a_2_page, 0, 0, 0),
+                        (void**)&_state->spot_a_2_page, 0, 0, 0),
               NO_ERROR);
     ASSERT_EQ(vmm_alloc(_state->aspace, "mmutest_slice", PAGE_SIZE,
-                        (void **)&_state->spot_b_1_page, 0, 0, 0),
+                        (void**)&_state->spot_b_1_page, 0, 0, 0),
               NO_ERROR);
 test_abort:;
 }
@@ -894,6 +896,200 @@ TEST_F(mmutest_slice, overflow) {
     EXPECT_EQ(vmm_get_obj(_state->aspace, _state->spot_a_2_page, SIZE_MAX,
                           &_state->slice),
               ERR_INVALID_ARGS);
+}
+
+/* Test suite for PMM */
+
+typedef struct {
+    vmm_aspace_t* aspace;
+} mmutest_pmm_t;
+
+TEST_F_SETUP(mmutest_pmm) {
+    _state->aspace = NULL;
+    status_t ret = vmm_create_aspace_with_quota(&_state->aspace, "mmutestpmm",
+                                                PAGE_SIZE * 2, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+test_abort:;
+}
+
+TEST_F_TEARDOWN(mmutest_pmm) {
+    if (_state->aspace) {
+        ASSERT_EQ(NO_ERROR, vmm_free_aspace(_state->aspace));
+    }
+test_abort:;
+}
+
+/*
+ * Reserve physical pages and allocate from reserved memory.
+ */
+TEST_F(mmutest_pmm, reserve) {
+    void* ptr = NULL;
+    void* ptr_unused_1 = NULL;
+    void* ptr_unused_2 = NULL;
+    status_t ret;
+    struct vmm_aspace* temp_aspace = NULL;
+    ret = vmm_alloc(_state->aspace, "test_reserve", PAGE_SIZE * 5002, &ptr, 0,
+                    VMM_FLAG_NO_PHYSICAL, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_from_reserved", PAGE_SIZE * 2, &ptr,
+                    0, VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+
+    while (!vmm_create_aspace_with_quota(&temp_aspace, "temp_aspace",
+                                         PAGE_SIZE * 5000, 0)) {
+    }
+    ptr += PAGE_SIZE * 2;
+
+    ret = vmm_alloc(_state->aspace, "test_failure", PAGE_SIZE * 5000,
+                    &ptr_unused_1, 0, 0, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+    ret = vmm_alloc(_state->aspace, "test_success", PAGE_SIZE * 2,
+                    &ptr_unused_2, 0, 0, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(temp_aspace, "test_from_reserved_success", PAGE_SIZE * 5000,
+                    &ptr, 0, VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+test_abort:
+    if (temp_aspace)
+        vmm_free_aspace(temp_aspace);
+}
+
+TEST_F(mmutest_pmm, reserve_contiguous) {
+    void* ptr = NULL;
+    status_t ret;
+    ret = vmm_alloc(_state->aspace, "test_reserve", PAGE_SIZE * 2, &ptr, 0,
+                    VMM_FLAG_NO_PHYSICAL, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc_contiguous(_state->aspace, "test_from_reserved_continuous",
+                               PAGE_SIZE * 2, &ptr, 0,
+                               VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+test_abort:;
+}
+
+TEST_F(mmutest_pmm, reserve_too_small) {
+    void* ptr = NULL;
+    status_t ret;
+    ret = vmm_alloc(_state->aspace, "test_reserve", PAGE_SIZE * 2, &ptr, 0,
+                    VMM_FLAG_NO_PHYSICAL, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_from_reserved_too_small",
+                    PAGE_SIZE * 3, &ptr, 0,
+                    VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+test_abort:;
+}
+
+TEST_F(mmutest_pmm, reserve_outside_region) {
+    void* ptr = NULL;
+    status_t ret;
+    ret = vmm_alloc(_state->aspace, "test_reserve", PAGE_SIZE * 2, &ptr, 0,
+                    VMM_FLAG_NO_PHYSICAL, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ptr += PAGE_SIZE;
+    ret = vmm_alloc(_state->aspace, "test_from_reserved_outside_region",
+                    PAGE_SIZE * 2, &ptr, 0,
+                    VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    ASSERT_EQ(ERR_INVALID_ARGS, ret);
+test_abort:;
+}
+
+/* Test suite for PMM */
+
+typedef struct {
+    vmm_aspace_t* aspace;
+} mmutest_res_group_t;
+
+TEST_F_SETUP(mmutest_res_group) {
+    _state->aspace = NULL;
+    status_t ret = vmm_create_aspace_with_quota(&_state->aspace, "mmutestrg",
+                                                PAGE_SIZE, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+test_abort:;
+}
+
+TEST_F_TEARDOWN(mmutest_res_group) {
+    if (_state->aspace) {
+        ASSERT_EQ(NO_ERROR, vmm_free_aspace(_state->aspace));
+    }
+test_abort:;
+}
+
+TEST_F(mmutest_res_group, reserve_group_too_big) {
+    void* ptr;
+    status_t ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE + 1, &ptr,
+                             0, VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+test_abort:;
+}
+
+TEST_F(mmutest_res_group, reserve_group_release_ref) {
+    /* Destroying an aspace releases refs on its vmm_objs. */
+    status_t slice_init = ERR_INVALID_ARGS;
+    void* ptr;
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
+    status_t alloc_ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE,
+                                   &ptr, 0, VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(NO_ERROR, alloc_ret);
+    slice_init = vmm_get_obj(_state->aspace, (vaddr_t)ptr, PAGE_SIZE, &slice);
+    ASSERT_EQ(NO_ERROR, slice_init);
+    ASSERT_EQ(NO_ERROR, vmm_free_aspace(_state->aspace));
+    _state->aspace = NULL;
+    ASSERT_EQ(true, obj_has_only_ref(&slice.obj->obj, &slice.obj_ref));
+test_abort:
+    if (slice_init == NO_ERROR && obj_has_ref(&slice.obj->obj))
+        obj_del_ref(&slice.obj->obj, &slice.obj_ref, NULL);
+}
+
+TEST_F(mmutest_res_group, no_physical_inner_obj) {
+    void* ptr;
+    struct vmm_obj_slice slice;
+    vmm_obj_slice_init(&slice);
+    status_t ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE * 2, &ptr,
+                             0, VMM_FLAG_QUOTA | VMM_FLAG_NO_PHYSICAL, 0);
+    ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE, &ptr, 0,
+                    VMM_FLAG_QUOTA | VMM_FLAG_VALLOC_SPECIFIC, 0);
+    /* vmm_get_obj should look inside NO_PHYSICAL regions and return nested
+     * vmm_objs from inside. */
+    ret = vmm_get_obj(_state->aspace, (vaddr_t)ptr, PAGE_SIZE, &slice);
+    ASSERT_EQ(NO_ERROR, ret);
+    ASSERT_EQ(PAGE_SIZE, slice.size);
+    ASSERT_EQ(NO_ERROR, vmm_free_region(_state->aspace, (vaddr_t)ptr));
+    ASSERT_EQ(true, obj_has_only_ref(&slice.obj->obj, &slice.obj_ref));
+test_abort:;
+}
+
+TEST_F(mmutest_res_group, reserve_group_no_physical) {
+    /* NO_PHYSICAL allocations don't count towards memory usage. */
+    void* ptr;
+    status_t ret =
+            vmm_alloc(_state->aspace, "test_reserved_alloc", PAGE_SIZE * 10,
+                      &ptr, 0, VMM_FLAG_QUOTA | VMM_FLAG_NO_PHYSICAL, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE, &ptr, 0,
+                    VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE, &ptr, 0,
+                    VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+test_abort:;
+}
+
+TEST_F(mmutest_res_group, reserve_group_disable_quota) {
+    /* Allocations without VMM_FLAG_QUOTA set don't count towards memory usage.
+     */
+    void* ptr;
+    status_t ret = vmm_alloc(_state->aspace, "test_reserved_alloc",
+                             PAGE_SIZE * 10, &ptr, 0, 0, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE, &ptr, 0,
+                    VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(NO_ERROR, ret);
+    ret = vmm_alloc(_state->aspace, "test_alloc", PAGE_SIZE, &ptr, 0,
+                    VMM_FLAG_QUOTA, 0);
+    ASSERT_EQ(ERR_NO_MEMORY, ret);
+test_abort:;
 }
 
 PORT_TEST(mmutest, "com.android.kernel.mmutest");
