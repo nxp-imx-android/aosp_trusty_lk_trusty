@@ -48,8 +48,9 @@
 #include <lib/trusty/uctx.h>
 #include <lk/init.h>
 
-/* must be a multiple of sizeof(unsigned long) */
-#define IPC_MAX_HANDLES 64
+#if !defined(IPC_MAX_HANDLES) || ((IPC_MAX_HANDLES + 0) == 0)
+#error "IPC_MAX_HANDLES was not defined. Please check the project build definitions."
+#endif
 
 #define IPC_HANDLE_ID_BASE 1000
 
