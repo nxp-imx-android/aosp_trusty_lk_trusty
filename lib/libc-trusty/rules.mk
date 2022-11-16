@@ -114,15 +114,11 @@ MODULE_SRCS := \
 	$(LK_DIR)/lib/libc/eabi_unwind_stubs.c \
 	$(LK_DIR)/lib/libc/rand.c \
 
-ifeq ($(WITH_CPP_SUPPORT),true)
+# These sources are only necessary to support C++
 MODULE_SRCS += \
 	$(LIBC_TRUSTY_DIR)/locale_stubs.c \
-	$(LIBC_TRUSTY_DIR)/pthreads.c
-
-MODULE_SRCS += \
 	$(LK_DIR)/lib/libc/atexit.c \
 	$(LK_DIR)/lib/libc/pure_virtual.cpp
-endif
 
 # Musl
 MODULE_SRCS += \
@@ -211,14 +207,12 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/stdio/__towrite.c \
 	$(MUSL_DIR)/src/stdio/__uflow.c \
 
-ifeq ($(WITH_CPP_SUPPORT),true)
+# These sources are only necessary to support C++
 MODULE_SRCS += \
 	$(MUSL_DIR)/src/ctype/__ctype_get_mb_cur_max.c \
 	$(MUSL_DIR)/src/multibyte/internal.c \
 	$(MUSL_DIR)/src/multibyte/mbtowc.c \
 	$(MUSL_DIR)/src/multibyte/wcrtomb.c \
-
-endif
 
 include $(LK_DIR)/lib/libc/string/rules.mk
 
