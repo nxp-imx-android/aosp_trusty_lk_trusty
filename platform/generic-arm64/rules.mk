@@ -48,6 +48,7 @@ MODULE_DEFINES += \
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/debug.c \
+	$(LOCAL_DIR)/dtb.c \
 	$(LOCAL_DIR)/platform.c \
 	$(LOCAL_DIR)/smc.c \
 
@@ -69,5 +70,10 @@ MODULE_INCLUDES += \
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/smc_service_access_policy.c \
+
+MODULE_DEPS += \
+	trusty/kernel/lib/dtb_embedded \
+	trusty/kernel/lib/dtb_service \
+	trusty/kernel/lib/ktipc \
 
 include make/module.mk
