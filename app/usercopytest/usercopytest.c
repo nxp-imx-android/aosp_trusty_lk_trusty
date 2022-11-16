@@ -29,6 +29,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <trusty/string.h>
+#ifdef ARCH_ARM64
+#include <arch/safecopy.h>
+#endif
 
 #define PORT_NAME "com.android.kernel.usercopy-unittest"
 
@@ -287,12 +290,95 @@ TEST_P(usercopytest, copy_from_user) {
          * If one of the pages is not readable from user-space copy_from_user
          * should return ERR_FAULT, and the parts of dest_buf that could not be
          * copied into should be set to 0.
-         * Kernel buffer should always be written so potentially uninitialized
-         * kernel data does not leak.
+         * The destination kernel buffer should always be written so
+         * potentially uninitialized kernel data does not leak.
          */
         EXPECT_EQ(ERR_FAULT, ret);
         if (!(arch_mmu_flags_start & ARCH_MMU_FLAG_PERM_USER) ||
             !dest_buf[TEST_BUF_COPY_START]) {
+            expect1 = 0;
+        } else {
+            expect1 = SRC_DATA;
+        }
+        expect2 = 0;
+    }
+
+    EXPECT_EQ(0, checkbuf(dest_buf + TEST_BUF_COPY_START, expect1,
+                          TEST_BUF1_COPY_SIZE));
+    EXPECT_EQ(0, checkbuf(dest_buf + TEST_BUF1_SIZE, expect2,
+                          TEST_BUF2_COPY_SIZE));
+
+    /* Dest bytes before and after copied region should be untouched */
+    EXPECT_EQ(DEST_DATA, dest_buf[0]);
+    EXPECT_EQ(DEST_DATA, dest_buf[TEST_BUF_SIZE - 1]);
+
+    /* Src buffer should not be modified */
+    if (src_kbuf1) {
+        EXPECT_EQ(0, checkbuf(src_kbuf1, SRC_DATA, TEST_BUF1_SIZE));
+    }
+    if (src_kbuf2) {
+        EXPECT_EQ(0, checkbuf(src_kbuf2, SRC_DATA, TEST_BUF2_SIZE));
+    }
+}
+
+#if ARCH_ARM64
+#define ENABLED_ON_ARM64_NAME(name) name
+#else
+#define ENABLED_ON_ARM64_NAME(name) DISABLED_##name
+#define copy_from_anywhere(dst, src, len) -1
+#endif
+
+TEST_P(usercopytest, ENABLED_ON_ARM64_NAME(copy_from_anywhere)) {
+    user_addr_t addr = get_addr_param();
+    uint32_t arch_mmu_flags_start = get_start_flags_param();
+    uint32_t arch_mmu_flags_end = get_end_flags_param();
+    int ret;
+    char dest_buf[TEST_BUF_SIZE];
+    char* src_kbuf1;
+    char* src_kbuf2;
+    char expect1;
+    char expect2;
+
+    memset(dest_buf, DEST_DATA, sizeof(dest_buf));
+    src_kbuf1 = paddr_to_kvaddr(vaddr_to_paddr((void*)(uintptr_t)addr));
+    src_kbuf2 = paddr_to_kvaddr(
+            vaddr_to_paddr((void*)(uintptr_t)addr + TEST_BUF1_SIZE));
+
+    /* src buffs should be NULL iff their flags are FLAGS_NO_PAGE */
+    EXPECT_EQ((src_kbuf1 == NULL), (arch_mmu_flags_start == FLAGS_NO_PAGE));
+    EXPECT_EQ((src_kbuf2 == NULL), (arch_mmu_flags_end == FLAGS_NO_PAGE));
+
+    usercopy_test_init_buf(src_kbuf1, src_kbuf2, SRC_DATA, -1);
+
+    /* Zero-length copy should always succeed */
+    ret = copy_from_anywhere(NULL, addr + TEST_BUF_COPY_START, 0);
+    EXPECT_EQ(0, ret);
+
+    /* Dest buffer should be untouched after zero-length copy */
+    EXPECT_EQ(0, checkbuf(dest_buf, DEST_DATA, TEST_BUF_SIZE));
+
+    /* Perform non-zero length copy */
+    ret = copy_from_anywhere(dest_buf + TEST_BUF_COPY_START,
+                             addr + TEST_BUF_COPY_START, TEST_BUF_COPY_SIZE);
+    if (arch_mmu_flags_start != FLAGS_NO_PAGE &&
+        arch_mmu_flags_end != FLAGS_NO_PAGE) {
+        /*
+         * If both pages are readable, copy_from_anywhere should return
+         * success and every byte should be copied to dest_buf.
+         */
+        EXPECT_EQ(0, ret);
+        expect1 = SRC_DATA;
+        expect2 = SRC_DATA;
+    } else {
+        /*
+         * If one of the pages is not readable copy_from_anywhere should
+         * return ERR_FAULT, and the parts of dest_buf that could not be
+         * copied into should be set to 0.
+         * The destination kernel buffer should always be written so
+         * potentially uninitialized kernel data does not leak.
+         */
+        EXPECT_EQ(ERR_FAULT, ret);
+        if (arch_mmu_flags_start == FLAGS_NO_PAGE) {
             expect1 = 0;
         } else {
             expect1 = SRC_DATA;
