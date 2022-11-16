@@ -97,6 +97,7 @@ TRUSTY_SDK_MODULES := \
 	trusty/user/base/interface/spi \
 	trusty/user/base/interface/storage \
 	trusty/user/base/interface/system_state \
+	trusty/user/base/lib/dlmalloc \
 	trusty/user/base/lib/googletest \
 	trusty/user/base/lib/hwaes \
 	trusty/user/base/lib/hwbcc/rust \
