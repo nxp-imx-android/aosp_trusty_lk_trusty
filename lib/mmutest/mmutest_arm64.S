@@ -153,6 +153,7 @@ FUNCTION(mmutest_arch_store_uint32)
  * Does not return if run from non-executable page.
  */
 FUNCTION(mmutest_arch_nop)
+	bti	c
 	ret
 FUNCTION(mmutest_arch_nop_end)
 
