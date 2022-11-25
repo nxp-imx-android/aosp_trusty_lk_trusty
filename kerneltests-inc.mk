@@ -21,6 +21,7 @@
 #
 
 MODULES += \
+	trusty/kernel/app/btitest \
 	trusty/kernel/app/busytest \
 	trusty/kernel/app/consoletest \
 	trusty/kernel/app/dpctest \
