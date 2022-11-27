@@ -31,7 +31,7 @@ GLOBAL_INCLUDES += \
 MODULE_SRCS += \
 	$(LOCAL_DIR)/external_memory.c \
 
-MODULE_DEPS += \
+MODULE_LIBRARY_DEPS += \
 	lib/binary_search_tree \
 
-include make/module.mk
+include make/library.mk
