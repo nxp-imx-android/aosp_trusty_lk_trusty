@@ -106,6 +106,7 @@ MODULE_COMPILEFLAGS += \
 # NOTE eabi_unwind_stubs.c because libgcc pulls in unwinding stuff.
 MODULE_SRCS := \
 	$(LOCAL_DIR)/abort.c \
+	$(LOCAL_DIR)/close.c \
 	$(LOCAL_DIR)/io_handle.c \
 	$(LOCAL_DIR)/fflush.c \
 	$(LOCAL_DIR)/libc_state.c \
