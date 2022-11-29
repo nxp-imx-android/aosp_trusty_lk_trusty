@@ -38,6 +38,7 @@ ifeq ($(LK_LIBC_IMPLEMENTATION),musl)
 MODULES += \
 	trusty/kernel/lib/libc-trusty/test \
 	trusty/kernel/lib/libcxx-trusty/test \
+	trusty/user/base/app/device_tree/tests/kernel \
 
 endif
 
