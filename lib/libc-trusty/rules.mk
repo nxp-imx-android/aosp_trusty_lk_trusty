@@ -121,6 +121,10 @@ MODULE_SRCS += \
 	$(LK_DIR)/lib/libc/atexit.c \
 	$(LK_DIR)/lib/libc/pure_virtual.cpp
 
+# These stubs are only needed because binder uses libutils which uses pthreads mutex directly
+MODULE_SRCS += \
+	$(LIBC_TRUSTY_DIR)/pthreads.c
+
 # Musl
 MODULE_SRCS += \
 	$(MUSL_DIR)/src/ctype/isalnum.c \
