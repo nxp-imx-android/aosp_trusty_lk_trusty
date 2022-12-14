@@ -92,6 +92,8 @@ static int smc_service_handle_msg(const struct ktipc_port* port,
     struct smc_channel_ctx* channel_ctx = ctx;
     int rc;
     struct smc_msg request;
+    struct smc_msg response = {0};
+    struct smc_regs ret;
     uint32_t smc_nr;
 
     rc = ktipc_recv(channel, sizeof(request), &request, sizeof(request));
@@ -105,7 +107,8 @@ static int smc_service_handle_msg(const struct ktipc_port* port,
     if (rc != NO_ERROR) {
         TRACEF("%s: failed (%d) client not allowed to call SMC number %x\n",
                __func__, rc, smc_nr);
-        goto err;
+        response.params[0] = (ulong)ERR_ACCESS_DENIED;
+        goto send_response;
     }
 
     struct smc_regs args = {
@@ -114,14 +117,14 @@ static int smc_service_handle_msg(const struct ktipc_port* port,
             .r2 = (ulong)request.params[2],
             .r3 = (ulong)request.params[3],
     };
-    struct smc_regs ret = smc(&args);
+    ret = smc(&args);
 
-    struct smc_msg response = {
-            .params[0] = ret.r0,
-            .params[1] = ret.r1,
-            .params[2] = ret.r2,
-            .params[3] = ret.r3,
-    };
+    response.params[0] = ret.r0;
+    response.params[1] = ret.r1;
+    response.params[2] = ret.r2;
+    response.params[3] = ret.r3;
+
+send_response:
     rc = ktipc_send(channel, &response, sizeof(response));
     if ((size_t)rc != sizeof(response)) {
         TRACEF("%s: failed (%d) to send response\n", __func__, rc);
