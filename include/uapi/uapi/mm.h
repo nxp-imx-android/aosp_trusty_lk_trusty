@@ -54,6 +54,25 @@
 #define MMAP_FLAG_ANONYMOUS (0x1 << 5)
 
 /**
+ * MMAP_FLAG_NO_PHYSICAL - the mapping is not backed by any physical memory.
+ * When passed to mmap(), this flag creates a mapping, but does not allocate
+ * any physical memory.
+ *
+ * When this flag is used, the uaddr argument must be 0.
+ */
+#define MMAP_FLAG_NO_PHYSICAL (0x1 << 6)
+
+/**
+ * MMAP_FLAG_FIXED_NOREPLACE - interpret the address exactly. The address
+ * must be page-aligned and should lie within a region previously returned
+ * by an mmap call with `MMAP_FLAG_NO_PHYSICAL` set. If a mapping overlaps
+ * any other region, it will fail.
+ *
+ * When this flag is used, the uaddr argument must also be set.
+ */
+#define MMAP_FLAG_FIXED_NOREPLACE (0x1 << 7)
+
+/**
  * Memory Protection attributes - flags to control mmap attributes
  * %MMAP_FLAG_PROT_NONE:  specifies absence of any mmap prot flags set
  * %MMAP_FLAG_PROT_READ:  specifies that mapped region should be readable

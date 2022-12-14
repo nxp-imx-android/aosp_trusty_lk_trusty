@@ -149,6 +149,7 @@ struct trusty_app {
     uint32_t flags;
     lk_time_ns_t min_start_time;
     vmm_aspace_t* aspace;
+    bool used_brk;
     vaddr_t start_brk;
     vaddr_t cur_brk;
     vaddr_t end_brk;

@@ -166,6 +166,25 @@ long sys_writev(uint32_t fd, user_addr_t iov_uaddr, uint32_t iov_cnt) {
 void* sys_brk(void* u_brk) {
     vaddr_t brk = (vaddr_t)u_brk;
     struct trusty_app* trusty_app = current_trusty_app();
+    if (!brk)
+        return (void*)trusty_app->cur_brk;
+    /* check if this is the first sbrk */
+    if (!trusty_app->used_brk) {
+        uint vmm_flags = VMM_FLAG_QUOTA;
+        status_t ret;
+        size_t size = round_up(trusty_app->end_brk - trusty_app->start_brk,
+                               PAGE_SIZE);
+        vmm_flags |= VMM_FLAG_VALLOC_SPECIFIC;
+        ret = vmm_alloc(
+                trusty_app->aspace, "brk_heap", size,
+                (void*)&trusty_app->start_brk, 0, vmm_flags,
+                ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
+        if (ret) {
+            TRACEF("sbrk heap allocation failed!\n");
+            return (void*)trusty_app->cur_brk;
+        }
+        trusty_app->used_brk = true;
+    }
 
     /* update brk, if within range */
     if ((brk >= trusty_app->start_brk) && (brk <= trusty_app->end_brk)) {
@@ -252,7 +271,7 @@ long sys_mmap(user_addr_t uaddr,
          * Same as above, uaddr must be 0 for now.
          * TBD: Add support to use addr as a hint.
          */
-        if (uaddr != 0) {
+        if (uaddr != 0 && !(flags & MMAP_FLAG_FIXED_NOREPLACE)) {
             return ERR_INVALID_ARGS;
         }
 
@@ -263,8 +282,28 @@ long sys_mmap(user_addr_t uaddr,
             return ret;
         }
 
-        void* ptr = NULL;
-        ret = vmm_alloc(trusty_app->aspace, "mmap", size, &ptr, 0, 0,
+        vaddr_t vaddr = uaddr;
+        void* ptr = (void*)vaddr;
+        uint vmm_flags = VMM_FLAG_QUOTA;
+        if (flags & MMAP_FLAG_FIXED_NOREPLACE) {
+            if (!uaddr) {
+                LTRACEF("a fixed allocation requires a non-NULL pointer\n");
+                return ERR_INVALID_ARGS;
+            }
+            vmm_flags |= VMM_FLAG_VALLOC_SPECIFIC;
+        }
+        if (flags & MMAP_FLAG_NO_PHYSICAL) {
+            if (!(flags & MMAP_FLAG_PROT_WRITE)) {
+                LTRACEF("a NO_PHYSICAL allocation must allow write access\n");
+                return ERR_INVALID_ARGS;
+            }
+            vmm_flags |= VMM_FLAG_NO_PHYSICAL;
+            if (uaddr) {
+                LTRACEF("a NO_PHYSICAL allocation cannot be specific\n");
+                return ERR_INVALID_ARGS;
+            }
+        }
+        ret = vmm_alloc(trusty_app->aspace, "mmap", size, &ptr, 0, vmm_flags,
                         mmu_flags);
         if (ret != NO_ERROR) {
             LTRACEF("error mapping anonymous region\n");

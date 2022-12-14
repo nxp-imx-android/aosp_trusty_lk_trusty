@@ -857,9 +857,9 @@ static status_t init_brk(struct trusty_app* trusty_app) {
 
     /* Allocate if needed. */
     if (brk_size > 0) {
-        status = vmm_alloc(
-                trusty_app->aspace, "heap", brk_size, (void**)&start_brk,
-                PAGE_SIZE_SHIFT, 0,
+        status = vmm_alloc_no_physical(
+                trusty_app->aspace, "brk_heap_res", brk_size,
+                (void**)&start_brk, PAGE_SIZE_SHIFT, 0,
                 ARCH_MMU_FLAG_PERM_USER | ARCH_MMU_FLAG_PERM_NO_EXECUTE);
 
         if (status != NO_ERROR) {
@@ -873,6 +873,7 @@ static status_t init_brk(struct trusty_app* trusty_app) {
     }
 
     /* Record the location. */
+    trusty_app->used_brk = false;
     trusty_app->start_brk = start_brk;
     trusty_app->cur_brk = start_brk;
     trusty_app->end_brk = start_brk + brk_size;
@@ -1426,7 +1427,8 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
              trusty_app->props.uuid.time_mid,
              trusty_app->props.uuid.time_hi_and_version);
 
-    ret = vmm_create_aspace(&trusty_app->aspace, name, 0);
+    ret = vmm_create_aspace_with_quota(&trusty_app->aspace, name,
+                                       trusty_app->props.min_heap_size, 0);
     if (ret != NO_ERROR) {
         dprintf(CRITICAL, "Failed(%d) to allocate address space for %s\n", ret,
                 name);
