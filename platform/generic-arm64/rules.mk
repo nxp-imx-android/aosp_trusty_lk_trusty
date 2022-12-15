@@ -67,6 +67,7 @@ LINKER_SCRIPT += \
 # SMC service support
 MODULE_INCLUDES += \
 	$(TRUSTY_TOP)/trusty/kernel/services/smc/include \
+	$(TRUSTY_TOP)/trusty/user/base/lib/smc/include \
 
 MODULE_SRCS += \
 	$(LOCAL_DIR)/smc_service_access_policy.c \

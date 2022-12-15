@@ -37,6 +37,7 @@
 
 struct smc_channel_ctx {
     struct smc_access_policy policy;
+    struct uuid uuid;
 };
 
 /**
@@ -111,6 +112,15 @@ static int smc_service_handle_msg(const struct ktipc_port* port,
         goto send_response;
     }
 
+    rc = channel_ctx->policy.check_request(smc_nr, &channel_ctx->uuid,
+                                           &request);
+    if (rc != NO_ERROR) {
+        TRACEF("%s: failed (%d) invalid request for SMC number %x\n", __func__,
+               rc, smc_nr);
+        response.params[0] = (ulong)ERR_INVALID_ARGS;
+        goto send_response;
+    }
+
     struct smc_regs args = {
             .r0 = (ulong)request.params[0],
             .r1 = (ulong)request.params[1],
@@ -145,6 +155,7 @@ static int smc_service_handle_connect(const struct ktipc_port* port,
     }
 
     smc_load_access_policy(peer_uuid, &channel_ctx->policy);
+    channel_ctx->uuid = *peer_uuid;
 
     *ctx_p = channel_ctx;
 

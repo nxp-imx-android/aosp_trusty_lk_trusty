@@ -26,12 +26,17 @@
  * defined per platform.
  */
 
+#include <interface/smc/smc.h>
 #include <stdint.h>
 #include <uapi/trusty_uuid.h>
 
 struct smc_access_policy {
     /* Check whether a given SMC is allowed */
     int (*check_access)(uint32_t smc_nr);
+    /* Check whether a given SMC request is valid */
+    int (*check_request)(uint32_t smc_nr,
+                         const struct uuid* uuid,
+                         const struct smc_msg* request);
 };
 
 /*

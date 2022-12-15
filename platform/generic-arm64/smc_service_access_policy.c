@@ -22,6 +22,8 @@
  */
 
 #include <err.h>
+#include <interface/smc/smc.h>
+#include <lib/smc/smc_test.h>
 #include <services/smc/acl.h>
 #include <stdbool.h>
 #include <string.h>
@@ -48,12 +50,36 @@ static int default_access_policy(uint32_t smc_nr) {
     return ERR_ACCESS_DENIED;
 }
 
+static int smc_test_request_check(uint32_t smc_nr,
+                                  const struct uuid* uuid,
+                                  const struct smc_msg* request) {
+    if (smc_nr == SMC_FC64_ECHO_THREE_ARGS &&
+        request->params[1] != SMC_ACCESS_CONTROL_ALLOW_ARGS) {
+        /*
+         * SMC_FC64_ECHO_THREE_ARGS is used to test that we can validate the
+         * arguments of a smcall.
+         */
+        return ERR_INVALID_ARGS;
+    }
+
+    /* SMC test is allowed to make any request. */
+    return NO_ERROR;
+}
+
+static int default_request_check(uint32_t smc_nr,
+                                 const struct uuid* uuid,
+                                 const struct smc_msg* request) {
+    return ERR_ACCESS_DENIED;
+}
+
 void smc_load_access_policy(const struct uuid* uuid,
                             struct smc_access_policy* policy) {
     /* On QEMU builds, only SMC test can have access to SMC service. */
     if (equal_uuid(uuid, &smc_test_uuid)) {
         policy->check_access = smc_test_access_policy;
+        policy->check_request = smc_test_request_check;
         return;
     }
     policy->check_access = default_access_policy;
+    policy->check_request = default_request_check;
 }
