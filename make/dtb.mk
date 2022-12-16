@@ -45,6 +45,7 @@ DTC_PREBUILT := prebuilts/misc/linux-x86/dtc/dtc
 # Preprocess the .dts files
 $(MODULE_CPP_DTS): MODULE_DTS_INCLUDES := $(MODULE_DTS_INCLUDES)
 $(MODULE_CPP_DTS): $(MODULE_DTS)
+	@$(MKDIR)
 	$(NOECHO)$(CC) -E -nostdinc $(MODULE_DTS_INCLUDES) -undef -D__DTS__ \
 		-x assembler-with-cpp -o $@ $<
 
@@ -52,6 +53,7 @@ $(MODULE_CPP_DTS): $(MODULE_DTS)
 $(MODULE_DTB): MODULE_DTC_FLAGS := $(MODULE_DTC_FLAGS)
 $(MODULE_DTB): DTC_PREBUILT := $(DTC_PREBUILT)
 $(MODULE_DTB): $(MODULE_CPP_DTS)
+	@$(MKDIR)
 	$(NOECHO)$(DTC_PREBUILT) -O dtb -o $@ $(MODULE_DTC_FLAGS) --symbols $<
 
 # Ensure the .dtb is built before the module sources are compiled
