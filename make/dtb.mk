@@ -40,9 +40,7 @@ MODULE_DTS_INCLUDES := $(foreach inc,$(MODULE_DTS_INCLUDES),$(addprefix -I,$(inc
 MODULE_CPP_DTS := $(patsubst %.dts,$(BUILDDIR)/%.cpp.dts,$(MODULE_DTS))
 MODULE_DTB := $(patsubst %.cpp.dts,%.dtb,$(MODULE_CPP_DTS))
 
-# TODO: use the prebuilts/misc copy when it's available everywhere
-#DTC_PREBUILT := prebuilts/misc/linux-x86/dtc/dtc
-DTC_PREBUILT := trusty/kernel/make/prebuilts/dtc
+DTC_PREBUILT := prebuilts/misc/linux-x86/dtc/dtc
 
 # Preprocess the .dts files
 $(MODULE_CPP_DTS): MODULE_DTS_INCLUDES := $(MODULE_DTS_INCLUDES)
