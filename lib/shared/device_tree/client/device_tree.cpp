@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
+#define TLOG_TAG "device_tree_client_lib"
+
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportTipcTrusty.h>
 #include <binder/ibinder.h>
 #include <binder/ibinder_utils.h>
+#include <endian.h>
 #include <lib/shared/binder_discover/binder_discover.h>
 #include <lib/shared/device_tree/device_tree.h>
 #include <stdio.h>
 #include <uapi/err.h>
 
 #include <com/android/trusty/device_tree/IDeviceTree.h>
+
+#define LOCAL_TRACE (0)
 
 using android::IBinder;
 using com::android::trusty::device_tree::IDeviceTree;
@@ -282,6 +287,7 @@ int device_tree_prop_get_name(struct device_tree_prop* prop,
                               size_t* name_len) {
     assert(prop != nullptr);
     assert(name != nullptr);
+    assert(name_len != nullptr);
 
     auto pprop = device_tree_prop_to_Property(prop);
     *name = pprop->name.c_str();
@@ -293,9 +299,45 @@ int device_tree_prop_get_value(struct device_tree_prop* prop,
                                uint8_t** value,
                                size_t* size) {
     assert(prop != nullptr);
+    assert(value != nullptr);
+    assert(size != nullptr);
 
     auto pprop = device_tree_prop_to_Property(prop);
     *size = pprop->value.size();
     *value = pprop->value.data();
+    return android::OK;
+}
+
+int device_tree_prop_get_u32(struct device_tree_prop* prop, uint32_t* value) {
+    assert(value != nullptr);
+    uint32_t* tmp_ptr = NULL;
+    size_t prop_size;
+    int rc = device_tree_prop_get_value(prop, (uint8_t**)&tmp_ptr, &prop_size);
+    if (rc != android::OK) {
+        return rc;
+    }
+    if (prop_size != sizeof(uint32_t)) {
+        TLOGI("Property is not a u32\n");
+        return DT_ERROR_INVALID_ARGS;
+    }
+    /* Convert from big-endian to little endian and write to output pointer */
+    *value = be32toh(*tmp_ptr);
+    return android::OK;
+}
+
+int device_tree_prop_get_u64(struct device_tree_prop* prop, uint64_t* value) {
+    assert(value != nullptr);
+    uint64_t* tmp_ptr = NULL;
+    size_t prop_size;
+    int rc = device_tree_prop_get_value(prop, (uint8_t**)&tmp_ptr, &prop_size);
+    if (rc != android::OK) {
+        return rc;
+    }
+    if (prop_size != sizeof(uint64_t)) {
+        TLOGI("Property is not a u64\n");
+        return DT_ERROR_INVALID_ARGS;
+    }
+    /* Convert from big-endian to little endian and write to output pointer */
+    *value = be64toh(*tmp_ptr);
     return android::OK;
 }

@@ -198,6 +198,32 @@ int device_tree_prop_get_value(struct device_tree_prop* prop,
                                size_t* size);
 
 /**
+ * device_tree_prop_get_u32() - Get a property as a uint32_t
+ *
+ * @prop:     Pointer to the property. The property's value must be 4 bytes, but
+ *            otherwise no type-checking is done so it's the caller's
+ *            responsibility to ensure that the property is an integer.
+ * @value:    Pointer to the output value. The value is returned in the host's
+ *            endianness, not necessarily big-endian.
+ *
+ * Return:    An error code reflecting success or failure.
+ */
+int device_tree_prop_get_u32(struct device_tree_prop* prop, uint32_t* value);
+
+/**
+ * device_tree_prop_get_u64() - Get a property as a uint64_t
+ *
+ * @prop:     Pointer to the property. The property's value must be 8 bytes, but
+ *            otherwise no type-checking is done so it's the caller's
+ *            responsibility to ensure that the property is an integer.
+ * @value:    Pointer to the output value. The value is returned in the hosts
+ *            endianness, not necessarily big-endian.
+ *
+ * Return:    An error code reflecting success or failure.
+ */
+int device_tree_prop_get_u64(struct device_tree_prop* prop, uint64_t* value);
+
+/**
  * device_tree_inode_release() - Release the reference to the
  * struct device_tree_inode*.
  *
