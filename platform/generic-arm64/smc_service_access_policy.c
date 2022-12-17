@@ -42,7 +42,14 @@ static bool equal_uuid(const struct uuid* a, const struct uuid* b) {
 }
 
 static int smc_test_access_policy(uint32_t smc_nr) {
-    /* SMC test has access to all SMCs. */
+    /*
+     * SMC_FC_ECHO_ONE_ARG and SMC_FC64_ECHO_ONE_ARG used to test that we
+     * can limit access to smcs.
+     */
+    if (smc_nr == SMC_FC_ECHO_ONE_ARG || smc_nr == SMC_FC64_ECHO_ONE_ARG)
+        return ERR_ACCESS_DENIED;
+
+    /* SMC test has unrestricted access to all other SMCs. */
     return NO_ERROR;
 }
 
@@ -62,7 +69,7 @@ static int smc_test_request_check(uint32_t smc_nr,
         return ERR_INVALID_ARGS;
     }
 
-    /* SMC test is allowed to make any request. */
+    /* SMC test is allowed to make any other request. */
     return NO_ERROR;
 }
 
