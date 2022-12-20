@@ -26,5 +26,6 @@ SECTIONS {
 __trusty_dtb_start = .;
 KEEP(*(.dtb .dtb.*))
 __trusty_dtb_end = .;
+ASSERT(SIZEOF(.dtb) > 0, "No embedded device tree blob was found");
 }
 } INSERT AFTER .rodata;
