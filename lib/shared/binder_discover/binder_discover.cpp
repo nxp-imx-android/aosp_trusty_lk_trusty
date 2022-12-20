@@ -21,16 +21,69 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <binder/IBinder.h>
+#include <lib/binary_search_tree.h>
 #include <lib/shared/binder_discover/binder_discover.h>
 
 #if defined(TRUSTY_USERSPACE)
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportTipcTrusty.h>
 #include <lib/tipc/tipc_srv.h>
+#else
+#include <kernel/mutex.h>
+#endif
+
+struct DiscoveryTreeNode {
+    struct bst_node node;
+    std::string port;
+    android::sp<android::IBinder> binder;
+
+    DiscoveryTreeNode() = delete;
+    DiscoveryTreeNode(std::string&& port)
+            : node(BST_NODE_INITIAL_VALUE), port(std::move(port)) {}
+    DiscoveryTreeNode(std::string&& port,
+                      const android::sp<android::IBinder>& ib)
+            : node(BST_NODE_INITIAL_VALUE), port(std::move(port)), binder(ib) {}
+
+    static int compare_by_port(struct bst_node* a, struct bst_node* b) {
+        auto nodea = containerof(a, DiscoveryTreeNode, node);
+        auto nodeb = containerof(b, DiscoveryTreeNode, node);
+        return nodea->port.compare(nodeb->port);
+    }
+};
+
+static struct bst_root discovery_tree = BST_ROOT_INITIAL_VALUE;
+
+#if defined(TRUSTY_USERSPACE)
+static inline void lock_discovery_tree(void) {}
+static inline void unlock_discovery_tree(void) {}
+#else
+static mutex_t discovery_tree_lock = MUTEX_INITIAL_VALUE(discovery_tree_lock);
+
+static inline void lock_discovery_tree(void) {
+    mutex_acquire(&discovery_tree_lock);
+}
+
+static inline void unlock_discovery_tree(void) {
+    mutex_release(&discovery_tree_lock);
+}
 #endif
 
 int binder_discover_get_service(const char* port,
                                 android::sp<android::IBinder>& ib) {
+    // Search the discovery tree to determine whether an in-process binder
+    // exists for this port; if found, return it.
+    DiscoveryTreeNode key{port};
+    lock_discovery_tree();
+    auto node = bst_search(&discovery_tree, &key.node,
+                           DiscoveryTreeNode::compare_by_port);
+    if (node != nullptr) {
+        ib = containerof(node, DiscoveryTreeNode, node)->binder;
+        unlock_discovery_tree();
+        return android::OK;
+    }
+    unlock_discovery_tree();
+
 #if defined(TRUSTY_USERSPACE)
     android::sp<android::RpcSession> sess = android::RpcSession::make(
             android::RpcTransportCtxFactoryTipcTrusty::make());
@@ -49,5 +102,46 @@ int binder_discover_get_service(const char* port,
     if (!ib) {
         return android::BAD_VALUE;
     }
+    return android::OK;
+}
+
+int binder_discover_add_service(const char* port,
+                                const android::sp<android::IBinder>& ib) {
+    auto node = new (std::nothrow) DiscoveryTreeNode{port, ib};
+    if (node == nullptr) {
+        return android::NO_MEMORY;
+    }
+
+    lock_discovery_tree();
+    auto inserted = bst_insert(&discovery_tree, &node->node,
+                               DiscoveryTreeNode::compare_by_port);
+    unlock_discovery_tree();
+
+    if (!inserted) {
+        delete node;
+        return android::ALREADY_EXISTS;
+    }
+
+    return android::OK;
+}
+
+int binder_discover_remove_service(const char* port) {
+    DiscoveryTreeNode key{port};
+    lock_discovery_tree();
+    auto node = bst_search(&discovery_tree, &key.node,
+                           DiscoveryTreeNode::compare_by_port);
+    if (node != nullptr) {
+        bst_delete(&discovery_tree, node);
+    }
+    unlock_discovery_tree();
+
+    if (node == nullptr) {
+        return android::NAME_NOT_FOUND;
+    }
+
+    // Destruct and free the underlying DiscoveryTreeNode
+    auto full_node = containerof(node, DiscoveryTreeNode, node);
+    delete full_node;
+
     return android::OK;
 }

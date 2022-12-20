@@ -32,12 +32,14 @@ MODULE_EXPORT_INCLUDES := $(LOCAL_DIR)/include
 
 ifeq ($(call TOBOOL,$(TRUSTY_USERSPACE)),true)
 MODULE_LIBRARY_EXPORTED_DEPS := \
+	external/lk/lib/binary_search_tree \
 	frameworks/native/libs/binder/trusty \
 	trusty/user/base/lib/libstdc++-trusty \
 
 else
 MODULE_LIBRARY_EXPORTED_DEPS := \
 	frameworks/native/libs/binder/trusty/kernel \
+	lib/binary_search_tree \
 	trusty/kernel/lib/libcxx-trusty \
 
 endif

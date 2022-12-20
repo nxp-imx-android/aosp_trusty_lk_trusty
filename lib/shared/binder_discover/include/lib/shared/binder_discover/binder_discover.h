@@ -35,3 +35,24 @@
  */
 int binder_discover_get_service(const char* port,
                                 android::sp<android::IBinder>& ib);
+
+/**
+ * binder_discover_add_service() - Add a binder to the discovery service.
+ * @port: Port for the new binder.
+ * @ib: Root binder for the service.
+ *
+ * Return: %OK in case of success, %ALREADY_EXISTS if the port name has already
+ *         been added, another error code otherwise.
+ */
+int binder_discover_add_service(const char* port,
+                                const android::sp<android::IBinder>& ib);
+
+/**
+ * binder_discover_remove_service() - Remove a binder from the discovery
+ *                                    service.
+ * @port: Port for binder to remove.
+ *
+ * Return: %OK in case of success, %NAME_NOT_FOUND if the port
+ *         has not been added previously, error code otherwise.
+ */
+int binder_discover_remove_service(const char* port);
