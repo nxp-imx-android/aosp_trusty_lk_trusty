@@ -15,9 +15,6 @@
  */
 #pragma once
 
-#include <binder/RpcServerTrusty.h>
-#include <binder/RpcSession.h>
-#include <binder/RpcTransportTipcTrusty.h>
 #include <binder/ibinder.h>
 #include <lk/macros.h>
 #include <stdio.h>
@@ -25,6 +22,8 @@
 #include <uapi/err.h>
 
 #if defined(TRUSTY_USERSPACE)
+#include <binder/RpcSession.h>
+#include <binder/RpcTransportTipcTrusty.h>
 #include <lib/tipc/tipc_srv.h>
 #endif
 
