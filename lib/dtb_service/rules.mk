@@ -28,6 +28,8 @@ MODULE_SRCS += \
 
 MODULE_DEPS += \
 	external/dtc/libfdt \
+	trusty/kernel/lib/shared/binder_discover \
+	trusty/kernel/lib/shared/device_tree/service/kernel \
 	trusty/kernel/lib/trusty \
 	trusty/kernel/lib/ktipc \
 	trusty/kernel/lib/vmm_obj_service \

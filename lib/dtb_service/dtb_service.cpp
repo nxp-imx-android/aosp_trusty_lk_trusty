@@ -25,6 +25,8 @@
 #include <kernel/vm.h>
 #include <lib/dtb_service/dtb_service.h>
 #include <lib/ktipc/ktipc.h>
+#include <lib/shared/binder_discover/binder_discover.h>
+#include <lib/shared/device_tree/service/device_tree_service.h>
 #include <lib/trusty/ipc.h>
 #include <lib/vmm_obj_service/vmm_obj_service.h>
 #include <libfdt.h>
@@ -147,10 +149,17 @@ int dtb_service_add(const void* dtb,
         return ERR_INVALID_ARGS;
     }
 
-    /* TODO: start kernel dt service when we add it */
+    auto dt = android::sp<com::android::trusty::device_tree::DeviceTree>::make(
+            static_cast<const unsigned char*>(dtb), dtb_size);
+    int err = binder_discover_add_service(dt_port, dt);
+    if (err != android::OK) {
+        TRACEF("error adding service (%d)\n", err);
+        return ERR_GENERIC;
+    }
 
     int rc = dtb_service_add_user(dtb, dtb_size, dtb_port, server);
     if (rc < 0) {
+        binder_discover_remove_service(dt_port);
         return rc;
     }
 
