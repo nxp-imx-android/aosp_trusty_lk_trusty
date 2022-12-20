@@ -23,6 +23,7 @@ MODULE_SRCS := $(LOCAL_DIR)/../device_tree.cpp
 
 MODULE_DEPS := \
 	trusty/user/base/interface/device_tree \
+	trusty/kernel/lib/shared/binder_discover \
 	trusty/kernel/lib/shared/device_tree/service/kernel \
 	external/dtc/libfdt \
 	frameworks/native/libs/binder/trusty/kernel \

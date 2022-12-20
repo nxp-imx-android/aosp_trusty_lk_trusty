@@ -22,6 +22,7 @@ MODULE_EXPORT_INCLUDES += $(LOCAL_DIR)/include
 MODULE_SRCS := $(LOCAL_DIR)/device_tree.cpp
 
 MODULE_LIBRARY_EXPORTED_DEPS := \
+	trusty/kernel/lib/shared/binder_discover \
 	trusty/user/base/lib/libc-trusty \
 	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/tipc \

@@ -18,6 +18,7 @@
 #include <binder/RpcTransportTipcTrusty.h>
 #include <binder/ibinder.h>
 #include <binder/ibinder_utils.h>
+#include <lib/shared/binder_discover/binder_discover.h>
 #include <lib/shared/device_tree/device_tree.h>
 #include <stdio.h>
 #include <uapi/err.h>
@@ -53,7 +54,7 @@ int device_tree_get_service(device_tree_idevice_tree** tree) {
 #else
             IDeviceTree::KERNEL_PORT().c_str();
 #endif
-    if (int rc = binder_get_service(port, cbinder) != 0) {
+    if (int rc = binder_discover_get_service(port, cbinder) != 0) {
         return rc;
     }
     auto bdr = new (std::nothrow) device_tree_idevice_tree_container{

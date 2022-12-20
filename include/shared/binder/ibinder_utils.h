@@ -21,12 +21,6 @@
 #include <trusty_log.h>
 #include <uapi/err.h>
 
-#if defined(TRUSTY_USERSPACE)
-#include <binder/RpcSession.h>
-#include <binder/RpcTransportTipcTrusty.h>
-#include <lib/tipc/tipc_srv.h>
-#endif
-
 using android::IBinder;
 
 #define DEF_IFACE_CONTAINER(aidl_iface, iface) \
@@ -125,26 +119,3 @@ struct ibinder {};
 DEF_IFACE_CONTAINER(IBinder, ibinder);
 DEF_ADD_REF_IFACE(ibinder);
 DEF_RELEASE_IFACE(ibinder);
-
-static inline int binder_get_service(const char* port_name,
-                                     android::sp<android::IBinder>& ib) {
-#if defined(TRUSTY_USERSPACE)
-    android::sp<android::RpcSession> sess = android::RpcSession::make(
-            android::RpcTransportCtxFactoryTipcTrusty::make());
-    android::status_t status = sess->setupPreconnectedClient({}, [=]() {
-        int srv_fd = connect(port_name, IPC_CONNECT_WAIT_FOR_PORT);
-        return srv_fd >= 0 ? android::base::unique_fd(srv_fd)
-                           : android::base::unique_fd();
-    });
-    if (status != android::OK) {
-        return status;
-    }
-    ib = sess->getRootObject();
-#else
-    panic("out-of-process services are currently unsupported in the kernel\n");
-#endif
-    if (!ib) {
-        return android::BAD_VALUE;
-    }
-    return android::OK;
-}
