@@ -23,8 +23,6 @@
 
 #include <lib/shared/device_tree/service/device_tree_service.h>
 
-#include <binder/RpcServerTrusty.h>
-
 #define LOCAL_TRACE 0
 
 using com::android::trusty::device_tree::DeviceTree;
