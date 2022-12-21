@@ -75,5 +75,6 @@ MODULE_DEPS += \
 	trusty/kernel/lib/dtb_embedded \
 	trusty/kernel/lib/dtb_service \
 	trusty/kernel/lib/ktipc \
+	external/dtc/libfdt \
 
 include make/module.mk
