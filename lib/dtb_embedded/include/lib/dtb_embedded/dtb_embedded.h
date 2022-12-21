@@ -22,10 +22,55 @@
  */
 
 #pragma once
+#include <assert.h>
 #include <lk/compiler.h>
+#include <stdint.h>
 
 __BEGIN_CDECLS
 
-const void* dtb_embedded_get(size_t* size_out);
+struct dtb_embedded_iterator;
+
+/**
+ * dtb_embedded_iterator_new() - Create an iterator for the embedded dtbs
+ * @piter:     Pointer to a pointer to store the allocated iterator.
+ *
+ * Return:    %NO_ERROR in case of success, %ERR_NO_MEMORY or another error code
+ *            otherwise. It's the caller's responsibility to free the iterator
+ *            with dtb_embedded_iterator_free.
+ */
+int dtb_embedded_iterator_new(struct dtb_embedded_iterator** piter);
+
+/**
+ * dtb_embedded_iterator_free() - Free an embedded dtb iterator
+ *
+ * @piter:    Pointer to the iterator to free.
+ *
+ * The function will set @piter to %NULL to prevent double frees.
+ */
+void dtb_embedded_iterator_free(struct dtb_embedded_iterator** piter);
+
+/**
+ * dtb_embedded_iterator_reset() - Reset an iterator to the first embedded dtb
+ *
+ * @iter:    The pointer to the iterator to reset
+ */
+void dtb_embedded_iterator_reset(struct dtb_embedded_iterator* iter);
+
+/**
+ * dtb_embedded_iterator_next() - Advance an iterator to the next embedded dtb
+ *
+ * @iter:         The pointer to the iterator to advance
+ * @dtb:          Out parameter for the next dtb. This pointer's lifetime is
+ *                unrelated to the iterator's and is always valid.
+ * @dtb_size:     Out parameter for the next dtb's size
+ *
+ * Return:        NO_ERROR if the iterator is advanced to the next dtb.
+ *                ERR_OUT_OF_RANGE if the iterator initially points to the last
+ *                dtb. All other errors indicate invalid embedded dtbs or
+ *                arguments.
+ */
+int dtb_embedded_iterator_next(struct dtb_embedded_iterator* iter,
+                               const void** dtb,
+                               size_t* dtb_size);
 
 __END_CDECLS
