@@ -15,42 +15,38 @@
  */
 #pragma once
 
-#include <binder/ibinder.h>
+#include <lib/shared/ibinder/ibinder.h>
 #include <lk/macros.h>
-#include <stdio.h>
-#include <trusty_log.h>
-#include <uapi/err.h>
+#include <utils/StrongPointer.h>
 
-using android::IBinder;
-
-#define DEF_IFACE_CONTAINER(aidl_iface, iface) \
-    struct iface##_container {                 \
-        android::sp<aidl_iface> binder;        \
-        struct iface cbinder;                  \
-        std::atomic<uint32_t> ref_count;       \
+#define IBINDER_DEFINE_IFACE_CONTAINER(aidl_iface, iface) \
+    struct iface##_container {                            \
+        android::sp<aidl_iface> binder;                   \
+        struct iface cbinder;                             \
+        std::atomic<uint32_t> ref_count;                  \
     };
 
-#define DEF_PARCELABLE_CONTAINER(parcel_type, parcel_struct) \
-    struct parcel_struct##_container {                       \
-        parcel_type* parcel;                                 \
-        struct parcel_struct cparcel;                        \
-        std::atomic<uint32_t> ref_count;                     \
+#define IBINDER_DEFINE_PARCELABLE_CONTAINER(parcel_type, parcel_struct) \
+    struct parcel_struct##_container {                                  \
+        parcel_type* parcel;                                            \
+        struct parcel_struct cparcel;                                   \
+        std::atomic<uint32_t> ref_count;                                \
     };
 
-#define DEF_ADD_REF_IFACE(iface)                                               \
+#define IBINDER_DEFINE_ADD_REF_IFACE(iface)                                    \
     void iface##_add_ref(struct iface* self) {                                 \
         auto container = containerof(self, struct iface##_container, cbinder); \
         container->ref_count.fetch_add(1, std::memory_order_relaxed);          \
     }
 
-#define DEF_ADD_REF_PARCELABLE(parcel_struct)                                 \
-    static void parcel_struct##_add_ref(struct parcel_struct* self) {         \
+#define IBINDER_DEFINE_ADD_REF_PARCELABLE(parcel_struct)                      \
+    void parcel_struct##_add_ref(struct parcel_struct* self) {                \
         auto container =                                                      \
                 containerof(self, struct parcel_struct##_container, cparcel); \
         container->ref_count.fetch_add(1, std::memory_order_relaxed);         \
     }
 
-#define DEF_RELEASE_IFACE(iface)                                            \
+#define IBINDER_DEFINE_RELEASE_IFACE(iface)                                 \
     void iface##_release(struct iface** pself) {                            \
         assert(pself != nullptr);                                           \
         assert(*pself != nullptr);                                          \
@@ -65,7 +61,7 @@ using android::IBinder;
         *pself = nullptr;                                                   \
     }
 
-#define DEF_RELEASE_PARCELABLE(parcel_struct)                                  \
+#define IBINDER_DEFINE_RELEASE_PARCELABLE(parcel_struct)                       \
     void parcel_struct##_release(struct parcel_struct** pself) {               \
         assert(pself != nullptr);                                              \
         assert(*pself != nullptr);                                             \
@@ -81,13 +77,13 @@ using android::IBinder;
         *pself = nullptr;                                                      \
     }
 
-#define DEF_GET_CPP_IFACE(aidl, iface)                                         \
+#define IBINDER_DEFINE_GET_CPP_IFACE(aidl, iface)                              \
     android::sp<aidl>& iface##_to_##aidl(struct iface* self) {                 \
         auto container = containerof(self, struct iface##_container, cbinder); \
         return container->binder;                                              \
     }
 
-#define DEF_GET_CPP_PARCELABLE(parcel_type, parcel_struct)                    \
+#define IBINDER_DEFINE_GET_CPP_PARCELABLE(parcel_type, parcel_struct)         \
     parcel_type* parcel_struct##_to_##parcel_type(                            \
             struct parcel_struct* self) {                                     \
         auto container =                                                      \
@@ -95,27 +91,15 @@ using android::IBinder;
         return container->parcel;                                             \
     }
 
-#define DEF_IFACE(aidl_iface, iface)        \
-    DEF_IFACE_CONTAINER(aidl_iface, iface); \
-    DEF_ADD_REF_IFACE(iface);               \
-    DEF_RELEASE_IFACE(iface);               \
-    DEF_GET_CPP_IFACE(aidl_iface, iface);
+#define IBINDER_DEFINE_IFACE(aidl_iface, iface)        \
+    IBINDER_DEFINE_IFACE_CONTAINER(aidl_iface, iface); \
+    IBINDER_DEFINE_ADD_REF_IFACE(iface);               \
+    IBINDER_DEFINE_RELEASE_IFACE(iface);               \
+    IBINDER_DEFINE_GET_CPP_IFACE(aidl_iface, iface);
 
-#define DEF_PARCELABLE(parcel_type, parcel)        \
-    static inline parcel parcel##_builder();       \
-    DEF_PARCELABLE_CONTAINER(parcel_type, parcel); \
-    DEF_ADD_REF_PARCELABLE(parcel);                \
-    DEF_RELEASE_PARCELABLE(parcel);                \
-    DEF_GET_CPP_PARCELABLE(parcel_type, parcel)
-
-// This empty struct must be defined here and not ibinder.h since this header
-// can only be included by .cpp's which ensures that this type has a size of 1
-// byte.  Binder client libraries that attempt to define interfaces as empty
-// structs in headers included by .c's will get a compiler error triggered by
-// -Wextern-c-compat. This limitation does not apply to structs with one or more
-// members.
-struct ibinder {};
-
-DEF_IFACE_CONTAINER(IBinder, ibinder);
-DEF_ADD_REF_IFACE(ibinder);
-DEF_RELEASE_IFACE(ibinder);
+#define IBINDER_DEFINE_PARCELABLE(parcel_type, parcel)        \
+    static inline parcel parcel##_builder();                  \
+    IBINDER_DEFINE_PARCELABLE_CONTAINER(parcel_type, parcel); \
+    IBINDER_DEFINE_ADD_REF_PARCELABLE(parcel);                \
+    IBINDER_DEFINE_RELEASE_PARCELABLE(parcel);                \
+    IBINDER_DEFINE_GET_CPP_PARCELABLE(parcel_type, parcel)

@@ -18,11 +18,10 @@
 
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportTipcTrusty.h>
-#include <binder/ibinder.h>
-#include <binder/ibinder_utils.h>
 #include <endian.h>
 #include <lib/shared/binder_discover/binder_discover.h>
 #include <lib/shared/device_tree/device_tree.h>
+#include <lib/shared/ibinder/macros.h>
 #include <stdio.h>
 #include <uapi/err.h>
 
@@ -43,11 +42,11 @@ struct device_tree_inode_iter {};
 struct device_tree_inode {};
 struct device_tree_prop {};
 
-DEF_IFACE(IDeviceTree, device_tree_idevice_tree);
-DEF_IFACE(IPropIterator, device_tree_iprop_iter);
-DEF_IFACE(INodeIterator, device_tree_inode_iter);
-DEF_IFACE(INode, device_tree_inode);
-DEF_PARCELABLE(Property, device_tree_prop);
+IBINDER_DEFINE_IFACE(IDeviceTree, device_tree_idevice_tree);
+IBINDER_DEFINE_IFACE(IPropIterator, device_tree_iprop_iter);
+IBINDER_DEFINE_IFACE(INodeIterator, device_tree_inode_iter);
+IBINDER_DEFINE_IFACE(INode, device_tree_inode);
+IBINDER_DEFINE_PARCELABLE(Property, device_tree_prop);
 
 int device_tree_get_service(device_tree_idevice_tree** tree) {
     assert(tree != nullptr);

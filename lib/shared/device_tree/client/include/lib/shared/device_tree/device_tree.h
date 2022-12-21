@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <binder/ibinder.h>
+#include <lib/shared/ibinder/ibinder.h>
 #include <lk/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
