@@ -67,3 +67,7 @@ src:*/system/keymaster/android_keymaster/serializable.cpp
 # Exempt libfreetype from overflow sanitization.
 [unsigned-integer-overflow|implicit-integer-sign-change|pointer-overflow|cfi]
 src:*/external/freetype/*
+
+# Exempt libfdt from implicit integer sign changes
+[implicit-integer-sign-change]
+src:external/dtc/libfdt/*
