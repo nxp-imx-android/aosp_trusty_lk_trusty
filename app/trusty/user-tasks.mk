@@ -32,6 +32,14 @@
 #			Add the following files from the pre-compiled app:
 #			- trusty/app/some_prebuilt_app/some_prebuilt_app.elf
 #			- trusty/app/some_prebuilt_app/some_prebuilt_app.manifest
+#	TRUSTY_BUILTIN_USER_TESTS - list of user test to include in the final image.
+#                               These tests must also be included in
+#                               TRUSTY_USER_TESTS or TRUSTY_RUST_USER_TESTS to
+#                               be built. If not set, defaults to including all
+#                               built tests in the image. Projects may set this
+#                               variable to a subset of the available tests, but
+#                               this should be done with the ?= assignment to
+#                               still allow overriding via environment variable.
 #
 
 $(info Include Trusty user tasks support)
@@ -171,10 +179,19 @@ include $(TRUSTY_APP_DIR)/arch/$(TRUSTY_USER_ARCH)/rules.mk
 # TRUSTY_BUILTIN_USER_TASKS directly.
 TRUSTY_BUILTIN_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) \
                              $(TRUSTY_ALL_USER_TASKS) \
-                             $(TRUSTY_USER_TESTS)
+
+
+# Rust crate tests have a -test suffix to their module name to distinguish from
+# the crate itself with the same path.
+RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
+
+# Default to including all user tests in the image if the set of builtin tests
+# is not selected.
+TRUSTY_BUILTIN_USER_TESTS ?= $(TRUSTY_USER_TESTS) $(RUST_USER_TEST_MODULES)
+TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_BUILTIN_USER_TESTS)
 
 ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)  \
-		  $(TRUSTY_LOADABLE_USER_TESTS) $(TRUSTY_RUST_USER_TESTS)
+		  $(TRUSTY_USER_TESTS) $(TRUSTY_LOADABLE_USER_TESTS) $(TRUSTY_RUST_USER_TESTS)
 # sort and remove duplicates
 ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 
@@ -257,10 +274,6 @@ $(foreach t,$(TRUSTY_PREBUILT_USER_TASKS),\
 	$(call prebuilt-app-build-rule,$(t)))
 
 TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_PREBUILT_USER_TASKS)
-
-# Add rust crate tests to the list of built in apps
-RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
-TRUSTY_BUILTIN_USER_TASKS += $(RUST_USER_TEST_MODULES)
 
 # Build the SDK makefile
 $(eval $(call trusty-build-rule,trusty/user/base/sdk))
