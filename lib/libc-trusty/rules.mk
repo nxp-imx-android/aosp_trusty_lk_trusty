@@ -143,6 +143,8 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/ctype/toascii.c \
 	$(MUSL_DIR)/src/ctype/tolower.c \
 	$(MUSL_DIR)/src/ctype/toupper.c \
+	$(MUSL_DIR)/src/internal/intscan.c \
+	$(MUSL_DIR)/src/internal/shgetc.c \
 	$(MUSL_DIR)/src/locale/c_locale.c \
 	$(MUSL_DIR)/src/stdlib/abs.c \
 	$(MUSL_DIR)/src/stdlib/atoi.c \
