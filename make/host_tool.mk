@@ -57,7 +57,7 @@ HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
 HOST_LIBCXX_CPPFLAGS := -stdlib=libc++ -isystem$(CLANG_BINDIR)/../include/c++/v1
 HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
 # Add relative path inside the SDK package to RPATH
-HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../toolchain/clang/lib64'
+HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../../../toolchain/clang/lib64'
 else
 HOST_LIBCXX_CPPFLAGS :=
 HOST_LIBCXX_LDFLAGS :=
