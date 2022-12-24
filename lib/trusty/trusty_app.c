@@ -47,6 +47,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <trace.h>
+#include <uapi/mm.h>
 #include <version.h>
 
 #define LOCAL_TRACE 0
@@ -237,6 +238,130 @@ static bool compare_section_name(ELF_SHDR* shdr,
                                  uint32_t shstbl_size) {
     return shstbl_size - shdr->sh_name > strlen(name) &&
            !strcmp(shstbl + shdr->sh_name, name);
+}
+
+/**
+ * struct trusty_app_dma_allowed_range - Prepared dma range for trusty app.
+ * @node:  Internal list node, should be initialized to
+ *         %LIST_INITIAL_CLEARED_VALUE
+ * @app:   Pointer to the trusty app which prepared this range
+ * @slice: Represents a virtual memory range prepared for dma. Can be used to
+ *         get the physical pages used for dma
+ * @vaddr: Virtual memory address. Used to tear down all mappings from a single
+ *         call to prepare_dma
+ * @flags: Flags used to map dma range
+ */
+struct trusty_app_dma_allowed_range {
+    struct list_node node;
+    struct vmm_obj_slice slice;
+    vaddr_t vaddr;
+    uint32_t flags;
+};
+
+status_t trusty_app_allow_dma_range(struct trusty_app* app,
+                                    struct vmm_obj* obj,
+                                    size_t offset,
+                                    size_t size,
+                                    vaddr_t vaddr,
+                                    uint32_t flags) {
+    DEBUG_ASSERT(obj);
+    DEBUG_ASSERT(app);
+    DEBUG_ASSERT(size);
+
+    /* check that dma range hasn't already been mapped at vaddr */
+    const struct trusty_app_dma_allowed_range* check_range;
+    list_for_every_entry(&app->props.dma_entry_list, check_range,
+                         struct trusty_app_dma_allowed_range, node) {
+        if (check_range->vaddr == vaddr)
+            return ERR_INVALID_ARGS;
+    }
+
+    struct trusty_app_dma_allowed_range* range_list_entry =
+            (struct trusty_app_dma_allowed_range*)calloc(
+                    1, sizeof(struct trusty_app_dma_allowed_range));
+    if (!range_list_entry) {
+        return ERR_NO_MEMORY;
+    }
+    /* range_list_entry->node is already zero-initialized */
+    vmm_obj_slice_init(&range_list_entry->slice);
+    vmm_obj_slice_bind(&range_list_entry->slice, obj, offset, size);
+    range_list_entry->vaddr = vaddr;
+    range_list_entry->flags = flags;
+
+    mutex_acquire(&apps_lock);
+    list_add_tail(&app->props.dma_entry_list, &range_list_entry->node);
+    mutex_release(&apps_lock);
+
+    return NO_ERROR;
+}
+
+status_t trusty_app_destroy_dma_range(vaddr_t vaddr, size_t size) {
+    status_t ret = ERR_INVALID_ARGS;
+    struct trusty_app_dma_allowed_range* range;
+    struct trusty_app_dma_allowed_range* next_range;
+    struct trusty_app* app = current_trusty_app();
+
+    mutex_acquire(&apps_lock);
+    list_for_every_entry_safe(&app->props.dma_entry_list, range, next_range,
+                              struct trusty_app_dma_allowed_range, node) {
+        DEBUG_ASSERT(range->slice.size);
+        if (range->vaddr == vaddr && range->slice.size == size) {
+            list_delete(&range->node);
+            vmm_obj_slice_release(&range->slice);
+            free(range);
+            ret = NO_ERROR;
+            break;
+        }
+    }
+
+    mutex_release(&apps_lock);
+
+    return ret;
+}
+
+/* Must be called with the apps_lock held */
+static bool trusty_app_dma_is_allowed_locked(const struct trusty_app* app,
+                                             paddr_t paddr) {
+    int ret;
+    size_t offset = 0;
+    const struct trusty_app_dma_allowed_range* range;
+
+    DEBUG_ASSERT(app);
+    DEBUG_ASSERT(is_mutex_held(&apps_lock));
+    list_for_every_entry(&app->props.dma_entry_list, range,
+                         struct trusty_app_dma_allowed_range, node) {
+        DEBUG_ASSERT(range->slice.size);
+        do {
+            paddr_t prepared_paddr;
+            size_t prepared_paddr_size;
+            ret = range->slice.obj->ops->get_page(
+                    range->slice.obj, range->slice.offset + offset,
+                    &prepared_paddr, &prepared_paddr_size);
+            if (ret != NO_ERROR) {
+                TRACEF("failed to get pages for paddr 0x%" PRIxPADDR "\n",
+                       paddr);
+                return false;
+            }
+            paddr_t prepared_paddr_end =
+                    prepared_paddr + (prepared_paddr_size - 1);
+            if (paddr >= prepared_paddr && paddr <= prepared_paddr_end) {
+                return true;
+            }
+            offset += MIN(range->slice.size - offset, prepared_paddr_size);
+        } while (offset < range->slice.size &&
+                 (range->flags & DMA_FLAG_MULTI_PMEM));
+    }
+
+    TRACEF("paddr 0x%" PRIxPADDR " is not valid for dma\n", paddr);
+    return false;
+}
+
+bool trusty_app_dma_is_allowed(const struct trusty_app* app, paddr_t paddr) {
+    bool res;
+    mutex_acquire(&apps_lock);
+    res = trusty_app_dma_is_allowed_locked(app, paddr);
+    mutex_release(&apps_lock);
+    return res;
 }
 
 static void finalize_registration(void) {
@@ -564,6 +689,16 @@ static struct trusty_app* trusty_app_find_by_uuid_locked(uuid_t* uuid) {
     }
 
     return NULL;
+}
+
+bool trusty_uuid_dma_is_allowed(const struct uuid* uuid, paddr_t paddr) {
+    bool res;
+    const struct trusty_app* app;
+    mutex_acquire(&apps_lock);
+    app = trusty_app_find_by_uuid_locked((struct uuid*)uuid);
+    res = trusty_app_dma_is_allowed_locked(app, paddr);
+    mutex_release(&apps_lock);
+    return res;
 }
 
 static status_t get_app_manifest_config_data(struct trusty_app* trusty_app,
@@ -1280,6 +1415,7 @@ static status_t trusty_app_create(struct trusty_app_img* app_img,
     }
     list_initialize(&trusty_app->props.port_entry_list);
     list_initialize(&trusty_app->props.mmio_entry_list);
+    list_initialize(&trusty_app->props.dma_entry_list);
 
     ehdr = (ELF_EHDR*)app_img->img_start;
     if (!address_range_within_img(ehdr, sizeof(ELF_EHDR), app_img)) {
@@ -1521,7 +1657,7 @@ void trusty_app_exit(int status) {
     LTRACEF("exiting app %u, %s...\n", app->app_id, app->props.app_name);
 
     if (status) {
-        TRACEF("%s, exited with exit code %d\n", app->aspace->name, status);
+        TRACEF("%s: exited with exit code %d\n", app->aspace->name, status);
         if (!(app->props.mgmt_flags &
               APP_MANIFEST_MGMT_FLAGS_NON_CRITICAL_APP)) {
             panic("Unclean exit from critical app\n");
@@ -1603,6 +1739,17 @@ static status_t app_mgr_handle_terminating(struct trusty_app* app) {
     app->thread = NULL;
     ret = vmm_free_aspace(app->aspace);
     app->aspace = NULL;
+
+    /*
+     * Panic if app exited with dma active. An unclean exit from a critical app
+     * will already have panic'ed the kernel so this check will only detect when
+     * critical apps exit cleanly with dma active and when non-critical apps
+     * exit for any reason with dma active.
+     */
+    if (!list_is_empty(&app->props.dma_entry_list)) {
+        mutex_release(&apps_lock);
+        panic("%s: exited(%d) with dma active\n", app->props.app_name, retcode);
+    }
 
     if (app->props.mgmt_flags & APP_MANIFEST_MGMT_FLAGS_RESTART_ON_EXIT) {
         restart_app = true;

@@ -401,18 +401,23 @@ long sys_prepare_dma(user_addr_t uaddr,
 
     } while (mapped_size < size && (flags & DMA_FLAG_MULTI_PMEM));
 
-    vmm_obj_slice_release(&slice);
-
     if (flags & DMA_FLAG_FROM_DEVICE)
         arch_clean_invalidate_cache_range(vaddr, mapped_size);
     else
         arch_clean_cache_range(vaddr, mapped_size);
 
-    if (!(flags & DMA_FLAG_ALLOW_PARTIAL) && mapped_size != size)
-        return ERR_BAD_LEN;
+    if (!(flags & DMA_FLAG_ALLOW_PARTIAL) && mapped_size != size) {
+        ret = ERR_BAD_LEN;
+        goto err;
+    }
 
-    return entries;
+    ret = trusty_app_allow_dma_range(trusty_app, slice.obj, slice.offset,
+                                     slice.size, vaddr, flags);
+    if (ret != NO_ERROR) {
+        goto err;
+    }
 
+    ret = entries; /* fallthrough */
 err:
     vmm_obj_slice_release(&slice);
     return ret;
@@ -425,6 +430,11 @@ long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
     /* check buffer is in task's address space */
     if (!valid_address((vaddr_t)uaddr, size))
         return ERR_INVALID_ARGS;
+
+    /* check that app prepared dma on the provided virtual address range */
+    status_t ret = trusty_app_destroy_dma_range((vaddr_t)uaddr, size);
+    if (ret != NO_ERROR)
+        return ret;
 
     if (flags & DMA_FLAG_FROM_DEVICE)
         arch_clean_invalidate_cache_range(uaddr, size);

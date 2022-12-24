@@ -80,6 +80,8 @@ struct trusty_app_props {
     uint32_t map_io_mem_cnt;
     struct list_node port_entry_list;
     struct list_node mmio_entry_list;
+    /* record paddrs mapped by prepare_dma until released by finish_dma */
+    struct list_node dma_entry_list;
     int pinned_cpu;
 };
 
@@ -261,5 +263,55 @@ static inline struct trusty_app* current_trusty_app(void) {
     }
     return trusty_thread->app;
 }
+
+/**
+ * trusty_app_allow_dma_range() - Mark dma range as allowed.
+ * @app: app which should be allowed to use dma range
+ * @obj: backing object for the dma range being allowed
+ * @offset: offset into the backing object
+ * @size: size of the dma range in bytes
+ * @vaddr: virtual memory address. Used to tear down all mappings from a single
+ *         call to prepare_dma
+ * @flags: flags used to map dma range
+ *
+ * Return: ERR_INVALID_ARGS if range has already been mapped, ERR_NO_MEMORY if
+ *         allocation of the bookkeeping structure failed, and NO_ERROR
+ *         otherwise.
+ */
+status_t trusty_app_allow_dma_range(struct trusty_app* app,
+                                    struct vmm_obj* obj,
+                                    size_t offset,
+                                    size_t size,
+                                    vaddr_t vaddr,
+                                    uint32_t flags);
+
+/**
+ * trusty_app_destroy_dma_range() - Remove dma range from allowlist and release
+ * the underlying memory.
+ * @vaddr: virtual address associated with the dma range
+ *
+ * Return: NO_ERROR if the ranges were removed and ERR_INVALID_ARGS otherwise
+ */
+status_t trusty_app_destroy_dma_range(vaddr_t vaddr, size_t size);
+
+/**
+ * trusty_app_dma_is_allowed() - Query if the specified physical address
+ * was returned by prepare_dma and not released by finalize_dma.
+ * @app: app whose dma mappings is being queried
+ * @paddr: physical address to check
+ *
+ * Return: true if @paddr is valid and false otherwise.
+ */
+bool trusty_app_dma_is_allowed(const struct trusty_app* app, paddr_t paddr);
+
+/**
+ * trusty_uuid_dma_is_allowed() - Query if the specified physical address
+ * was returned by prepare_dma and not released by finalize_dma.
+ * @uuid: uuid of app whose dma mappings is being queried
+ * @paddr: physical address to check
+ *
+ * Return: true if @paddr is valid and false otherwise.
+ */
+bool trusty_uuid_dma_is_allowed(const struct uuid* uuid, paddr_t paddr);
 
 #endif
