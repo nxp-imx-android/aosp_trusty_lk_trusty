@@ -24,6 +24,7 @@
 #include <err.h>
 #include <interface/smc/smc.h>
 #include <lib/smc/smc_test.h>
+#include <lib/trusty/trusty_app.h>
 #include <services/smc/acl.h>
 #include <stdbool.h>
 #include <string.h>
@@ -60,12 +61,24 @@ static int default_access_policy(uint32_t smc_nr) {
 static int smc_test_request_check(uint32_t smc_nr,
                                   const struct uuid* uuid,
                                   const struct smc_msg* request) {
-    if (smc_nr == SMC_FC64_ECHO_THREE_ARGS &&
+    if ((smc_nr == SMC_FC_ECHO_THREE_ARGS ||
+         smc_nr == SMC_FC64_ECHO_THREE_ARGS) &&
         request->params[1] != SMC_ACCESS_CONTROL_ALLOW_ARGS) {
         /*
          * SMC_FC64_ECHO_THREE_ARGS is used to test that we can validate the
          * arguments of a smcall.
          */
+        if (request->params[1] == SMC_ACCESS_CONTROL_VALIDATE_ARGS) {
+            /*
+             * If first param is SMC_ACCESS_CONTROL_VALIDATE_ARGS, second param
+             * must be a physical address that requesting app prepared for dma.
+             */
+            paddr_t paddr = request->params[2];
+            if (!paddr || !trusty_uuid_dma_is_allowed(uuid, paddr)) {
+                return ERR_INVALID_ARGS;
+            }
+            return NO_ERROR;
+        }
         return ERR_INVALID_ARGS;
     }
 
