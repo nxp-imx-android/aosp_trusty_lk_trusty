@@ -226,8 +226,8 @@ $(TRUSTY_SDK_LICENSE): $(ALL_SDK_LICENSES)
 	$(NOECHO)rm -f $@.tmp
 	$(NOECHO)cat trusty/user/base/sdk/LICENSE >> $@.tmp;
 	$(NOECHO)for license in $^; do \
-		echo -e "\n-------------------------------------------------------------------" >> $@.tmp;\
-		echo -e "Copied from $$license\n\n" >> $@.tmp;\
+		printf "\n-------------------------------------------------------------------\n" >> $@.tmp;\
+		printf "Copied from $$license\n\n\n" >> $@.tmp;\
 		cat "$$license" >> $@.tmp;\
 		done
 	$(call TESTANDREPLACEFILE,$@.tmp,$@)
