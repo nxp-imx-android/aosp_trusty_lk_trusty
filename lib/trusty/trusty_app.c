@@ -323,7 +323,7 @@ status_t trusty_app_destroy_dma_range(vaddr_t vaddr, size_t size) {
 static bool trusty_app_dma_is_allowed_locked(const struct trusty_app* app,
                                              paddr_t paddr) {
     int ret;
-    size_t offset = 0;
+    size_t offset;
     const struct trusty_app_dma_allowed_range* range;
 
     DEBUG_ASSERT(app);
@@ -331,6 +331,7 @@ static bool trusty_app_dma_is_allowed_locked(const struct trusty_app* app,
     list_for_every_entry(&app->props.dma_entry_list, range,
                          struct trusty_app_dma_allowed_range, node) {
         DEBUG_ASSERT(range->slice.size);
+        offset = 0;
         do {
             paddr_t prepared_paddr;
             size_t prepared_paddr_size;
