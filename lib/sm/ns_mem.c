@@ -63,6 +63,8 @@
 /* Normal memory */
 /* inner and outer write back read/write allocate */
 #define NS_MAIR_NORMAL_CACHED_WB_RWA 0xFF
+/* inner and outer write back read/write allocate tagged */
+#define NS_MAIR_NORMAL_CACHED_WB_RWA_TAGGED 0xF0
 /* inner and outer write through read allocate */
 #define NS_MAIR_NORMAL_CACHED_WT_RA 0xAA
 /* inner and outer wriet back, read allocate */
@@ -119,7 +121,13 @@ status_t sm_decode_ns_memory_attr(struct ns_page_info* pinf,
 
         /* match settings to mmu flags */
         switch ((uint)NS_PTE_ATTR_MAIR(attr)) {
+        /*
+         * Normal tagged memory and normal untagged memory can be treated the
+         * same here, because we only ever map it as untagged in Trusty. This
+         * is enforced in vmm by only allowing pmm objecs to be tagged.
+         */
         case NS_MAIR_NORMAL_CACHED_WB_RWA:
+        case NS_MAIR_NORMAL_CACHED_WB_RWA_TAGGED:
             mmu_flags |= ARCH_MMU_FLAG_CACHED;
             break;
         case NS_MAIR_NORMAL_UNCACHED:
