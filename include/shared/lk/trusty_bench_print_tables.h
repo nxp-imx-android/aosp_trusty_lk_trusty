@@ -23,37 +23,6 @@
 
 #pragma once
 
-/*
- * Some Helper Functions for human readable output.
- */
-
-/* Some hardcoded sizes */
-#define BENCH_MAX_COL_SIZE 64
-#define BENCH_LEFTMOST_COL_SIZE 16
-#define BENCH_TITLE_WIDTH 72
-
-/* Total Width of the resulting horizontal Table */
-static size_t trusty_bench_table_total_width = 0;
-
-/**
- * trusty_bench_sprint_col_stat -     print the value of one statistical
- * aggregate in a formatted column
- * @buffer:             Buffer in which to write the results. Preallocated.
- * @val:                Value to print
- * @metric_name:        Name of the metric for which this value is to be
- * formatted
- */
-static inline void trusty_bench_sprint_col_stat(char* buffer,
-                                                int64_t val,
-                                                const char* metric_name) {
-    if (trusty_bench_get_formatted_value_cb == NULL) {
-        sprintf(buffer, "%" PRId64, val);
-    } else {
-        trusty_bench_get_formatted_value_cb(buffer, BENCH_MAX_COL_SIZE, val,
-                                            metric_name);
-        sprintf(buffer, "%s", buffer);
-    }
-}
 /* Max Width ever needed for a cell in the table */
 static size_t trusty_bench_max_column_width = 0;
 
@@ -217,7 +186,7 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
 
         /* Get the size of the max value */
         trusty_bench_sprint_col_stat(
-                buf, entry->metric.aggregates[BENCH_AGGREGATE_MAX],
+                buf, sizeof(buf), entry->metric.aggregates[BENCH_AGGREGATE_MAX],
                 entry->name);
         trusty_bench_max_column_width =
                 MAX(strnlen(buf, sizeof(buf)), trusty_bench_max_column_width);
@@ -226,7 +195,7 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
 
         /* Get the size of the min value, because aggregates are signed */
         trusty_bench_sprint_col_stat(
-                buf, entry->metric.aggregates[BENCH_AGGREGATE_MIN],
+                buf, sizeof(buf), entry->metric.aggregates[BENCH_AGGREGATE_MIN],
                 entry->name);
         trusty_bench_max_column_width =
                 MAX(strnlen(buf, sizeof(buf)), trusty_bench_max_column_width);

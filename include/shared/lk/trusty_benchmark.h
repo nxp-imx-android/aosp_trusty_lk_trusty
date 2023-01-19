@@ -125,6 +125,7 @@
 #include <trusty/time.h>
 
 #include "trusty_bench_common.h"
+#include "trusty_bench_json_print.h"
 #include "trusty_bench_option_cb.h"
 #include "trusty_bench_print_tables.h"
 #include "trusty_unittest.h"
@@ -337,7 +338,7 @@ static inline struct bench_metric_list_node* set_param_metric(
                              STRINGIFY(params));                              \
     TEST_BEGIN_FUNC(STRINGIFY(suite_name), STRINGIFY(bench_name##_##params)); \
     static trusty_bench_print_callback_t trusty_bench_print_cb =              \
-            &trusty_bench_print_vertical_metric_list;                         \
+            &BENCHMARK_PRINT_CB;                                              \
     for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {          \
         benchmark_internal_state.cur_param_idx = idx_param;                   \
         int rc = suite_name##_setup();                                        \

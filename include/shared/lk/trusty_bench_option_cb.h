@@ -24,6 +24,13 @@
 
 #include <lk/list.h>
 
+/* Build Time Option Switching */
+#if (BENCHMARK_MACHINE_READABLE == 1)
+#define BENCHMARK_PRINT_CB trusty_bench_print_json_metric_list
+#else
+#define BENCHMARK_PRINT_CB trusty_bench_print_vertical_metric_list
+#endif
+
 /**
  * typedef trusty_bench_get_param_name_callback - Type of the callback to
  * customize header names of parameter columns

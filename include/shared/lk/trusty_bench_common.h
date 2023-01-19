@@ -22,6 +22,7 @@
  */
 
 #pragma once
+#include "trusty_bench_option_cb.h"
 
 /**
  * enum bench_aggregate_idx - The position of the calculated aggregate in the
@@ -77,3 +78,35 @@ struct bench_metric_list_node {
     size_t col_sz;
     int64_t (*bench_result)(void);
 };
+
+/*
+ * Some Helper Functions for human readable output.
+ */
+
+/* Some hardcoded sizes */
+#define BENCH_MAX_COL_SIZE 64
+#define BENCH_LEFTMOST_COL_SIZE 16
+#define BENCH_TITLE_WIDTH 72
+
+/* Total Width of the resulting horizontal Table */
+static size_t trusty_bench_table_total_width = 0;
+
+/**
+ * trusty_bench_sprint_col_stat -     print the value of one statistical
+ * aggregate in a formatted column
+ * @buffer:             Buffer in which to write the results. Preallocated.
+ * @val:                Value to print
+ * @metric_name:        Name of the metric for which this value is to be
+ * formatted
+ */
+static inline void trusty_bench_sprint_col_stat(char* buffer,
+                                                size_t buffer_len,
+                                                int64_t val,
+                                                const char* metric_name) {
+    if (trusty_bench_get_formatted_value_cb == NULL) {
+        snprintf(buffer, buffer_len, "%" PRId64, val);
+    } else {
+        trusty_bench_get_formatted_value_cb(buffer, buffer_len, val,
+                                            metric_name);
+    }
+}
