@@ -126,15 +126,7 @@ TRUSTY_SDK_MODULES := \
 	trusty/user/base/lib/tipc/rust \
 	trusty/user/base/lib/unittest \
 	trusty/user/base/lib/unittest-rust \
-
-# scudo does not build on 32-bit yet
-ifeq (false,$(call TOBOOL,$(KERNEL_32BIT)))
-ifeq (false,$(call TOBOOL,$(USER_32BIT)))
-TRUSTY_SDK_MODULES += trusty/user/base/lib/scudo
-endif
-endif
-
-TRUSTY_SDK_MODULES += $(EXTRA_TRUSTY_SDK_MODULES)
+	$(EXTRA_TRUSTY_SDK_MODULES)
 
 ALL_SDK_EXTRA_FILES :=
 ALL_SDK_INCLUDES :=
