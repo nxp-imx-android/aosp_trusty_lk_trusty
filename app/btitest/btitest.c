@@ -32,31 +32,29 @@
 #error BTI is an ARM64 feature
 #endif
 
+#include "btitest.h"
 #include <arch/ops.h>
 #include <err.h>
 #include <lib/unittest/unittest.h>
 #include <lk/init.h>
 #include <stdio.h>
 
+/** Assembly relative function call test of all BTI-relevant calls.
+ */
+int btitest_bl(void);
+
 /* Assembly indirect call functions, using all BTI-relevant calls.
  *  BR via x16 and x17 is often used by linkers for veneers and has some
  *  additional handling described in the ARM Architecture Reference Manual,
  *  Table D8-36 (IYWFHD).
+ * The passed func_idx should be one of the BTITEST_CALLEE_ macros, which covers
+ *  the landing pad instruction types given in the ARM Architecture Reference
+ *  Manual, Table D8-37 (ICNBPL).
  */
-int btitest_blr(int (*func)(void));
-int btitest_br_x16(int (*func)(void));
-int btitest_br_x17(int (*func)(void));
-int btitest_br(int (*func)(void));
-
-/* Assembly callee functions, return 0 on success or ERR_FAULT.
- *  These use different branch targets to cover cases in the ARM Architecture
- *  Reference Manual, Table D8-37 (ICNBPL).
- */
-int btitest_callee_nop(void);
-int btitest_callee_bti(void);
-int btitest_callee_bti_c(void);
-int btitest_callee_bti_j(void);
-int btitest_callee_bti_jc(void);
+int btitest_blr(int func_idx);
+int btitest_br_x16(int func_idx);
+int btitest_br_x17(int func_idx);
+int btitest_br(int func_idx);
 
 /* Get the expected return code when a BTI access should be trapped */
 static int bti_trap_code(void) {
@@ -75,55 +73,51 @@ TEST(btitest, supported) {
 
 /* Smoke-test the callee functions; they should return 0 when called with BL */
 TEST(btitest, smoke) {
-    EXPECT_EQ(0, btitest_callee_nop());
-    EXPECT_EQ(0, btitest_callee_bti());
-    EXPECT_EQ(0, btitest_callee_bti_c());
-    EXPECT_EQ(0, btitest_callee_bti_j());
-    EXPECT_EQ(0, btitest_callee_bti_jc());
+    EXPECT_EQ(0, btitest_bl());
 }
 
 TEST(btitest, nop) {
     /* Fault on jump or call to non-bti target */
-    EXPECT_EQ(bti_trap_code(), btitest_br(btitest_callee_nop));
-    EXPECT_EQ(bti_trap_code(), btitest_blr(btitest_callee_nop));
-    EXPECT_EQ(bti_trap_code(), btitest_br_x16(btitest_callee_nop));
-    EXPECT_EQ(bti_trap_code(), btitest_br_x17(btitest_callee_nop));
+    EXPECT_EQ(bti_trap_code(), btitest_br(BTITEST_CALLEE_NOP));
+    EXPECT_EQ(bti_trap_code(), btitest_blr(BTITEST_CALLEE_NOP));
+    EXPECT_EQ(bti_trap_code(), btitest_br_x16(BTITEST_CALLEE_NOP));
+    EXPECT_EQ(bti_trap_code(), btitest_br_x17(BTITEST_CALLEE_NOP));
 }
 
 TEST(btitest, bti) {
     /* Fault on any jump or call to non-target bti */
-    EXPECT_EQ(bti_trap_code(), btitest_br(btitest_callee_bti));
-    EXPECT_EQ(bti_trap_code(), btitest_blr(btitest_callee_bti));
-    EXPECT_EQ(bti_trap_code(), btitest_br_x16(btitest_callee_bti));
-    EXPECT_EQ(bti_trap_code(), btitest_br_x17(btitest_callee_bti));
+    EXPECT_EQ(bti_trap_code(), btitest_br(BTITEST_CALLEE_BTI));
+    EXPECT_EQ(bti_trap_code(), btitest_blr(BTITEST_CALLEE_BTI));
+    EXPECT_EQ(bti_trap_code(), btitest_br_x16(BTITEST_CALLEE_BTI));
+    EXPECT_EQ(bti_trap_code(), btitest_br_x17(BTITEST_CALLEE_BTI));
 }
 
 TEST(btitest, bti_c) {
     /* Call or branch via x16/17 to a call target is valid */
-    EXPECT_EQ(0, btitest_blr(btitest_callee_bti_c));
-    EXPECT_EQ(0, btitest_br_x16(btitest_callee_bti_c));
-    EXPECT_EQ(0, btitest_br_x17(btitest_callee_bti_c));
+    EXPECT_EQ(0, btitest_blr(BTITEST_CALLEE_BTI_C));
+    EXPECT_EQ(0, btitest_br_x16(BTITEST_CALLEE_BTI_C));
+    EXPECT_EQ(0, btitest_br_x17(BTITEST_CALLEE_BTI_C));
 
     /* Fault on branch to call target */
-    EXPECT_EQ(bti_trap_code(), btitest_br(btitest_callee_bti_c));
+    EXPECT_EQ(bti_trap_code(), btitest_br(BTITEST_CALLEE_BTI_C));
 }
 
 TEST(btitest, bti_j) {
     /* Any branch to jump target is valid */
-    EXPECT_EQ(0, btitest_br(btitest_callee_bti_j));
-    EXPECT_EQ(0, btitest_br_x16(btitest_callee_bti_j));
-    EXPECT_EQ(0, btitest_br_x17(btitest_callee_bti_j));
+    EXPECT_EQ(0, btitest_br(BTITEST_CALLEE_BTI_J));
+    EXPECT_EQ(0, btitest_br_x16(BTITEST_CALLEE_BTI_J));
+    EXPECT_EQ(0, btitest_br_x17(BTITEST_CALLEE_BTI_J));
 
     /* Fault on call to jump target */
-    EXPECT_EQ(bti_trap_code(), btitest_blr(btitest_callee_bti_j));
+    EXPECT_EQ(bti_trap_code(), btitest_blr(BTITEST_CALLEE_BTI_J));
 }
 
 TEST(btitest, bti_jc) {
     /* Either branch type allowed to call and jump target */
-    EXPECT_EQ(0, btitest_br(btitest_callee_bti_jc));
-    EXPECT_EQ(0, btitest_br_x16(btitest_callee_bti_c));
-    EXPECT_EQ(0, btitest_br_x17(btitest_callee_bti_c));
-    EXPECT_EQ(0, btitest_blr(btitest_callee_bti_jc));
+    EXPECT_EQ(0, btitest_br(BTITEST_CALLEE_BTI_JC));
+    EXPECT_EQ(0, btitest_br_x16(BTITEST_CALLEE_BTI_JC));
+    EXPECT_EQ(0, btitest_br_x17(BTITEST_CALLEE_BTI_JC));
+    EXPECT_EQ(0, btitest_blr(BTITEST_CALLEE_BTI_JC));
 }
 
 PORT_TEST(btitest, "com.android.kernel.btitest");

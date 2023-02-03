@@ -24,6 +24,7 @@
 #include <asm.h>
 #include <arch/asm_macros.h>
 #include <err.h>
+#include "btitest.h"
 
 .section .text
 
@@ -39,45 +40,74 @@
     ret
 
 /**
- * int btitest_blr(int (*func)(void)) - Use blr to call the passed function
+ * int btitest_bl(void) - Use bl to call each of the test functions
+ *
+ * This calls each of the test functions using bl and a relative offset,
+ * which should always be allowed.  The functions are expected to all return 0.
+ *
+ * Returns The first non-zero return code, or 0 if all functions pass.
+ */
+FUNCTION(btitest_bl)
+    push lr, xzr
+    bl btitest_callee_nop
+    cbnz x0, .Lerror
+    bl btitest_callee_bti
+    cbnz x0, .Lerror
+    bl btitest_callee_bti_c
+    cbnz x0, .Lerror
+    bl btitest_callee_bti_j
+    cbnz x0, .Lerror
+    bl btitest_callee_bti_jc
+.Lerror:
+    pop lr, xzr
+    ret
+
+/**
+ * int btitest_blr(int) - Use blr to call the passed function
  *
  * Returns The called function's return value
  */
 FUNCTION(btitest_blr)
     push lr, xzr
+    bl get_callee
     blr x0
     pop lr, xzr
     ret
 
 /**
- * int btitest_br(int (*func)(void)) - Use br to call the passed function
- *                                     via the x0 register
+ * int btitest_br(int) - Use br to call the passed function via the x0 register
  *
  * Returns The called function's return value
  */
-
 FUNCTION(btitest_br)
+    push lr, xzr
+    bl get_callee
+    pop lr, xzr
     br x0
 
 /**
- * int btitest_br_x16(int (*func)(void)) - Use br to call the passed function
- *                                         via the x16 register
+ * int btitest_br_x16(int) - Use br to call the passed function via the x16
+ *                           register
  *
  * Returns The called function's return value
  */
-
 FUNCTION(btitest_br_x16)
+    push lr, xzr
+    bl get_callee
+    pop lr, xzr
     mov x16, x0
     br x16
 
 /**
- * int btitest_br_x17(int (*func)(void)) - Use br to call the passed function
- *                                         via the x17 register
+ * int btitest_br_x17(int) - Use br to call the passed function via the x17
+ *                           register
  *
  * Returns The called function's return value
  */
-
 FUNCTION(btitest_br_x17)
+    push lr, xzr
+    bl get_callee
+    pop lr, xzr
     mov x17, x0
     br x17
 
@@ -87,7 +117,7 @@ FUNCTION(btitest_br_x17)
  * Returns ERR_FAULT if the BTI check fails.
  * Return 0 if the BTI check passes.
  */
-FUNCTION(btitest_callee_nop)
+LOCAL_FUNCTION(btitest_callee_nop)
     set_fault_handler .Lbtitest_callee_fault
     nop
     mov	x0, #0
@@ -99,7 +129,7 @@ FUNCTION(btitest_callee_nop)
  * Returns ERR_FAULT if the BTI check fails.
  * Return 0 if the BTI check passes.
  */
-FUNCTION(btitest_callee_bti)
+LOCAL_FUNCTION(btitest_callee_bti)
     set_fault_handler .Lbtitest_callee_fault
     bti
     mov	x0, #0
@@ -111,7 +141,7 @@ FUNCTION(btitest_callee_bti)
  * Returns ERR_FAULT if the BTI check fails.
  * Return 0 if the BTI check passes.
  */
-FUNCTION(btitest_callee_bti_c)
+LOCAL_FUNCTION(btitest_callee_bti_c)
     set_fault_handler .Lbtitest_callee_fault
     bti c
     mov	x0, #0
@@ -123,7 +153,7 @@ FUNCTION(btitest_callee_bti_c)
  * Returns ERR_FAULT if the BTI check fails.
  * Return 0 if the BTI check passes.
  */
-FUNCTION(btitest_callee_bti_j)
+LOCAL_FUNCTION(btitest_callee_bti_j)
     set_fault_handler .Lbtitest_callee_fault
     bti j
     mov	x0, #0
@@ -135,8 +165,47 @@ FUNCTION(btitest_callee_bti_j)
  * Returns ERR_FAULT if the BTI check fails.
  * Return 0 if the BTI check passes.
  */
-FUNCTION(btitest_callee_bti_jc)
+LOCAL_FUNCTION(btitest_callee_bti_jc)
     set_fault_handler .Lbtitest_callee_fault
     bti jc
     mov	x0, #0
+    ret
+
+/**
+ * get_callee(int) - Get the address of the callee function.
+ *
+ * Converts the passed function index into the function address.
+ * This is done here to avoid using the C compiler to get function addresses -
+ * the compiler may insert veneers or indirection under some situations (e.g.
+ * for CFI) and break the specific landing pad instructions needed to test BTI.
+ *
+ * Return 0 if the index is not recognised, otherwise the function address.
+ */
+LOCAL_FUNCTION(get_callee)
+    cmp w0, #BTITEST_CALLEE_NOP
+    bne .Ltry_bti
+    adr x0, btitest_callee_nop
+    ret
+.Ltry_bti:
+    cmp w0, #BTITEST_CALLEE_BTI
+    bne .Ltry_bti_c
+    adr x0, btitest_callee_bti
+    ret
+.Ltry_bti_c:
+    cmp w0, #BTITEST_CALLEE_BTI_C
+    bne .Ltry_bti_j
+    adr x0, btitest_callee_bti_c
+    ret
+.Ltry_bti_j:
+    cmp w0, #BTITEST_CALLEE_BTI_J
+    bne .Ltry_bti_jc
+    adr x0, btitest_callee_bti_j
+    ret
+.Ltry_bti_jc:
+    cmp w0, #BTITEST_CALLEE_BTI_JC
+    bne .Lunknown
+    adr x0, btitest_callee_bti_jc
+    ret
+.Lunknown:
+    mov x0, #0
     ret
