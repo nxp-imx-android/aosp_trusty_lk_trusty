@@ -172,6 +172,18 @@ LOCAL_FUNCTION(btitest_callee_bti_jc)
     ret
 
 /**
+ * int btitest_callee_error(void) - Error function which always fails
+ *
+ * This is valid as any jump target.
+ *
+ * Returns ERR_INVALID_ARGS unconditionally.
+ */
+LOCAL_FUNCTION(btitest_callee_error)
+    bti jc
+    mov	x0, #ERR_INVALID_ARGS
+    ret
+
+/**
  * get_callee(int) - Get the address of the callee function.
  *
  * Converts the passed function index into the function address.
@@ -207,5 +219,6 @@ LOCAL_FUNCTION(get_callee)
     adr x0, btitest_callee_bti_jc
     ret
 .Lunknown:
-    mov x0, #0
+    /* Return error function which unconditionally fails any test */
+    adr x0, btitest_callee_error
     ret
