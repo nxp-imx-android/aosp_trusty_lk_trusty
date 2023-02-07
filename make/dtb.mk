@@ -24,21 +24,25 @@
 # Build a devicetree blob module for Trusty
 #
 # This makefile generates a .dtb from a .dts specified by MODULE_DTS, then
-# defines a TRUSTY_EMBEDDED_DTB macro as the path to the .dtb and continues
-# building the module with library.mk. TRUSTY_EMBEDDED_DTB may be used with
-# either the INCBIN macro or the .incbin directive to embed the .dtb in the
-# module.
+# generates a .c that includes the .dtb with an .incbin directive and builds the
+# generated source file with library.mk.
 #
 # args:
 # MODULE : module name (required)
 # MODULE_DTS : a .dts file (required)
 # MODULE_DTC_FLAGS : flags passed to dtc invocation
 # MODULE_DTS_INCLUDES : list of include directories used to preprocess the .dts
+# MODULE_DT_SYM : an optional symbol name for the embedded dtb
 
 MODULE_DTS_INCLUDES := $(foreach inc,$(MODULE_DTS_INCLUDES),$(addprefix -I,$(inc)))
 
 MODULE_CPP_DTS := $(patsubst %.dts,$(BUILDDIR)/%.cpp.dts,$(MODULE_DTS))
 MODULE_DTB := $(patsubst %.cpp.dts,%.dtb,$(MODULE_CPP_DTS))
+MODULE_INCBIN_C := $(patsubst %.dtb,%.c,$(MODULE_DTB))
+
+ifeq ($(MODULE_DT_SYM),)
+MODULE_DT_SYM := $(subst /,_,$(basename $(MODULE_DTS)))
+endif
 
 DTC_PREBUILT := prebuilts/misc/linux-x86/dtc/dtc
 
@@ -56,17 +60,30 @@ $(MODULE_DTB): $(MODULE_CPP_DTS)
 	@$(MKDIR)
 	$(NOECHO)$(DTC_PREBUILT) -O dtb -o $@ $(MODULE_DTC_FLAGS) --symbols $<
 
-# Ensure the .dtb is built before the module sources are compiled
-MODULE_SRCDEPS += \
-	$(MODULE_DTB) \
+# Generate the .c that embeds the .dtb in the module
+$(MODULE_INCBIN_C): MODULE_DTS := $(MODULE_DTS)
+$(MODULE_INCBIN_C): MODULE_DT_SYM := $(MODULE_DT_SYM)
+$(MODULE_INCBIN_C): MODULE_DTB := $(MODULE_DTB)
+$(MODULE_INCBIN_C): $(MODULE_DTB)
+	@$(MKDIR)
+	$(NOECHO) printf "#include <lk/compiler.h>\n" >> $@
+	$(NOECHO) printf "INCBIN_ALIGNED(dtb_$(MODULE_DT_SYM), \
+		dtb_$(MODULE_DT_SYM)_size, \"$(MODULE_DTB)\", \".dtb\", 8);\n" >> $@
 
-# Define TRUSTY_EMBEDDED_DTB for the module sources
-MODULE_COMPILEFLAGS += \
-	-DTRUSTY_EMBEDDED_DTB=\"$(MODULE_DTB)\"
+# Add the generated .c to the module sources
+MODULE_SRCS += \
+	$(MODULE_INCBIN_C) \
 
 include make/library.mk
 
 MODULE_DTS :=
 MODULE_DTC_FLAGS :=
 MODULE_DTS_INCLUDES :=
+
+MODULE_CPP_DTS :=
+MODULE_DTB :=
+MODULE_INCBIN_C :=
+
+MODULE_DT_SYM :=
+
 DTC_PREBUILT :=
