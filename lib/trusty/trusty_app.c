@@ -295,7 +295,7 @@ status_t trusty_app_allow_dma_range(struct trusty_app* app,
 }
 
 status_t trusty_app_destroy_dma_range(vaddr_t vaddr, size_t size) {
-    status_t ret = ERR_INVALID_ARGS;
+    status_t ret = ERR_NOT_FOUND;
     struct trusty_app_dma_allowed_range* range;
     struct trusty_app_dma_allowed_range* next_range;
     struct trusty_app* app = current_trusty_app();

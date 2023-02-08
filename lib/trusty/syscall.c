@@ -431,15 +431,15 @@ long sys_finish_dma(user_addr_t uaddr, uint32_t size, uint32_t flags) {
     if (!valid_address((vaddr_t)uaddr, size))
         return ERR_INVALID_ARGS;
 
-    /* check that app prepared dma on the provided virtual address range */
-    status_t ret = trusty_app_destroy_dma_range((vaddr_t)uaddr, size);
-    if (ret != NO_ERROR)
-        return ret;
-
     if (flags & DMA_FLAG_FROM_DEVICE)
         arch_clean_invalidate_cache_range(uaddr, size);
 
-    return NO_ERROR;
+    /*
+     * Check that app prepared dma on the provided virtual address range.
+     * Returns ERR_NOT_FOUND if the range wasn't found. One way this can
+     * happen is when an app finishes a dma range that it didn't prepare.
+     */
+    return trusty_app_destroy_dma_range((vaddr_t)uaddr, size);
 }
 
 long sys_set_user_tls(user_addr_t uaddr) {
