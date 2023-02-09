@@ -89,15 +89,16 @@ struct bench_metric_list_node {
 #define BENCH_TITLE_WIDTH 72
 
 /* Total Width of the resulting horizontal Table */
-static size_t trusty_bench_table_total_width = 0;
+static size_t trusty_bench_table_total_width;
 
 /**
  * trusty_bench_sprint_col_stat -     print the value of one statistical
  * aggregate in a formatted column
  * @buffer:             Buffer in which to write the results. Preallocated.
+ * @buffer_len:         Size of the Buffer in bytes.
  * @val:                Value to print
  * @metric_name:        Name of the metric for which this value is to be
- * formatted
+ *                      formatted
  */
 static inline void trusty_bench_sprint_col_stat(char* buffer,
                                                 size_t buffer_len,

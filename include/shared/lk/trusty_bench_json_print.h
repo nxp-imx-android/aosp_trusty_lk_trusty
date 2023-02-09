@@ -55,6 +55,7 @@ static inline void trusty_bench_print_json_metric_list(
     struct bench_metric_list_node* entry;
     char buf[BENCH_MAX_COL_SIZE];
     bool first_iter = true;
+
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         if (!first_iter) {

@@ -78,6 +78,8 @@ static trusty_bench_get_formatted_value_callback_t
  * Use to switch between different printing formats.
  * @metric_list:        List of metrics aggregated during all BENCH runs.
  * @nb_params:          Number of Parameters in the param array of BENCH.
+ * @suite_name:         Name of the Bench Suite
+ * @bench_name:         Name of Current Bench
  */
 typedef void (*trusty_bench_print_callback_t)(struct list_node* metric_list,
                                               size_t nb_params,
@@ -89,4 +91,4 @@ typedef void (*trusty_bench_print_callback_t)(struct list_node* metric_list,
  * of trusty_bench_print_callback type. Defaults to vertical printing until
  * command line switch is added.
  */
-static trusty_bench_print_callback_t trusty_bench_print_cb = NULL;
+static trusty_bench_print_callback_t trusty_bench_print_cb;

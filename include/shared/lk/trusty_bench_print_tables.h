@@ -24,16 +24,16 @@
 #pragma once
 
 /* Max Width ever needed for a cell in the table */
-static size_t trusty_bench_max_column_width = 0;
+static size_t trusty_bench_max_column_width;
 
 /* Max Width ever needed for a metric cell in the table */
-static size_t trusty_bench_max_metric_name_width = 0;
+static size_t trusty_bench_max_metric_name_width;
 
 /* Max Width ever needed for a Param cell in the table */
-static size_t trusty_bench_max_param_name_width = 0;
+static size_t trusty_bench_max_param_name_width;
 
 /* Max Width ever needed for a Metric Value cell in the table */
-static size_t trusty_bench_max_metric_digit_width = 0;
+static size_t trusty_bench_max_metric_digit_width;
 
 /**
  * trusty_bench_print_border - Prints a Dash Sequence of prescribed size sz.
@@ -85,6 +85,7 @@ static inline void trusty_bench_print_title(const char* suite,
                                             const char* bench,
                                             const char* param) {
     char buffer[64];
+
     snprintf(buffer, sizeof(buffer), "RUNNING %s_%s_%s", suite, bench, param);
 
     trusty_bench_print_border(BENCH_TITLE_WIDTH);
@@ -152,14 +153,16 @@ static inline void trusty_bench_print_header(struct list_node* metric_list) {
 static inline void trusty_bench_compute_widths(struct list_node* metric_list,
                                                size_t nb_params) {
     struct bench_metric_list_node* entry;
-    trusty_bench_table_total_width = 0;
 
+    trusty_bench_table_total_width = 0;
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         char buf[BENCH_MAX_COL_SIZE];
+
         /* Get the size of the header */
         /* First must be bigger than the size of the param header if any */
         size_t column_width = 0;
+
         if (nb_params > 1) {
             if (trusty_bench_get_param_name_cb) {
                 trusty_bench_get_param_name_cb(buf, sizeof(buf),
@@ -168,6 +171,7 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
                 snprintf(buf, sizeof(buf), "%zu", entry->param_idx);
             }
             size_t param_name_width = strnlen(buf, sizeof(buf));
+
             trusty_bench_max_param_name_width =
                     MAX(trusty_bench_max_param_name_width, param_name_width);
             trusty_bench_max_column_width =
@@ -178,6 +182,7 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
         /* Then must be bigger than the size of the metric header */
         snprintf(buf, sizeof(buf), "%s", entry->name);
         size_t metric_name_width = strnlen(buf, sizeof(buf));
+
         trusty_bench_max_column_width =
                 MAX(trusty_bench_max_column_width, metric_name_width);
         trusty_bench_max_metric_name_width =
@@ -222,11 +227,13 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
  */
 static inline void trusty_bench_print_params(struct list_node* metric_list) {
     struct bench_metric_list_node* entry;
+
     trusty_unittest_printf("|");
     trusty_bench_print_col_header(BENCH_LEFTMOST_COL_SIZE, " Params ", true);
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         char buf[BENCH_MAX_COL_SIZE];
+
         if (trusty_bench_get_param_name_cb) {
             trusty_bench_get_param_name_cb(buf, sizeof(buf), entry->param_idx);
         } else {
@@ -251,6 +258,7 @@ static inline void trusty_bench_print_col_stat(size_t sz,
         trusty_unittest_printf("%*" PRId64 "|", (int)sz, val);
     } else {
         char buffer[32];
+
         trusty_bench_get_formatted_value_cb(buffer, sizeof(buffer), val,
                                             metric_name);
         trusty_unittest_printf("%*s|", (int)sz, buffer);
@@ -268,6 +276,7 @@ static inline void trusty_bench_print_stat(struct list_node* metric_list,
                                            enum bench_aggregate_idx idx,
                                            const char* aggregate_name) {
     struct bench_metric_list_node* entry;
+
     trusty_unittest_printf("|");
     trusty_bench_print_col_header(BENCH_LEFTMOST_COL_SIZE, aggregate_name,
                                   true);
@@ -358,6 +367,7 @@ static inline void trusty_bench_print_vertical_metric_list(
                                       entry->name, false);
         if (nb_params > 1) {
             char buf[BENCH_MAX_COL_SIZE];
+
             if (trusty_bench_get_param_name_cb) {
                 trusty_bench_get_param_name_cb(buf, sizeof(buf),
                                                entry->param_idx);

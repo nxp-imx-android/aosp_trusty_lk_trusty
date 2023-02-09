@@ -159,6 +159,7 @@ static inline void trusty_bench_update_metric(struct bench_metric_node* m,
 static inline void trusty_bench_run_metrics(struct list_node* metric_list,
                                             size_t param_idx) {
     struct bench_metric_list_node* entry;
+
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         if (param_idx == entry->param_idx) {
@@ -177,6 +178,7 @@ static inline void trusty_bench_run_metrics(struct list_node* metric_list,
 static inline void trusty_bench_reset_metrics(struct list_node* metric_list,
                                               size_t param_idx) {
     struct bench_metric_list_node* entry;
+
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         if (param_idx == entry->param_idx) {
@@ -243,8 +245,9 @@ struct benchmark_internal_state {
 
 /**
  * bench_get_duration_ns - convenience function to use in BENCH_RESULT to get
- * the duration of last bench body execution. Return: The duration of the last
- * completed BENCH body in nanoseconds.
+ * the duration of last bench body execution.
+ *
+ * Return: The duration of the last completed BENCH body in nanoseconds.
  */
 static inline int64_t bench_get_duration_ns(void) {
     return benchmark_internal_state.last_bench_body_duration;
@@ -311,6 +314,7 @@ static inline struct bench_metric_list_node* set_param_metric(
                          struct bench_metric_list_node, node) {
         for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {
             struct bench_metric_node tmp_metric = {0, 0, {INT32_MAX, 0, 0}};
+
             list_pool[idx].metric = tmp_metric;
             list_pool[idx].name = entry->name;
             list_pool[idx].param_idx = idx_param;
@@ -342,16 +346,17 @@ static inline struct bench_metric_list_node* set_param_metric(
     for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {          \
         benchmark_internal_state.cur_param_idx = idx_param;                   \
         int rc = suite_name##_setup();                                        \
+                                                                              \
+        if (rc != NO_ERROR) {                                                 \
+            TLOGE("ERROR %d during benchmark setup\n", rc);                   \
+            _test_context.all_ok = false;                                     \
+            _test_context.tests_failed++;                                     \
+        }                                                                     \
+                                                                              \
         for (size_t idx_run = 0; idx_run < nb_runs; ++idx_run) {              \
             int64_t start_time;                                               \
             int64_t end_time;                                                 \
             {                                                                 \
-                if (rc != NO_ERROR) {                                         \
-                    TLOGE("ERROR %d during benchmark setup\n", rc);           \
-                    _test_context.all_ok = false;                             \
-                    _test_context.tests_failed++;                             \
-                }                                                             \
-                                                                              \
                 if (!_test_context.hard_fail && _test_context.all_ok) {       \
                     trusty_gettime(0, &start_time);                           \
                     int64_t res =                                             \
@@ -375,7 +380,7 @@ static inline struct bench_metric_list_node* set_param_metric(
     trusty_bench_print_cb(&metric_list, nb_params, STRINGIFY(suite_name),     \
                           STRINGIFY(bench_name##_##params));                  \
     trusty_bench_get_param_name_cb = NULL;                                    \
-    trusty_bench_get_formatted_value_cb = NULL;
+    trusty_bench_get_formatted_value_cb = NULL
 
 /**
  * BENCH_PARAMETERIZED_PTR -Called when BENCH has 5 parameters. This allows
@@ -407,12 +412,12 @@ static inline struct bench_metric_list_node* set_param_metric(
             return;                                                              \
         }                                                                        \
         BENCH_CORE(suite_name, bench_name, nb_runs, nb_params, params,           \
-                   suite_name##_##bench_name##_metric_##params##_list)           \
+                   suite_name##_##bench_name##_metric_##params##_list);          \
         free(metric_pool);                                                       \
     }                                                                            \
     PARAM_TEST_NODES(suite_name, bench_name, params)                             \
                                                                                  \
-    static int suite_name##_##bench_name##_inner_##params()
+    static int suite_name##_##bench_name##_inner_##params(void)
 
 /**
  * BENCH_PARAMETERIZED -    Called when BENCH has 4 parameters
@@ -439,11 +444,11 @@ static inline struct bench_metric_list_node* set_param_metric(
     static void suite_name##_##bench_name##_bench_non_parametric(void) { \
         benchmark_internal_state.cur_param_idx = 0;                      \
         BENCH_CORE(suite_name, bench_name, nb_runs, 1, non_parametric,   \
-                   suite_name##_##bench_name##_metric_list)              \
+                   suite_name##_##bench_name##_metric_list);             \
     }                                                                    \
                                                                          \
     PARAM_TEST_NODES(suite_name, bench_name, non_parametric)             \
-    static int suite_name##_##bench_name##_inner_non_parametric()
+    static int suite_name##_##bench_name##_inner_non_parametric(void)
 
 /*
  * A few helper macros for static dispatch of BENCH
