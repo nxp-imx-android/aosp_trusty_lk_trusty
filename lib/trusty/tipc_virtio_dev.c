@@ -678,7 +678,7 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
 
     /* out_iovs are not supported: just log message and ignore it */
     if (buf->out_iovs.used != 0) {
-        LTRACEF("unexpected out_iovs num %d\n", buf->in_iovs.used);
+        LTRACEF("unexpected out_iovs num %d\n", buf->out_iovs.used);
     }
 
     /* map in_iovs, Non-secure, no-execute, cached, read-only */
