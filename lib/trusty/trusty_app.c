@@ -77,10 +77,13 @@ STATIC_ASSERT(USER_ASPACE_BASE != 0);
 #endif
 
 #if ELF_64BIT
+#define ELF_NHDR Elf64_Nhdr
 #define ELF_SHDR Elf64_Shdr
 #define ELF_EHDR Elf64_Ehdr
 #define ELF_PHDR Elf64_Phdr
 #define Elf_Addr Elf64_Addr
+#define Elf_Off Elf64_Off
+#define Elf_Word Elf64_Word
 
 #define PRIxELF_Off PRIx64
 #define PRIuELF_Size PRIu64
@@ -88,10 +91,13 @@ STATIC_ASSERT(USER_ASPACE_BASE != 0);
 #define PRIxELF_Addr PRIx64
 #define PRIxELF_Flags PRIx64
 #else
+#define ELF_NHDR Elf32_Nhdr
 #define ELF_SHDR Elf32_Shdr
 #define ELF_EHDR Elf32_Ehdr
 #define ELF_PHDR Elf32_Phdr
 #define Elf_Addr Elf32_Addr
+#define Elf_Off Elf32_Off
+#define Elf_Word Elf32_Word
 
 #define PRIxELF_Off PRIx32
 #define PRIuELF_Size PRIu32
@@ -229,14 +235,6 @@ static bool app_mmio_is_allowed(struct trusty_app* trusty_app,
     }
 
     return false;
-}
-
-static bool compare_section_name(ELF_SHDR* shdr,
-                                 const char* name,
-                                 char* shstbl,
-                                 uint32_t shstbl_size) {
-    return shstbl_size - shdr->sh_name > strlen(name) &&
-           !strcmp(shstbl + shdr->sh_name, name);
 }
 
 /**
@@ -728,6 +726,118 @@ static void destroy_app_phys_mem(struct phys_mem_obj* obj) {
     free(mmio_entry);
 }
 
+/**
+ * load_app_elf_gnu_property_array() - Load app properties from ELF GNU property
+ * array.
+ * @trusty_app:  Trusty application, both giving ELF section and props.
+ * @offset:      Byte offset of the ELF GNU property array structure.
+ * @length:      Length in bytes of the ELF GNU property array.
+ * @out:         Out pointer to write the selected bias to. Only valid if the
+ *               function returned 0.
+ *
+ * Return: If nonzero, the ELF is malformed.  Otherwise NO_ERROR.
+ */
+static status_t load_app_elf_gnu_property_array(struct trusty_app* trusty_app,
+                                                Elf_Off offset,
+                                                size_t length) {
+    const void* elf_start = (void*)trusty_app->app_img.img_start;
+
+    /* Check property array is within the ELF image */
+    if (!address_range_within_img(elf_start + offset, length,
+                                  &trusty_app->app_img)) {
+        return ERR_NOT_VALID;
+    }
+
+    /* Walk through the variable length properties */
+    while (length >= sizeof(ELF_GnuProp)) {
+        const ELF_GnuProp* gp = elf_start + offset;
+        Elf_Word gp_size = sizeof(ELF_GnuProp);
+
+        /* Check header is within bounds */
+        if (!address_range_within_img(gp, gp_size, &trusty_app->app_img)) {
+            return ERR_NOT_VALID;
+        }
+
+        /* Update full size and round to either 4 or 8 byte alignment */
+        gp_size += gp->pr_datasz;
+        gp_size += sizeof(Elf_Word) - 1;
+        gp_size &= ~(sizeof(Elf_Word) - 1);
+
+        /* Check access to the full property */
+        if (gp_size < sizeof(ELF_GnuProp) ||
+            !address_range_within_img(gp, gp_size, &trusty_app->app_img)) {
+            return ERR_NOT_VALID;
+        }
+
+#ifdef ARCH_ARM64
+        /* TODO(mikemcternan): Split into an arch specific function */
+        if (gp && gp->pr_type == GNU_PROPERTY_AARCH64_FEATURE_1_AND) {
+            /* This property should always have an 32-bit value */
+            if (gp->pr_datasz != sizeof(Elf32_Word)) {
+                return ERR_NOT_VALID;
+            }
+
+            switch (gp->pr_data[0]) {
+            case GNU_PROPERTY_AARCH64_FEATURE_1_BTI:
+                trusty_app->props.feature_bti = true;
+                break;
+            default:
+                break;
+            }
+        }
+#endif
+        if (length <= gp_size) {
+            length = 0;
+        } else {
+            length -= gp_size;
+            offset += gp_size;
+        }
+    }
+
+    return NO_ERROR;
+}
+
+static status_t load_app_elf_options(struct trusty_app* trusty_app) {
+    const struct trusty_app_img* app_img = &trusty_app->app_img;
+    const ELF_EHDR* elf = (ELF_EHDR*)app_img->img_start;
+
+    /* Iterate ELF program headers to find PT_GNU_PROPERTY section */
+    for (int i = 0; i < elf->e_phnum; i++) {
+        const ELF_PHDR* phdr =
+                (const void*)elf + elf->e_phoff + (elf->e_phentsize * i);
+
+        if (!address_range_within_img(phdr, sizeof(ELF_PHDR),
+                                      &trusty_app->app_img)) {
+            return ERR_NOT_VALID;
+        }
+
+        /* Check for a GNU property section */
+        if (phdr->p_type == PT_GNU_PROPERTY) {
+            const ELF_NHDR* nhdr = (const void*)elf + phdr->p_offset;
+            const int nhdr_len = sizeof(ELF_NHDR) + sizeof("GNU");
+
+            if (!address_range_within_img(nhdr, nhdr_len,
+                                          &trusty_app->app_img)) {
+                return ERR_NOT_VALID;
+            }
+
+            if (nhdr->n_namesz == sizeof("GNU") &&
+                nhdr->n_type == NT_GNU_PROPERTY_TYPE_0 &&
+                strcmp("GNU", (const char*)nhdr + sizeof(ELF_NHDR)) == 0) {
+                const Elf_Off n_desc = phdr->p_offset + nhdr_len;
+
+                status_t ret = load_app_elf_gnu_property_array(
+                        trusty_app, n_desc, nhdr->n_descsz);
+                if (ret != NO_ERROR) {
+                    return ret;
+                }
+            }
+        }
+    }
+
+    return NO_ERROR;
+}
+
 static status_t load_app_config_options(struct trusty_app* trusty_app) {
     char* manifest_data;
     size_t manifest_size;
@@ -750,6 +860,11 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
     trusty_app->props.mgmt_flags = DEFAULT_MGMT_FLAGS;
     trusty_app->props.pinned_cpu = APP_MANIFEST_PINNED_CPU_NONE;
     trusty_app->props.priority = DEFAULT_PRIORITY;
+
+    ret = load_app_elf_options(trusty_app);
+    if (ret != NO_ERROR) {
+        return ERR_NOT_VALID;
+    }
 
     manifest_data = NULL;
     manifest_size = 0;
@@ -972,6 +1087,17 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
 
     dprintf(SPEW, "trusty_app %u name: %s priority: %u\n", trusty_app->app_id,
             trusty_app->props.app_name, trusty_app->props.priority);
+
+    if (trusty_app->props.feature_bti) {
+        const char* status;
+#ifndef USER_BTI_DISABLED
+        status = arch_bti_supported() ? "enabled"
+                                      : "ignored (unsupported by hw)";
+#else
+        status = "ignored (disabled in kernel)";
+#endif
+        dprintf(SPEW, "trusty_app %u  bti: %s\n", trusty_app->app_id, status);
+    }
 
     LTRACEF("trusty_app %p: stack_sz=0x%x\n", trusty_app,
             trusty_app->props.min_stack_size);
@@ -1562,6 +1688,7 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
     struct trusty_thread* trusty_thread;
     struct trusty_app_notifier* n;
     ELF_EHDR* elf_hdr;
+    uint flags = 0;
     int ret;
 
     DEBUG_ASSERT(trusty_app->state == APP_STARTING);
@@ -1571,8 +1698,14 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
              trusty_app->props.uuid.time_mid,
              trusty_app->props.uuid.time_hi_and_version);
 
+#ifndef USER_BTI_DISABLED
+    if (trusty_app->props.feature_bti && arch_bti_supported()) {
+        flags |= VMM_ASPACE_FLAG_BTI;
+    }
+#endif
+
     ret = vmm_create_aspace_with_quota(&trusty_app->aspace, name,
-                                       trusty_app->props.min_heap_size, 0);
+                                       trusty_app->props.min_heap_size, flags);
     if (ret != NO_ERROR) {
         dprintf(CRITICAL, "Failed(%d) to allocate address space for %s\n", ret,
                 name);

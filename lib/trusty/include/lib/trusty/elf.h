@@ -167,6 +167,7 @@ typedef struct {
 #define PT_HIOS 0x6fffffff   /* OS-specific range HI */
 #define PT_LOPROC 0x70000000 /* Processor-specific range LO */
 #define PT_HIPROC 0x7fffffff /* Processor-specific range HI */
+#define PT_GNU_PROPERTY (PT_LOOS + 0x474e553)
 
 /* p_flags */
 #define PF_R 0x4               /* readable */
@@ -245,3 +246,37 @@ typedef struct {
 #define SHF_TLS 0x00000400              /* Holds thread-local data */
 #define SHF_MASKOS 0x0ff00000           /* OS specific values */
 #define SHF_MASKPROC 0xf0000000         /* Processor-specific values */
+
+/*
+ * Note header
+ */
+typedef struct {
+    Elf32_Word n_namesz;
+    Elf32_Word n_descsz;
+    Elf32_Word n_type;
+} Elf32_Nhdr;
+
+typedef struct {
+    Elf64_Word n_namesz;
+    Elf64_Word n_descsz;
+    Elf64_Word n_type;
+} Elf64_Nhdr;
+
+/* n_type values */
+#define NT_GNU_PROPERTY_TYPE_0 5 /* .note.gnu.property */
+
+/*
+ * GNU Property (.note.gnu.property)
+ */
+typedef struct {
+    Elf32_Word pr_type;
+    Elf32_Word pr_datasz;
+    Elf32_Word pr_data[];
+} ELF_GnuProp;
+
+/* .note.gnu.property types */
+#define GNU_PROPERTY_AARCH64_FEATURE_1_AND 0xc0000000
+
+/* Bits for GNU_PROPERTY_AARCH64_FEATURE_1_AND */
+#define GNU_PROPERTY_AARCH64_FEATURE_1_BTI (1u << 0)
+#define GNU_PROPERTY_AARCH64_FEATURE_1_PAC (1u << 1)

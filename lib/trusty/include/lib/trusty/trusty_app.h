@@ -84,6 +84,7 @@ struct trusty_app_props {
     struct list_node dma_entry_list;
     int pinned_cpu;
     int priority;
+    bool feature_bti;
 };
 
 struct trusty_app_img {
