@@ -372,7 +372,15 @@ static int64_t trusty_bench_get_overhead(void) {
             _test_context.all_ok = false;                                     \
             _test_context.tests_failed++;                                     \
         }                                                                     \
+        /* Cold Run */                                                        \
+        int64_t res = suite_name##_##bench_name##_inner_##params();           \
+                                                                              \
+        if (res != NO_ERROR) {                                                \
+            TLOGE("ERROR During Cold Run%" PRId64 "\n", res);                 \
+        }                                                                     \
+                                                                              \
         int64_t overhead = trusty_bench_get_overhead();                       \
+                                                                              \
         for (size_t idx_run = 0; idx_run < nb_runs; ++idx_run) {              \
             int64_t start_time;                                               \
             int64_t end_time;                                                 \
