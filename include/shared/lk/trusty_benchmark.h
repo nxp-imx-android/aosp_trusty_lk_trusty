@@ -238,10 +238,10 @@ static inline void trusty_bench_reset_metrics(struct list_node* metric_list,
  *                              the bench body.
  * @cur_param_idx:              index of current parameter in param_array.
  */
-struct benchmark_internal_state {
+static struct benchmark_internal_state {
     int64_t last_bench_body_duration;
     size_t cur_param_idx;
-} benchmark_internal_state;
+} bench_state;
 
 /**
  * bench_get_duration_ns - convenience function to use in BENCH_RESULT to get
@@ -250,7 +250,7 @@ struct benchmark_internal_state {
  * Return: The duration of the last completed BENCH body in nanoseconds.
  */
 static inline int64_t bench_get_duration_ns(void) {
-    return benchmark_internal_state.last_bench_body_duration;
+    return bench_state.last_bench_body_duration;
 }
 
 /**
@@ -259,7 +259,7 @@ static inline int64_t bench_get_duration_ns(void) {
  * Return: The index of the parameter BENCH_XXX is running for.
  */
 static inline size_t bench_get_param_idx(void) {
-    return benchmark_internal_state.cur_param_idx;
+    return bench_state.cur_param_idx;
 }
 
 /**
@@ -327,6 +327,26 @@ static inline struct bench_metric_list_node* set_param_metric(
 }
 
 /**
+ * trusty_bench_get_overhead - Get Minimal overhead of the benchmark around
+ * benched function
+ *
+ * Return:        The Value of the overhead in nanoseconds.
+ */
+static int64_t trusty_bench_get_overhead(void) {
+    const size_t nb_runs = 100;
+    int64_t start_time;
+    int64_t end_time;
+    int64_t res = INT64_MAX;
+
+    for (size_t i = 0; i < nb_runs; ++i) {
+        trusty_gettime(0, &start_time);
+        trusty_gettime(0, &end_time);
+        res = MIN(end_time - start_time, res);
+    }
+    return res;
+}
+
+/**
  * BENCH_CORE -             Called by both parametrized and unparameterized
  * BENCH for their common part
  * @suite_name:             Identifier of the current suite.
@@ -344,7 +364,7 @@ static inline struct bench_metric_list_node* set_param_metric(
     static trusty_bench_print_callback_t trusty_bench_print_cb =              \
             &BENCHMARK_PRINT_CB;                                              \
     for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {          \
-        benchmark_internal_state.cur_param_idx = idx_param;                   \
+        bench_state.cur_param_idx = idx_param;                                \
         int rc = suite_name##_setup();                                        \
                                                                               \
         if (rc != NO_ERROR) {                                                 \
@@ -352,26 +372,29 @@ static inline struct bench_metric_list_node* set_param_metric(
             _test_context.all_ok = false;                                     \
             _test_context.tests_failed++;                                     \
         }                                                                     \
-                                                                              \
+        int64_t overhead = trusty_bench_get_overhead();                       \
         for (size_t idx_run = 0; idx_run < nb_runs; ++idx_run) {              \
             int64_t start_time;                                               \
             int64_t end_time;                                                 \
-            {                                                                 \
-                if (!_test_context.hard_fail && _test_context.all_ok) {       \
-                    trusty_gettime(0, &start_time);                           \
-                    int64_t res =                                             \
-                            suite_name##_##bench_name##_inner_##params();     \
-                    trusty_gettime(0, &end_time);                             \
-                    benchmark_internal_state.last_bench_body_duration =       \
-                            end_time - start_time;                            \
+            if (!_test_context.hard_fail && _test_context.all_ok) {           \
+                trusty_gettime(0, &start_time);                               \
+                int64_t res = suite_name##_##bench_name##_inner_##params();   \
+                trusty_gettime(0, &end_time);                                 \
+                bench_state.last_bench_body_duration = end_time - start_time; \
+                if (overhead >= bench_state.last_bench_body_duration) {       \
+                    TLOGE("Benchmark internal function is too fast %" PRId64  \
+                          "ns, while the benchmark overhead is %" PRId64      \
+                          "ns.",                                              \
+                          overhead, bench_state.last_bench_body_duration);    \
+                }                                                             \
                                                                               \
-                    if (res != NO_ERROR) {                                    \
-                        TLOGE("ERROR %" PRId64 "\n", res);                    \
-                    }                                                         \
+                bench_state.last_bench_body_duration -= overhead;             \
+                if (res != NO_ERROR) {                                        \
+                    TLOGE("ERROR %" PRId64 "\n", res);                        \
                 }                                                             \
-                if (!_test_context.hard_fail && _test_context.all_ok) {       \
-                    trusty_bench_run_metrics(&metric_list, idx_param);        \
-                }                                                             \
+            }                                                                 \
+            if (!_test_context.hard_fail && _test_context.all_ok) {           \
+                trusty_bench_run_metrics(&metric_list, idx_param);            \
             }                                                                 \
         }                                                                     \
         suite_name##_teardown();                                              \
@@ -442,7 +465,7 @@ static inline struct bench_metric_list_node* set_param_metric(
     static struct list_node suite_name##_##bench_name##_metric_list =    \
             LIST_INITIAL_VALUE(suite_name##_##bench_name##_metric_list); \
     static void suite_name##_##bench_name##_bench_non_parametric(void) { \
-        benchmark_internal_state.cur_param_idx = 0;                      \
+        bench_state.cur_param_idx = 0;                                   \
         BENCH_CORE(suite_name, bench_name, nb_runs, 1, non_parametric,   \
                    suite_name##_##bench_name##_metric_list);             \
     }                                                                    \
