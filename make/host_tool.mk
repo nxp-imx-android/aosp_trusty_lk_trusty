@@ -53,11 +53,11 @@ HOST_LDFLAGS += -B$(CLANG_BINDIR) -fuse-ld=lld
 ifneq ($(filter stdc++ c++,$(HOST_LIBS)),)
 # Add the prebuilt libraries directory to the tool's rpath,
 # so it can use those libraries, e.g., libc++.so
-HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
 HOST_LIBCXX_CPPFLAGS := -stdlib=libc++ -isystem$(CLANG_BINDIR)/../include/c++/v1
-HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+HOST_LIBCXX_LDFLAGS := -L$(CLANG_HOST_LIBDIR) -stdlib=libc++ -Wl,-rpath,$(CLANG_HOST_LIBDIR)
 # Add relative path inside the SDK package to RPATH
-HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../../../toolchain/clang/lib64'
+HOST_SDK_LIBCXX_DIR := $(subst $(CLANG_BINDIR)/..,clang,$(CLANG_HOST_LIBDIR))
+HOST_LIBCXX_LDFLAGS += -Wl,-rpath,'$$ORIGIN/../../../toolchain/$(HOST_SDK_LIBCXX_DIR)'
 else
 HOST_LIBCXX_CPPFLAGS :=
 HOST_LIBCXX_LDFLAGS :=
@@ -100,6 +100,7 @@ HOST_DEPS :=
 # Cleanup internal
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
+HOST_SDK_LIBCXX_DIR :=
 HOST_TOOL_BIN :=
 HOST_OBJ_DIR :=
 GENERIC_OBJS :=

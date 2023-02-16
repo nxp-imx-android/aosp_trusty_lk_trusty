@@ -54,8 +54,7 @@ HOST_CC := $(CLANG_BINDIR)/clang
 HOST_SANITIZER_FLAGS := -fsanitize=address -fno-omit-frame-pointer
 HOST_RUN_ENV := ASAN_OPTIONS=symbolize=1 ASAN_SYMBOLIZER_PATH=$(CLANG_BINDIR)/llvm-symbolizer
 HOST_LIBCXX_CPPFLAGS := -stdlib=libc++ -isystem$(CLANG_BINDIR)/../include/c++/v1
-HOST_LIBCXX_PATH := $(CLANG_BINDIR)/../lib64/libc++.so
-HOST_LIBCXX_LDFLAGS := -L$(dir $(HOST_LIBCXX_PATH)) -stdlib=libc++ -Wl,-rpath,$(dir $(HOST_LIBCXX_PATH))
+HOST_LIBCXX_LDFLAGS := -L$(CLANG_HOST_LIBDIR) -stdlib=libc++ -Wl,-rpath,$(CLANG_HOST_LIBDIR)
 # ASAN is not compatible with GDB.
 HOST_DEBUGGER :=
 
@@ -112,7 +111,6 @@ HOST_SANITIZER_FLAGS :=
 HOST_RUN_ENV :=
 HOST_LIBCXX_CPPFLAGS :=
 HOST_LDFLAGS :=
-HOST_LIBCXX_PATH :=
 HOST_LIBCXX_LDFLAGS :=
 HOST_DEBUGGER :=
 HOST_TEST_BIN :=
