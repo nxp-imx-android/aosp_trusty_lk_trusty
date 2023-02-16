@@ -66,7 +66,7 @@ $(MODULE_INCBIN_C): MODULE_DT_SYM := $(MODULE_DT_SYM)
 $(MODULE_INCBIN_C): MODULE_DTB := $(MODULE_DTB)
 $(MODULE_INCBIN_C): $(MODULE_DTB)
 	@$(MKDIR)
-	$(NOECHO) printf "#include <lk/compiler.h>\n" >> $@
+	$(NOECHO) printf "#include <lk/compiler.h>\n" > $@
 	$(NOECHO) printf "INCBIN_ALIGNED(dtb_$(MODULE_DT_SYM), \
 		dtb_$(MODULE_DT_SYM)_size, \"$(MODULE_DTB)\", \".dtb\", 8);\n" >> $@
 
