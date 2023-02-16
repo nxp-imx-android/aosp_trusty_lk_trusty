@@ -347,6 +347,27 @@ static int64_t trusty_bench_get_overhead(void) {
 }
 
 /**
+ * get_extended_test_name - Print Status of Currently Running Bench.
+ *
+ * @test_name_in:   Name of the Current Unparameterized Test.
+ * @test_name_out:  Name of the Current Unparameterized Test.
+ *                  + "_[param_idx]"
+ *
+ * Return:          When successful, returns 0
+ *                  If test_name_out allocation/print failed returns asprintf
+ *                  return code
+ */
+static inline int get_extended_test_name(const char* test_name_in,
+                                         char** test_name_out) {
+    int res = asprintf(test_name_out, "%s_%zu", test_name_in,
+                       bench_state.cur_param_idx);
+    if (res < 0) {
+        return res;
+    }
+    return 0;
+}
+
+/**
  * BENCH_CORE -             Called by both parametrized and unparameterized
  * BENCH for their common part
  * @suite_name:             Identifier of the current suite.
@@ -360,23 +381,37 @@ static int64_t trusty_bench_get_overhead(void) {
                    metric_list)                                               \
     trusty_bench_print_title(STRINGIFY(suite_name), STRINGIFY(bench_name),    \
                              STRINGIFY(params));                              \
-    TEST_BEGIN_FUNC(STRINGIFY(suite_name), STRINGIFY(bench_name##_##params)); \
     static trusty_bench_print_callback_t trusty_bench_print_cb =              \
             &BENCHMARK_PRINT_CB;                                              \
     for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {          \
         bench_state.cur_param_idx = idx_param;                                \
+        char* extended_test_name = NULL;                                      \
+        int res_alloc = get_extended_test_name(                               \
+                STRINGIFY(bench_name##_##params), &extended_test_name);       \
+        if (res_alloc < 0) {                                                  \
+            TLOGE("ERROR %d expanding test name\n", res_alloc);               \
+            _test_context.all_ok = false;                                     \
+            _test_context.tests_failed++;                                     \
+            continue;                                                         \
+        }                                                                     \
+        TEST_BEGIN_FUNC(STRINGIFY(suite_name), extended_test_name);           \
+                                                                              \
         int rc = suite_name##_setup();                                        \
                                                                               \
         if (rc != NO_ERROR) {                                                 \
             TLOGE("ERROR %d during benchmark setup\n", rc);                   \
             _test_context.all_ok = false;                                     \
             _test_context.tests_failed++;                                     \
+            continue;                                                         \
         }                                                                     \
         /* Cold Run */                                                        \
         int64_t res = suite_name##_##bench_name##_inner_##params();           \
                                                                               \
         if (res != NO_ERROR) {                                                \
             TLOGE("ERROR During Cold Run%" PRId64 "\n", res);                 \
+            _test_context.all_ok = false;                                     \
+            _test_context.tests_failed++;                                     \
+            continue;                                                         \
         }                                                                     \
                                                                               \
         int64_t overhead = trusty_bench_get_overhead();                       \
@@ -406,8 +441,10 @@ static int64_t trusty_bench_get_overhead(void) {
             }                                                                 \
         }                                                                     \
         suite_name##_teardown();                                              \
+        TEST_END_FUNC();                                                      \
+        free(extended_test_name);                                             \
+        extended_test_name = NULL;                                            \
     }                                                                         \
-    TEST_END_FUNC();                                                          \
     trusty_bench_print_cb(&metric_list, nb_params, STRINGIFY(suite_name),     \
                           STRINGIFY(bench_name##_##params));                  \
     trusty_bench_get_param_name_cb = NULL;                                    \
