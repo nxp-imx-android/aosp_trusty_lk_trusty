@@ -41,7 +41,9 @@ MODULE_DTB := $(patsubst %.cpp.dts,%.dtb,$(MODULE_CPP_DTS))
 MODULE_INCBIN_C := $(patsubst %.dtb,%.c,$(MODULE_DTB))
 
 ifeq ($(MODULE_DT_SYM),)
-MODULE_DT_SYM := $(subst /,_,$(basename $(MODULE_DTS)))
+# Generate a symbol name by taking the module name and replacing
+# all non-alphanumeric characters in it with underscores
+MODULE_DT_SYM := $(shell printf "$(basename $(MODULE_DTS))" | tr -c '[:alnum:]' '_')
 endif
 
 DTC_PREBUILT := prebuilts/misc/linux-x86/dtc/dtc
