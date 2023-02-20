@@ -155,15 +155,22 @@ static inline void trusty_bench_update_metric(struct bench_metric_node* m,
  * @metric_list:        List of metrics aggregated during all BENCH runs.
  * @param_idx:          Index of the current parameter in the param_array of
  *                      BENCH.
+ * @cold_run:           Are we updating metrics for the initial cold run?
  */
 static inline void trusty_bench_run_metrics(struct list_node* metric_list,
-                                            size_t param_idx) {
+                                            size_t param_idx,
+                                            bool cold_run) {
     struct bench_metric_list_node* entry;
 
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
         if (param_idx == entry->param_idx) {
-            trusty_bench_update_metric(&entry->metric, entry->bench_result());
+            if (cold_run) {
+                entry->metric.cold = entry->bench_result();
+            } else {
+                trusty_bench_update_metric(&entry->metric,
+                                           entry->bench_result());
+            }
         }
     }
 }
@@ -219,7 +226,7 @@ static inline void trusty_bench_reset_metrics(struct list_node* metric_list,
     static struct bench_metric_list_node                                         \
             suite_name##_##bench_name##_##metric_name##_node = {                 \
                     .node = LIST_INITIAL_CLEARED_VALUE,                          \
-                    .metric = {0, 0, {INT32_MAX, 0, 0}},                         \
+                    .metric = {0, 0, 0, {INT32_MAX, 0, 0}},                      \
                     .name = STRINGIFY(metric_name),                              \
                     .param_idx = 0,                                              \
                     .bench_result =                                              \
@@ -313,7 +320,7 @@ static inline struct bench_metric_list_node* set_param_metric(
     list_for_every_entry(unparameterized_list, entry,
                          struct bench_metric_list_node, node) {
         for (size_t idx_param = 0; idx_param < nb_params; ++idx_param) {
-            struct bench_metric_node tmp_metric = {0, 0, {INT32_MAX, 0, 0}};
+            struct bench_metric_node tmp_metric = {0, 0, 0, {INT32_MAX, 0, 0}};
 
             list_pool[idx].metric = tmp_metric;
             list_pool[idx].name = entry->name;
@@ -404,8 +411,14 @@ static inline int get_extended_test_name(const char* test_name_in,
             _test_context.tests_failed++;                                     \
             continue;                                                         \
         }                                                                     \
+        int64_t overhead = trusty_bench_get_overhead();                       \
+                                                                              \
         /* Cold Run */                                                        \
+        int64_t start_time;                                                   \
+        int64_t end_time;                                                     \
+        trusty_gettime(0, &start_time);                                       \
         int64_t res = suite_name##_##bench_name##_inner_##params();           \
+        trusty_gettime(0, &end_time);                                         \
                                                                               \
         if (res != NO_ERROR) {                                                \
             TLOGE("ERROR During Cold Run%" PRId64 "\n", res);                 \
@@ -414,14 +427,23 @@ static inline int get_extended_test_name(const char* test_name_in,
             continue;                                                         \
         }                                                                     \
                                                                               \
-        int64_t overhead = trusty_bench_get_overhead();                       \
+        bench_state.last_bench_body_duration = end_time - start_time;         \
+        if (overhead >= bench_state.last_bench_body_duration) {               \
+            TLOGE("Benchmark internal function is too fast %" PRId64          \
+                  "ns, while the benchmark overhead is %" PRId64 "ns.",       \
+                  overhead, bench_state.last_bench_body_duration);            \
+        }                                                                     \
+                                                                              \
+        bench_state.last_bench_body_duration -= overhead;                     \
+                                                                              \
+        if (!_test_context.hard_fail && _test_context.all_ok) {               \
+            trusty_bench_run_metrics(&metric_list, idx_param, true);          \
+        }                                                                     \
                                                                               \
         for (size_t idx_run = 0; idx_run < nb_runs; ++idx_run) {              \
-            int64_t start_time;                                               \
-            int64_t end_time;                                                 \
             if (!_test_context.hard_fail && _test_context.all_ok) {           \
                 trusty_gettime(0, &start_time);                               \
-                int64_t res = suite_name##_##bench_name##_inner_##params();   \
+                res = suite_name##_##bench_name##_inner_##params();           \
                 trusty_gettime(0, &end_time);                                 \
                 bench_state.last_bench_body_duration = end_time - start_time; \
                 if (overhead >= bench_state.last_bench_body_duration) {       \
@@ -437,7 +459,7 @@ static inline int get_extended_test_name(const char* test_name_in,
                 }                                                             \
             }                                                                 \
             if (!_test_context.hard_fail && _test_context.all_ok) {           \
-                trusty_bench_run_metrics(&metric_list, idx_param);            \
+                trusty_bench_run_metrics(&metric_list, idx_param, false);     \
             }                                                                 \
         }                                                                     \
         suite_name##_teardown();                                              \

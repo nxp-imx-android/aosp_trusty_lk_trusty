@@ -30,6 +30,7 @@
  * @BENCH_AGGREGATE_MIN: index of the current minimum value for this metric.
  * @BENCH_AGGREGATE_MAX: index of the current maximum value for this metric.
  * @BENCH_AGGREGATE_AVG: index of the current average value for this metric.
+ * @BENCH_AGGREGATE_COLD:index of the cold run value for this metric.
  * @BENCH_NUM_AGGREGATE: Number of available aggregates. Indicates the end of
  * the enum possible values.
  */
@@ -37,7 +38,8 @@ enum bench_aggregate_idx {
     BENCH_AGGREGATE_MIN = 0,
     BENCH_AGGREGATE_MAX = 1,
     BENCH_AGGREGATE_AVG = 2,
-    BENCH_NUM_AGGREGATE = 3
+    BENCH_AGGREGATE_COLD = 3,
+    BENCH_NUM_AGGREGATE = 4
 };
 
 /**
@@ -45,6 +47,7 @@ enum bench_aggregate_idx {
  * current bench.
  * @cnt:                Number of BENCH runs already aggregated.
  * @tot:                Total of all values returned by BENCH_RESULT.
+ * @cold:               Value of the metric for the initial cold run.
  * @aggregates:         Array of computed aggregates.
  *                      BENCH_AGGREGATE_MIN: Smallest value returned by
  * BENCH_RESULT. BENCH_AGGREGATE_MAX: Highest value returned by BENCH_RESULT.
@@ -54,6 +57,7 @@ enum bench_aggregate_idx {
 struct bench_metric_node {
     size_t cnt;
     int64_t tot;
+    int64_t cold;
     int64_t aggregates[BENCH_NUM_AGGREGATE];
 };
 

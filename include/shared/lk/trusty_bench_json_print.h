@@ -31,7 +31,7 @@
  * schema validation. Schema is available in the same folder as this file
  * "trusty_bench_json_schema.vXXX.json"
  */
-#define BENCH_SCHEMA_VERSION "1"
+#define BENCH_SCHEMA_VERSION "2"
 
 /**
  * trusty_bench_print_json_metric_list -  Prints a machine readable json of all
@@ -85,6 +85,9 @@ static inline void trusty_bench_print_json_metric_list(
                 buf, sizeof(buf), entry->metric.aggregates[BENCH_AGGREGATE_AVG],
                 entry->name);
         trusty_unittest_printf("\"avg\": \"%s\",", buf);
+        trusty_bench_sprint_col_stat(buf, sizeof(buf), entry->metric.cold,
+                                     entry->name);
+        trusty_unittest_printf("\"cold\": \"%s\",", buf);
 
         /* Formatting is conditional to Metric Name, so we always print raw
          * values even when a formatter callback is present
@@ -93,9 +96,9 @@ static inline void trusty_bench_print_json_metric_list(
                                entry->metric.aggregates[BENCH_AGGREGATE_MIN]);
         trusty_unittest_printf("\"raw_max\": %" PRId64 ", ",
                                entry->metric.aggregates[BENCH_AGGREGATE_MAX]);
-        trusty_unittest_printf("\"raw_avg\": %" PRId64,
+        trusty_unittest_printf("\"raw_avg\": %" PRId64 ", ",
                                entry->metric.aggregates[BENCH_AGGREGATE_AVG]);
-
+        trusty_unittest_printf("\"raw_cold\": %" PRId64, entry->metric.cold);
         trusty_unittest_printf("}\n");
     }
     trusty_unittest_printf("]");

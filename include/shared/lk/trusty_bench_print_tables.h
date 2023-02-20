@@ -282,8 +282,13 @@ static inline void trusty_bench_print_stat(struct list_node* metric_list,
                                   true);
     list_for_every_entry(metric_list, entry, struct bench_metric_list_node,
                          node) {
-        trusty_bench_print_col_stat(entry->col_sz,
-                                    entry->metric.aggregates[idx], entry->name);
+        if (idx == BENCH_AGGREGATE_COLD) {
+            trusty_bench_print_col_stat(entry->col_sz, entry->metric.cold,
+                                        entry->name);
+        } else {
+            trusty_bench_print_col_stat(
+                    entry->col_sz, entry->metric.aggregates[idx], entry->name);
+        }
     }
     trusty_unittest_printf("\n");
 }
@@ -312,6 +317,8 @@ static inline void trusty_bench_print_horizontal_metric_list(
     trusty_bench_print_stat(metric_list, BENCH_AGGREGATE_AVG, "avg");
     trusty_bench_print_stat(metric_list, BENCH_AGGREGATE_MIN, "min");
     trusty_bench_print_stat(metric_list, BENCH_AGGREGATE_MAX, "max");
+    trusty_bench_print_stat(metric_list, BENCH_AGGREGATE_COLD, "cold");
+
     trusty_bench_print_border(trusty_bench_table_total_width);
 }
 
@@ -332,7 +339,7 @@ static inline void trusty_bench_print_vertical_metric_list(
 
     trusty_bench_compute_widths(metric_list, nb_params);
     size_t width = trusty_bench_max_metric_name_width +
-                   3 * trusty_bench_max_metric_digit_width + 5;
+                   4 * trusty_bench_max_metric_digit_width + 6;
 
     /* Need one column for params? */
     if (nb_params > 1) {
@@ -351,6 +358,8 @@ static inline void trusty_bench_print_vertical_metric_list(
     trusty_bench_print_col_header(trusty_bench_max_metric_digit_width, "Max",
                                   false);
     trusty_bench_print_col_header(trusty_bench_max_metric_digit_width, "Avg",
+                                  false);
+    trusty_bench_print_col_header(trusty_bench_max_metric_digit_width, "Cold",
                                   false);
     trusty_unittest_printf("\n");
 
@@ -386,6 +395,8 @@ static inline void trusty_bench_print_vertical_metric_list(
         trusty_bench_print_col_stat(
                 trusty_bench_max_metric_digit_width,
                 entry->metric.aggregates[BENCH_AGGREGATE_AVG], entry->name);
+        trusty_bench_print_col_stat(trusty_bench_max_metric_digit_width,
+                                    entry->metric.cold, entry->name);
         trusty_unittest_printf("\n");
     }
     trusty_bench_print_border(width);
