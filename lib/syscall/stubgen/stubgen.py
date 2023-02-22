@@ -92,8 +92,9 @@ includes_header = "#include <%s>\n"
 
 
 class Architecture:
-    def __init__(self, syscall_stub):
+    def __init__(self, syscall_stub, footer=""):
         self.syscall_stub = syscall_stub
+        self.footer = footer
 
 arch_dict = {
     "arm" : Architecture (
@@ -101,9 +102,7 @@ arch_dict = {
 .section .text._trusty_%(sys_fn)s
 .arm
 .balign 4
-.global _trusty_%(sys_fn)s
-.type _trusty_%(sys_fn)s,STT_FUNC
-_trusty_%(sys_fn)s:
+FUNCTION(_trusty_%(sys_fn)s)
     ldr     r12, =__NR_%(sys_fn)s
     svc     #0
     bx      lr
@@ -118,13 +117,14 @@ _trusty_%(sys_fn)s:
         syscall_stub = """
 .section .text._trusty_%(sys_fn)s
 .balign 4
-.global _trusty_%(sys_fn)s
-.type _trusty_%(sys_fn)s,STT_FUNC
-_trusty_%(sys_fn)s:
+FUNCTION(_trusty_%(sys_fn)s)
     mov     x12, #__NR_%(sys_fn)s
     svc     #0
     ret
 .size _trusty_%(sys_fn)s,.-_trusty_%(sys_fn)s
+""",
+        footer = """
+SECTION_GNU_NOTE_PROPERTY_AARCH64_FEATURES(GNU_NOTE_FEATURE_AARCH64_BTI)
 """),
     "x86" : Architecture (
         syscall_stub = """
@@ -326,8 +326,10 @@ def process_table(table_file, std_file, stubs_file, rust_file, verify, arch):
     if stubs_file is not None:
         with open(stubs_file, "w") as stubs:
             stubs.writelines(copyright_header + autogen_header)
+            stubs.writelines(includes_header % "lk/asm.h")
             stubs.writelines(includes_header % "trusty_syscalls.h")
             stubs.writelines(stub_lines)
+            stubs.writelines(arch.footer)
 
     if rust_file is not None:
         with open(rust_file, "w") as rust:
