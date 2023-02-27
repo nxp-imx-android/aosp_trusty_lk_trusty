@@ -297,14 +297,16 @@ static void port_shutdown(struct handle* phandle) {
             chan_del_ref(client, &tmp_client_ref);
         }
 
+        /* remove connection from the list */
+        mutex_acquire(&server->mlock);
+        list_delete(&server->node);
+        chan_del_ref(server, &server->node_ref); /* drop list ref */
+        mutex_release(&server->mlock);
+
         /* pending server channel in not in user context table
          * but we need to decrement ref to get rid of it
          */
         handle_decref(&server->handle);
-
-        /* remove connection from the list */
-        list_delete(&server->node);
-        chan_del_ref(server, &server->node_ref); /* drop list ref */
     }
 }
 
@@ -553,6 +555,27 @@ static struct ipc_chan* chan_alloc(uint32_t flags, const uuid_t* uuid) {
 }
 
 static void chan_shutdown_locked(struct ipc_chan* chan) {
+    /* Remove channel from any list it might be in */
+    if (list_in_list(&chan->node)) {
+        list_delete(&chan->node);
+        chan_del_ref(chan, &chan->node_ref);
+
+        if (chan->flags & IPC_CHAN_FLAG_SERVER) {
+            /* If we are shutting down the server side of the channel pair
+             * and it was in the list (assume accept pending_list) we also
+             * need to remove handle ref because it is dangling. We cannot
+             * call handle_decref here because of locks but we can just
+             * remove chan_del_ref directly which would give us the same
+             * effect. In addition we also should detach peer.
+             */
+            if (chan->peer) {
+                chan_del_ref(chan->peer, &chan->peer_ref);
+                chan->peer = NULL;
+            }
+            chan_del_ref(chan, &chan->handle_ref);
+        }
+    }
+
     switch (chan->state) {
     case IPC_CHAN_STATE_CONNECTED:
     case IPC_CHAN_STATE_CONNECTING:
@@ -569,6 +592,8 @@ static void chan_shutdown_locked(struct ipc_chan* chan) {
 }
 
 static void chan_shutdown(struct ipc_chan* chan) {
+    DEBUG_ASSERT(is_mutex_held(&ipc_port_lock));
+
     LTRACEF("chan %p: peer %p\n", chan, chan->peer);
 
     mutex_acquire(&chan->mlock);
@@ -596,22 +621,9 @@ static void chan_handle_destroy(struct handle* chandle) {
 
     struct ipc_chan* chan = containerof(chandle, struct ipc_chan, handle);
 
+    mutex_acquire(&ipc_port_lock);
     chan_shutdown(chan);
-
-    if (!(chan->flags & IPC_CHAN_FLAG_SERVER)) {
-        /*
-         * When invoked from client side it is possible that channel
-         * still in waiting_for_port_chan_list. It is the only
-         * possibility for client side channel. Remove it from that
-         * list and delete ref.
-         */
-        mutex_acquire(&ipc_port_lock);
-        if (list_in_list(&chan->node)) {
-            list_delete(&chan->node);
-            chan_del_ref(chan, &chan->node_ref);
-        }
-        mutex_release(&ipc_port_lock);
-    }
+    mutex_release(&ipc_port_lock);
 
     chan_del_ref(chan, &chan->handle_ref);
 }
@@ -747,7 +759,13 @@ static int port_attach_client(struct ipc_port* port, struct ipc_chan* client) {
 err_closed:
 err_server_mq:
 err_client_mq:
-    handle_decref(&server->handle);
+    /*
+     * Ideally this would call handle_decref(&server->handle), but that will
+     * deadlock as ipc_port_lock is already held.  Therefore close directly.
+     */
+    chan_shutdown(server);
+    chan_del_ref(server, &server->handle_ref);
+
     return ERR_NO_MEMORY;
 }
 
