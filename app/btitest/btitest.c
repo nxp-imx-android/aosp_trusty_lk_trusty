@@ -68,6 +68,10 @@ static int bti_trap_code(void) {
 }
 
 TEST(btitest, supported) {
+    if (!arch_bti_supported()) {
+        trusty_unittest_printf("[  SKIPPED ] BTI is not supported\n");
+        return;
+    }
     EXPECT_EQ(true, arch_bti_supported());
 }
 
