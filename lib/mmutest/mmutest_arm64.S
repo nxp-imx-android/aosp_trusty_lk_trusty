@@ -33,8 +33,8 @@
  */
 .section .rodata
 .align 2
-FUNCTION(mmutest_arch_rodata_pnx)
 	set_fault_handler	.Lmmutest_fault
+FUNCTION(mmutest_arch_rodata_pnx)
 	mov	x0, #0
 
 	ret
@@ -47,8 +47,8 @@ FUNCTION(mmutest_arch_rodata_pnx)
  */
 .section .data
 .align 2
-FUNCTION(mmutest_arch_data_pnx)
 	set_fault_handler	.Lmmutest_fault
+FUNCTION(mmutest_arch_data_pnx)
 	mov	x0, #0
 
 	ret
@@ -153,7 +153,6 @@ FUNCTION(mmutest_arch_store_uint32)
  * Does not return if run from non-executable page.
  */
 FUNCTION(mmutest_arch_nop)
-	bti	c
 	ret
 FUNCTION(mmutest_arch_nop_end)
 
