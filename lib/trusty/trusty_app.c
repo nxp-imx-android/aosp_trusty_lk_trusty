@@ -1796,7 +1796,9 @@ err_aspace:
     return ret;
 }
 
-void trusty_app_exit(int status) {
+static void __NO_RETURN trusty_app_exit_etc(int status,
+                                            uint32_t crash_reason,
+                                            bool report_crash) {
     status_t ret;
     struct trusty_app* app;
     struct trusty_app_notifier* notifier;
@@ -1832,6 +1834,20 @@ void trusty_app_exit(int status) {
             panic("shutdown notifier failed(%d) for app %u, %s\n", ret,
                   app->app_id, app->props.app_name);
     }
+    if (report_crash) {
+        list_for_every_entry(&app_notifier_list, notifier,
+                             struct trusty_app_notifier, node) {
+            if (!notifier->crash) {
+                continue;
+            }
+
+            ret = notifier->crash(app, crash_reason);
+            if (ret != NO_ERROR) {
+                panic("crash notifier failed(%d) for app %u, %s\n", ret,
+                      app->app_id, app->props.app_name);
+            }
+        }
+    }
 
     free(app->als);
     app->als = NULL;
@@ -1843,8 +1859,13 @@ void trusty_app_exit(int status) {
     trusty_thread_exit(status);
 }
 
-void trusty_app_crash(void) {
-    trusty_app_exit(1 /*EXIT_FAILURE*/);
+void trusty_app_exit(int status) {
+    /* Report exits with non-zero status as crashes */
+    trusty_app_exit_etc(status, (uint32_t)status, !!status);
+}
+
+void trusty_app_crash(uint32_t reason) {
+    trusty_app_exit_etc(1 /*EXIT_FAILURE*/, reason, true);
 }
 
 static status_t app_mgr_handle_starting(struct trusty_app* app) {
