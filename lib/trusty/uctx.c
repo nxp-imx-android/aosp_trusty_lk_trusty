@@ -677,7 +677,7 @@ long __SYSCALL sys_handle_set_create(void) {
     return (long)id;
 
 err_install:
-    free(hset);
+    handle_decref(hset);
     return ret;
 }
 
