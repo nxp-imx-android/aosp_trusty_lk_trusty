@@ -1633,15 +1633,24 @@ static status_t trusty_app_start(struct trusty_app* trusty_app) {
 
 err_thread:
 err_notifier:
-    for (n = list_prev_type(&app_notifier_list, &n->node,
-                            struct trusty_app_notifier, node);
-         n != NULL; n = list_prev_type(&app_notifier_list, &n->node,
-                                       struct trusty_app_notifier, node)) {
+    /* n points to failed notifier, or NULL if all were called successfully */
+    if (n != NULL) {
+        n = list_prev_type(&app_notifier_list, &n->node,
+                           struct trusty_app_notifier, node);
+    } else {
+        n = list_peek_tail_type(&app_notifier_list, struct trusty_app_notifier,
+                                node);
+    }
+
+    while (n != NULL) {
         if (!n->shutdown)
             continue;
 
         if (n->shutdown(trusty_app) != NO_ERROR)
             panic("failed to invoke shutdown notifier for %s\n", name);
+
+        n = list_prev_type(&app_notifier_list, &n->node,
+                           struct trusty_app_notifier, node);
     }
 
     free(trusty_app->als);
