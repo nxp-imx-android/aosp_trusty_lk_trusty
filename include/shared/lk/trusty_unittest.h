@@ -609,13 +609,13 @@ static inline bool RUN_ALL_TESTS(void) {
     return RUN_ALL_SUITE_TESTS(NULL);
 }
 
-#define ASSERT_EXPECT_TEST(op, op_pre, op_sep, is_hard_fail, fail_action,    \
-                           vals_type, vals_format_placeholder, print_cast,   \
-                           print_op, val1, val2, extra_msg...)               \
+#define ASSERT_EXPECT_TEST(op, op_pre, op_sep, op_args, is_hard_fail,        \
+                           fail_action, vals_type, vals_format_placeholder,  \
+                           print_cast, print_op, val1, val2, extra_msg...)   \
     {                                                                        \
         vals_type _val1 = val1;                                              \
         vals_type _val2 = val2;                                              \
-        if (!op_pre(_val1 DELETE_PAREN op_sep _val2)) {                      \
+        if (!op_pre(_val1 DELETE_PAREN op_sep _val2 DELETE_PAREN op_args)) { \
             trusty_unittest_printf("%s: @ %s:%d\n", _test_context.test_name, \
                                    __FILE__, __LINE__);                      \
             trusty_unittest_printf(                                          \
@@ -686,11 +686,15 @@ static inline const void* GetParam(void) {
 
 #define ASSERT_EXPECT_LONG_TEST(op, is_hard_fail, fail_action, val1, val2, \
                                 args...)                                   \
-    ASSERT_EXPECT_TEST(op, , (op), is_hard_fail, fail_action,              \
+    ASSERT_EXPECT_TEST(op, , (op), (), is_hard_fail, fail_action,          \
                        __typeof__(val2), "%ld", (long), #op, val1, val2, args)
 
 #define ASSERT_EXPECT_STR_TEST(func, is_hard_fail, fail_action, args...) \
-    ASSERT_EXPECT_TEST(func, func, (, ), is_hard_fail, fail_action,      \
+    ASSERT_EXPECT_TEST(func, func, (, ), (), is_hard_fail, fail_action,  \
+                       const char*, "\"%s\"", , args)
+
+#define ASSERT_EXPECT_STRN_TEST(func, n, is_hard_fail, fail_action, args...) \
+    ASSERT_EXPECT_TEST(func, func, (, ), (, n), is_hard_fail, fail_action,   \
                        const char*, "\"%s\"", , args)
 
 #define EXPECT_TEST(op, args...) ASSERT_EXPECT_LONG_TEST(op, false, , args)
@@ -708,6 +712,16 @@ static inline const void* GetParam(void) {
     EXPECT_STR_TEST(!strcasecmp, "== (ignoring case)", args)
 #define EXPECT_STRCASENE(args...) \
     EXPECT_STR_TEST(strcasecmp, "!= (ignoring case)", args)
+#define EXPECT_STRN_TEST(func, n, args...) \
+    ASSERT_EXPECT_STRN_TEST(func, n, false, , args)
+#define EXPECT_STREQN(val1, val2, n, args...) \
+    EXPECT_STR_TEST(!strncmp, n, "==", val1, val2, args)
+#define EXPECT_STRNEN(val1, val2, n, args...) \
+    EXPECT_STR_TEST(strncmp, n, "!=", val1, val2, args)
+#define EXPECT_STRCASEEQN(val1, val2, n, args...) \
+    EXPECT_STR_TEST(!strncasecmp, n, "== (ignoring case)", val1, val2, args)
+#define EXPECT_STRCASENEN(val1, val2, n, args...) \
+    EXPECT_STR_TEST(strncasecmp, n, "!= (ignoring case)", val1, val2, args)
 
 #define ASSERT_TEST(op, args...) \
     ASSERT_EXPECT_LONG_TEST(op, true, goto test_abort;, args)
@@ -725,5 +739,15 @@ static inline const void* GetParam(void) {
     ASSERT_STR_TEST(!strcasecmp, "== (ignoring case)", args)
 #define ASSERT_STRCASENE(args...) \
     ASSERT_STR_TEST(strcasecmp, "!= (ignoring case)", args)
+#define ASSERT_STRN_TEST(func, n, args...) \
+    ASSERT_EXPECT_STRN_TEST(func, n, true, goto test_abort;, args)
+#define ASSERT_STREQN(val1, val2, n, args...) \
+    ASSERT_STRN_TEST(!strncmp, n, "==", val1, val2, args)
+#define ASSERT_STRNEN(val1, val2, n, args...) \
+    ASSERT_STRN_TEST(strncmp, n, "!=", val1, val2, args)
+#define ASSERT_STRCASEEQN(val1, val2, n, args...) \
+    ASSERT_STRN_TEST(!strncasecmp, n, "== (ignoring case)", val1, val2, args)
+#define ASSERT_STRCASENEN(val1, val2, n, args...) \
+    ASSERT_STRN_TEST(strncasecmp, n, "!= (ignoring case)", val1, val2, args)
 
 __END_CDECLS
