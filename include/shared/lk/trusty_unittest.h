@@ -466,9 +466,9 @@ static inline const void* test_gen_combined_param(void* priv, int i) {
             void) {                                                          \
         static struct test_param_list_node param_node = {                    \
                 .node = LIST_INITIAL_CLEARED_VALUE,                          \
+                .to_string = param_to_string,                                \
                 .inst_name = STRINGIFY(_inst_name),                          \
                 .suite = #suite_name,                                        \
-                .to_string = param_to_string,                                \
         };                                                                   \
                                                                              \
         DELETE_PAREN param_gen;                                              \
