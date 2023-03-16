@@ -147,7 +147,9 @@ static int send_req(struct handle* chan,
     return NO_ERROR;
 }
 
-static int report_crash(struct handle* chan, struct trusty_app* app) {
+static int report_crash(struct handle* chan,
+                        struct trusty_app* app,
+                        uint32_t crash_reason) {
     int rc;
     struct metrics_req req;
     struct metrics_report_crash_req args;
@@ -176,6 +178,7 @@ static int report_crash(struct handle* chan, struct trusty_app* app) {
 
     req.cmd = METRICS_CMD_REPORT_CRASH;
     args.app_id_len = payload_len;
+    args.crash_reason = crash_reason;
 
     struct iovec_kern iovs[] = {
             {
@@ -233,7 +236,7 @@ static int report_event_drop(struct handle* chan) {
     return NO_ERROR;
 }
 
-static int on_ta_shutdown(struct trusty_app* app) {
+static int on_ta_crash(struct trusty_app* app, uint32_t reason) {
     int rc;
 
     mutex_acquire(&ctx_lock);
@@ -250,7 +253,7 @@ static int on_ta_shutdown(struct trusty_app* app) {
         goto out;
     }
 
-    rc = report_crash(ctx.chan, app);
+    rc = report_crash(ctx.chan, app, reason);
     if (rc != NO_ERROR) {
         TRACEF("failed (%d) report app crash\n", rc);
         goto err;
@@ -273,7 +276,7 @@ out:
 }
 
 static struct trusty_app_notifier notifier = {
-        .shutdown = on_ta_shutdown,
+        .crash = on_ta_crash,
 };
 
 static void handle_chan(struct dpc* work) {
