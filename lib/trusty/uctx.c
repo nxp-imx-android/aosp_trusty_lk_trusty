@@ -555,7 +555,7 @@ long __SYSCALL sys_wait(uint32_t handle_id,
 long __SYSCALL sys_wait_any(user_addr_t user_event, uint32_t timeout_msecs) {
 #if WITH_WAIT_ANY_SUPPORT
     int ret;
-    struct handle_ref target;
+    struct handle_ref target = {0};
     struct uctx* ctx = current_uctx();
 
     LTRACEF("[%p]: %d msec\n", current_trusty_thread(), timeout_msecs);
