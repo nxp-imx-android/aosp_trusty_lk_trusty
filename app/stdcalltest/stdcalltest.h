@@ -53,4 +53,14 @@
  */
 #define SMC_SC_TEST_SHARED_MEM_RW SMC_STDCALL_NR(SMC_ENTITY_TEST, 1)
 
+/**
+ * SMC_SC_TEST_CLOBBER_SVE - Test save and restore of SVE/SIMD registers during
+ * an TFTF <-> TF-A <-> Trusty roundtrip for all participants when multiple cpus
+ * are involved.
+ *
+ * Return: 0 on success. 1 on "technical" error. 2 if registers have not
+ * recovered expected value.
+ */
+#define SMC_SC_TEST_CLOBBER_SVE SMC_STDCALL_NR(SMC_ENTITY_TEST, 2)
+
 #define TRUSTY_STDCALLTEST_API_VERSION 1

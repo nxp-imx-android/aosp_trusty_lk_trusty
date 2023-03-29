@@ -28,4 +28,8 @@ MODULE := $(LOCAL_DIR)
 MODULE_SRCS += \
 	$(LOCAL_DIR)/stdcalltest.c
 
+ifeq ($(ARCH),arm64)
+MODULE_SRCS += $(LOCAL_DIR)/sve_helper.S
+endif
+
 include make/module.mk
