@@ -111,9 +111,12 @@ MODULE_SRCS := \
 	$(LOCAL_DIR)/fflush.c \
 	$(LOCAL_DIR)/libc_state.c \
 	$(LOCAL_DIR)/writev.c \
+	$(LK_DIR)/lib/libc/atoi.c \
 	$(LK_DIR)/lib/libc/eabi.c \
 	$(LK_DIR)/lib/libc/eabi_unwind_stubs.c \
 	$(LK_DIR)/lib/libc/rand.c \
+	$(LK_DIR)/lib/libc/strtol.c \
+	$(LK_DIR)/lib/libc/strtoll.c \
 
 # These sources are only necessary to support C++
 MODULE_SRCS += \
@@ -143,13 +146,8 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/ctype/toascii.c \
 	$(MUSL_DIR)/src/ctype/tolower.c \
 	$(MUSL_DIR)/src/ctype/toupper.c \
-	$(MUSL_DIR)/src/internal/intscan.c \
-	$(MUSL_DIR)/src/internal/shgetc.c \
 	$(MUSL_DIR)/src/locale/c_locale.c \
 	$(MUSL_DIR)/src/stdlib/abs.c \
-	$(MUSL_DIR)/src/stdlib/atoi.c \
-	$(MUSL_DIR)/src/stdlib/atol.c \
-	$(MUSL_DIR)/src/stdlib/atoll.c \
 	$(MUSL_DIR)/src/stdlib/bsearch.c \
 	$(MUSL_DIR)/src/stdlib/div.c \
 	$(MUSL_DIR)/src/stdlib/imaxabs.c \
@@ -159,7 +157,6 @@ MODULE_SRCS += \
 	$(MUSL_DIR)/src/stdlib/llabs.c \
 	$(MUSL_DIR)/src/stdlib/lldiv.c \
 	$(MUSL_DIR)/src/stdlib/qsort.c \
-	$(MUSL_DIR)/src/stdlib/strtol.c \
 	$(MUSL_DIR)/src/string/bcmp.c \
 	$(MUSL_DIR)/src/string/memccpy.c \
 	$(MUSL_DIR)/src/string/memmem.c \
