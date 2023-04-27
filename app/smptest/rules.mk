@@ -1,3 +1,5 @@
+ifeq ($(WITH_SMP),1)
+
 LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
@@ -9,3 +11,5 @@ MODULE_SRCS += \
 	$(LOCAL_DIR)/smptest.c \
 
 include make/module.mk
+
+endif
