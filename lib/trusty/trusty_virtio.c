@@ -128,7 +128,7 @@ status_t virtio_register_device(struct vdev* vd) {
 /*
  *
  */
-static void finalize_vdev_registery(void) {
+static void finalize_vdev_registry(void) {
     struct trusty_virtio_bus* vb = &_virtio_bus;
 
     if (vb->state == VIRTIO_BUS_STATE_UNINITIALIZED) {
@@ -163,7 +163,7 @@ ssize_t virtio_get_description(ext_mem_client_id_t client_id,
 
     LTRACEF("descr_buf: %u bytes @ 0x%" PRIx64 "\n", buf_sz, buf_id);
 
-    finalize_vdev_registery();
+    finalize_vdev_registry();
 
     if ((size_t)buf_sz < vb->descr_size) {
         LTRACEF("buffer (%zu bytes) is too small (%zu needed)\n",
