@@ -69,6 +69,38 @@ static struct trusty_virtio_bus _virtio_bus = {
         .vdev_list = LIST_INITIAL_VALUE(_virtio_bus.vdev_list),
 };
 
+static mutex_t virtio_bus_notifier_lock =
+        MUTEX_INITIAL_VALUE(virtio_bus_notifier_lock);
+static struct list_node virtio_bus_notifier_list =
+        LIST_INITIAL_VALUE(virtio_bus_notifier_list);
+
+void trusty_virtio_register_bus_notifier(struct trusty_virtio_bus_notifier* n) {
+    mutex_acquire(&virtio_bus_notifier_lock);
+    list_add_tail(&virtio_bus_notifier_list, &n->node);
+    mutex_release(&virtio_bus_notifier_lock);
+}
+
+static status_t on_create_virtio_bus(struct trusty_virtio_bus* vb) {
+    DEBUG_ASSERT(vb);
+    status_t ret = NO_ERROR;
+    struct trusty_virtio_bus_notifier* n;
+    mutex_acquire(&virtio_bus_notifier_lock);
+    list_for_every_entry(&virtio_bus_notifier_list, n,
+                         struct trusty_virtio_bus_notifier, node) {
+        if (!n->on_create) {
+            continue;
+        }
+        ret = n->on_create(vb);
+        if (ret != NO_ERROR) {
+            LTRACEF("call to on_create notifier failed (%d)\n", ret);
+            goto on_create_err;
+        }
+    }
+on_create_err:
+    mutex_release(&virtio_bus_notifier_lock);
+    return ret;
+}
+
 static status_t map_descr(ext_mem_client_id_t client_id,
                           ext_mem_obj_id_t buf_id,
                           void** buf_va,
@@ -110,9 +142,9 @@ static status_t validate_vdev(struct vdev* vd) {
 /*
  *     Register virtio device
  */
-status_t virtio_register_device(struct vdev* vd) {
+status_t virtio_register_device(struct trusty_virtio_bus* vb, struct vdev* vd) {
     status_t ret = ERR_BAD_STATE;
-    struct trusty_virtio_bus* vb = &_virtio_bus;
+    DEBUG_ASSERT(vb);
 
     if (vb->state == VIRTIO_BUS_STATE_UNINITIALIZED) {
         ret = validate_vdev(vd);
@@ -163,7 +195,16 @@ ssize_t virtio_get_description(ext_mem_client_id_t client_id,
 
     LTRACEF("descr_buf: %u bytes @ 0x%" PRIx64 "\n", buf_sz, buf_id);
 
+    /* on_create notifiers must only be called if virtio bus is uninitialized */
+    if (vb->state == VIRTIO_BUS_STATE_UNINITIALIZED) {
+        on_create_virtio_bus(vb);
+    }
+    /*
+     * finalize_vdev_registry in the first call to this function switches the
+     * bus state to idle so it should never be uninitialized after this point
+     */
     finalize_vdev_registry();
+    ASSERT(vb->state != VIRTIO_BUS_STATE_UNINITIALIZED);
 
     if ((size_t)buf_sz < vb->descr_size) {
         LTRACEF("buffer (%zu bytes) is too small (%zu needed)\n",

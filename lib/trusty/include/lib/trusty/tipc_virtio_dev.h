@@ -30,6 +30,8 @@
 
 struct tipc_dev;
 
+struct trusty_virtio_bus;
+
 /*
  * This ID has to match to the value defined in virtio_ids.h on Linux side
  */
@@ -84,7 +86,8 @@ struct tipc_vdev_descr {
 /*
  *  Create TIPC device and register it witth virtio subsystem
  */
-status_t create_tipc_device(const struct tipc_vdev_descr* descr,
+status_t create_tipc_device(struct trusty_virtio_bus* vb,
+                            const struct tipc_vdev_descr* descr,
                             size_t descr_sz,
                             const uuid_t* uuid,
                             struct tipc_dev** dev_ptr);

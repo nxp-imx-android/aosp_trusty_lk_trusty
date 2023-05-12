@@ -28,6 +28,8 @@
 #include <lib/trusty/tipc_virtio_dev.h>
 #include <lk/init.h>
 
+#include "trusty_virtio.h"
+
 /* Default TIPC device (/dev/trusty-ipc-dev0) */
 DECLARE_TIPC_DEVICE_DESCR(_descr0, 0, 32, 32, "dev0");
 
@@ -41,16 +43,24 @@ bool is_ns_client(const uuid_t* uuid) {
     return false;
 }
 
-static void tipc_init(uint level) {
+static status_t tipc_init(struct trusty_virtio_bus* vb) {
     status_t res;
 
-    res = create_tipc_device(&_descr0, sizeof(_descr0), &zero_uuid, NULL);
+    res = create_tipc_device(vb, &_descr0, sizeof(_descr0), &zero_uuid, NULL);
     if (res != NO_ERROR) {
         TRACEF("WARNING: failed (%d) to register tipc device\n", res);
     }
+    return res;
 }
 
-LK_INIT_HOOK_FLAGS(tipc_init,
-                   tipc_init,
+static void register_tipc_init(uint level) {
+    static struct trusty_virtio_bus_notifier vb_notifier = {
+            .on_create = tipc_init,
+    };
+    trusty_virtio_register_bus_notifier(&vb_notifier);
+}
+
+LK_INIT_HOOK_FLAGS(register_tipc_init,
+                   register_tipc_init,
                    LK_INIT_LEVEL_APPS - 2,
                    LK_INIT_FLAG_PRIMARY_CPU);

@@ -1333,7 +1333,8 @@ static const struct vdev_ops _tipc_dev_ops = {
         .kick_vqueue = tipc_vdev_kick_vq,
 };
 
-status_t create_tipc_device(const struct tipc_vdev_descr* descr,
+status_t create_tipc_device(struct trusty_virtio_bus* vb,
+                            const struct tipc_vdev_descr* descr,
                             size_t size,
                             const uuid_t* uuid,
                             struct tipc_dev** dev_ptr) {
@@ -1356,7 +1357,7 @@ status_t create_tipc_device(const struct tipc_vdev_descr* descr,
     handle_list_init(&dev->handle_list);
     event_init(&dev->have_handles, false, EVENT_FLAG_AUTOUNSIGNAL);
 
-    ret = virtio_register_device(&dev->vd);
+    ret = virtio_register_device(vb, &dev->vd);
     if (ret != NO_ERROR)
         goto err_register;
 

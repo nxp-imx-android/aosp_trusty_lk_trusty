@@ -54,12 +54,14 @@ struct vdev {
     const struct vdev_ops* ops;
 };
 
+struct trusty_virtio_bus;
+
 typedef uint64_t ns_paddr_t;
 
 /*
  * Register virtio device
  */
-status_t virtio_register_device(struct vdev* vd);
+status_t virtio_register_device(struct trusty_virtio_bus* vb, struct vdev* vd);
 
 /*
  * Retrieve device description to be shared with NS side
@@ -94,5 +96,12 @@ status_t virtio_device_reset(uint devid);
  *  Kick vq for specified device
  */
 status_t virtio_kick_vq(uint devid, uint vqid);
+
+struct trusty_virtio_bus_notifier {
+    struct list_node node;
+    status_t (*on_create)(struct trusty_virtio_bus* vb);
+};
+
+void trusty_virtio_register_bus_notifier(struct trusty_virtio_bus_notifier* n);
 
 __END_CDECLS
