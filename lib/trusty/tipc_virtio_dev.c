@@ -262,7 +262,7 @@ static int tipc_send_buf(struct tipc_dev* dev,
 
 static inline uint addr_to_slot(uint32_t addr) {
     if (addr < TIPC_ADDR_BASE) {
-        LTRACEF("bad addr %d\n", addr);
+        TRACEF("bad addr %u\n", addr);
         return TIPC_ADDR_MAX_NUM; /* return invalid slot number */
     }
     return (uint)(addr - TIPC_ADDR_BASE);
@@ -400,7 +400,7 @@ static int handle_conn_req(struct tipc_dev* dev,
         mutex_acquire(&dev->ept_lock);
         local = alloc_local_addr(dev, remote, chan);
         if (local == 0) {
-            LTRACEF("failed to alloc local address\n");
+            TRACEF("failed to alloc local address\n");
             handle_decref(chan);
             chan = NULL;
         }
@@ -487,8 +487,8 @@ static int handle_ctrl_msg(struct tipc_dev* dev,
 
     /* do some safety checks */
     if (msg_len < sizeof(struct tipc_ctrl_msg_hdr)) {
-        LTRACEF("%s: remote=%u: ttl_len=%zu\n", "malformed msg", remote,
-                msg_len);
+        TRACEF("%s: remote=%u: ttl_len=%zu\n", "malformed msg", remote,
+               msg_len);
         return ERR_NOT_VALID;
     }
 
@@ -515,8 +515,8 @@ static int handle_ctrl_msg(struct tipc_dev* dev,
     }
 
 err_mailformed_msg:
-    LTRACEF("%s: remote=%u: ttl_len=%zu msg_type=%u msg_len=%zu\n",
-            "malformed msg", remote, msg_len, msg_type, msg_body_len);
+    TRACEF("%s: remote=%u: ttl_len=%zu msg_type=%u msg_len=%zu\n",
+           "malformed msg", remote, msg_len, msg_type, msg_body_len);
     return ERR_NOT_VALID;
 }
 
@@ -585,12 +585,13 @@ static int handle_chan_msg(struct tipc_dev* dev,
                 ext_mem_get_vmm_obj(dev->vd.client_id, shm[shm_idx].obj_id,
                                     shm[shm_idx].tag, size, &shm_obj, &shm_ref);
         if (ret < 0) {
-            LTRACEF("Failed to create ext_mem object\n");
+            TRACEF("Failed to create ext_mem object\n");
             goto out;
         }
 
         tem = calloc(1, sizeof(struct tipc_ext_mem));
         if (!tem) {
+            TRACEF("calloc() failed\n");
             ret = ERR_NO_MEMORY;
             goto out;
         }
@@ -666,19 +667,19 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
 
     /* we will need at least 1 iovec */
     if (buf->in_iovs.used == 0) {
-        LTRACEF("unexpected in_iovs num %d\n", buf->in_iovs.used);
+        TRACEF("unexpected in_iovs num %d\n", buf->in_iovs.used);
         return ERR_INVALID_ARGS;
     }
 
     /* there should be exactly 1 in_iov but it is not fatal if the first
        one is big enough */
     if (buf->in_iovs.used != 1) {
-        LTRACEF("unexpected in_iovs num %d\n", buf->in_iovs.used);
+        TRACEF("unexpected in_iovs num %d\n", buf->in_iovs.used);
     }
 
     /* out_iovs are not supported: just log message and ignore it */
     if (buf->out_iovs.used != 0) {
-        LTRACEF("unexpected out_iovs num %d\n", buf->out_iovs.used);
+        TRACEF("unexpected out_iovs num %d\n", buf->out_iovs.used);
     }
 
     /* map in_iovs, Non-secure, no-execute, cached, read-only */
@@ -691,7 +692,7 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
 
     /* check message size */
     if (buf->in_iovs.iovs[0].iov_len < sizeof(struct tipc_hdr)) {
-        LTRACEF("msg too short %zu\n", buf->in_iovs.iovs[0].iov_len);
+        TRACEF("msg too short %zu\n", buf->in_iovs.iovs[0].iov_len);
         ret = ERR_INVALID_ARGS;
         goto done;
     }
@@ -707,8 +708,8 @@ static int handle_rx_msg(struct tipc_dev* dev, struct vqueue_buf* buf) {
 
     if (ns_shm_len + ns_data_len + sizeof(struct tipc_hdr) !=
         buf->in_iovs.iovs[0].iov_len) {
-        LTRACEF("malformed message len %zu shm_len %zu msglen %zu\n",
-                ns_data_len, ns_shm_len, buf->in_iovs.iovs[0].iov_len);
+        TRACEF("malformed message len %zu shm_len %zu msglen %zu\n",
+               ns_data_len, ns_shm_len, buf->in_iovs.iovs[0].iov_len);
         ret = ERR_INVALID_ARGS;
         goto done;
     }
@@ -736,7 +737,7 @@ static int tipc_rx_thread_func(void* arg) {
     struct iovec_kern in_iovs[MAX_RX_IOVS];
     struct vqueue* vq = &dev->vqs[TIPC_VQ_RX];
     struct vqueue_buf buf;
-    int ret;
+    int ret = NO_ERROR;
 
     LTRACEF("enter\n");
 
@@ -774,7 +775,7 @@ static int tipc_rx_thread_func(void* arg) {
         }
     }
 
-    LTRACEF("exit\n");
+    TRACEF("exit: ret=%d\n", ret);
 
     return 0;
 }
@@ -939,7 +940,7 @@ static void handle_tx(struct tipc_dev* dev) {
         } else if (chan_event & IPC_HANDLE_POLL_HUP) {
             handle_hup(dev, chan);
         } else {
-            LTRACEF("Unhandled event %x\n", chan_event);
+            TRACEF("Unhandled event %x\n", chan_event);
         }
         handle_decref(chan);
     }
@@ -963,7 +964,7 @@ static int tipc_tx_thread_func(void* arg) {
         LTRACEF("no handles\n");
     }
 
-    LTRACEF("exit\n");
+    TRACEF("exit\n");
     return 0;
 }
 
@@ -971,7 +972,7 @@ static status_t tipc_dev_reset(struct tipc_dev* dev) {
     status_t rc;
     struct tipc_ept* ept;
 
-    LTRACEF("devid=%d\n", dev->vd.devid);
+    TRACEF("tipc_dev_reset: devid=%d state=%d\n", dev->vd.devid, dev->vd.state);
 
     if (dev->vd.state == VDEV_STATE_RESET)
         return NO_ERROR;
@@ -1058,18 +1059,18 @@ static ssize_t tipc_get_vdev_descr(struct vdev* vd, void* descr) {
 static status_t validate_descr(struct tipc_dev* dev,
                                struct tipc_vdev_descr* vdev_descr) {
     if (vdev_descr->hdr.type != RSC_VDEV) {
-        LTRACEF("unexpected type %d\n", vdev_descr->hdr.type);
+        TRACEF("unexpected type %d\n", vdev_descr->hdr.type);
         return ERR_INVALID_ARGS;
     }
 
     if (vdev_descr->vdev.id != VIRTIO_ID_TIPC) {
-        LTRACEF("unexpected vdev id%d\n", vdev_descr->vdev.id);
+        TRACEF("unexpected vdev id%d\n", vdev_descr->vdev.id);
         return ERR_INVALID_ARGS;
     }
 
     if (vdev_descr->vdev.num_of_vrings != TIPC_VQ_NUM) {
-        LTRACEF("unexpected number of vrings (%d vs. %d)\n",
-                vdev_descr->vdev.num_of_vrings, TIPC_VQ_NUM);
+        TRACEF("unexpected number of vrings (%d vs. %d)\n",
+               vdev_descr->vdev.num_of_vrings, TIPC_VQ_NUM);
         return ERR_INVALID_ARGS;
     }
 
@@ -1077,7 +1078,7 @@ static status_t validate_descr(struct tipc_dev* dev,
     if (vdev_descr->vdev.status !=
         (VIRTIO_CONFIG_S_ACKNOWLEDGE | VIRTIO_CONFIG_S_DRIVER |
          VIRTIO_CONFIG_S_DRIVER_OK)) {
-        LTRACEF("unexpected status %d\n", (int)vdev_descr->vdev.status);
+        TRACEF("unexpected status %d\n", (int)vdev_descr->vdev.status);
         return ERR_INVALID_ARGS;
     }
 
@@ -1239,8 +1240,8 @@ static int tipc_send_data(struct tipc_dev* dev,
 
     /* we only support and expect single out_iovec for now */
     if (buf.out_iovs.used == 0) {
-        LTRACEF("unexpected iovec cnt in = %d out = %d\n", buf.in_iovs.used,
-                buf.out_iovs.used);
+        TRACEF("unexpected iovec cnt in = %d out = %d\n", buf.in_iovs.used,
+               buf.out_iovs.used);
         ret = ERR_NOT_ENOUGH_BUFFER;
         goto done;
     }
@@ -1253,8 +1254,8 @@ static int tipc_send_data(struct tipc_dev* dev,
     /* the first iovec should be large enough to hold header */
     if (sizeof(struct tipc_hdr) > buf.out_iovs.iovs[0].iov_len) {
         /* not enough space to even place header */
-        LTRACEF("buf is too small (%zu < %zu)\n", buf.out_iovs.iovs[0].iov_len,
-                ttl_len);
+        TRACEF("buf is too small (%zu < %zu)\n", buf.out_iovs.iovs[0].iov_len,
+               ttl_len);
         ret = ERR_NOT_ENOUGH_BUFFER;
         goto done;
     }
@@ -1274,8 +1275,8 @@ static int tipc_send_data(struct tipc_dev* dev,
         if (ttl_len > buf.out_iovs.iovs[0].iov_len) {
             /* not enough space to put the whole message
                so it will be truncated */
-            LTRACEF("buf is too small (%zu < %zu)\n",
-                    buf.out_iovs.iovs[0].iov_len, ttl_len);
+            TRACEF("buf is too small (%zu < %zu)\n",
+                   buf.out_iovs.iovs[0].iov_len, ttl_len);
             data_len = buf.out_iovs.iovs[0].iov_len - sizeof(struct tipc_hdr);
         }
 

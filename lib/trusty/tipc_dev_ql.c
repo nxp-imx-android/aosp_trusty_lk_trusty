@@ -358,14 +358,14 @@ static int dev_connect(struct ql_tipc_dev* dev,
     rc = ipc_port_connect_async(dev->uuid, (const char*)req.body,
                                 ns_payload_len - sizeof(req.hdr), 0, &chan);
     if (rc != NO_ERROR) {
-        LTRACEF("failed to open ipc channel: %d\n", rc);
+        TRACEF("failed to open ipc channel: %d\n", rc);
         return set_status(dev, opcode, rc, 0);
     }
 
     /* allocate slot */
     local = alloc_local_addr(dev, chan, req.hdr.cookie);
     if (local == 0) {
-        LTRACEF("failed to alloc local address\n");
+        TRACEF("failed to alloc local address\n");
         handle_close(chan);
         chan = NULL;
         return set_status(dev, opcode, ERR_NO_RESOURCES, 0);
@@ -636,13 +636,13 @@ long ql_tipc_handle_cmd(ext_mem_client_id_t client_id,
     /* lookup device */
     struct ql_tipc_dev* dev = dev_acquire(client_id, buf_id);
     if (!dev) {
-        LTRACEF("0x%" PRIx64 ": device not found\n", buf_id);
+        TRACEF("0x%" PRIx64 ": device not found\n", buf_id);
         goto err_not_found;
     }
 
     /* check for minimum size */
     if (cmd_sz < sizeof(cmd_hdr)) {
-        LTRACEF("message is too short (%zd)\n", (size_t)cmd_sz);
+        TRACEF("message is too short (%zd)\n", (size_t)cmd_sz);
         goto err_invalid;
     }
 
@@ -651,7 +651,7 @@ long ql_tipc_handle_cmd(ext_mem_client_id_t client_id,
 
     /* check for consistency */
     if (cmd_hdr.payload_len != (cmd_sz - sizeof(cmd_hdr))) {
-        LTRACEF("malformed command\n");
+        TRACEF("malformed command\n");
         goto err_invalid;
     }
 

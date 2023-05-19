@@ -784,14 +784,14 @@ int ipc_port_connect_async(const uuid_t* cid,
 
     if (!cid) {
         /* client uuid is required */
-        LTRACEF("client uuid is required\n");
+        TRACEF("client uuid is required\n");
         return ERR_INVALID_ARGS;
     }
 
     size_t len = strnlen(path, max_path);
     if (len == 0 || len >= max_path) {
         /* unterminated string */
-        LTRACEF("invalid path specified\n");
+        TRACEF("invalid path specified\n");
         return ERR_INVALID_ARGS;
     }
     /* After this point path is zero terminated */
@@ -799,7 +799,7 @@ int ipc_port_connect_async(const uuid_t* cid,
     /* allocate channel pair */
     client = chan_alloc(0, cid);
     if (!client) {
-        LTRACEF("failed to alloc client\n");
+        TRACEF("failed to alloc client\n");
         return ERR_NO_MEMORY;
     }
 
