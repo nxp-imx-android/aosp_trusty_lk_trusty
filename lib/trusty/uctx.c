@@ -509,6 +509,7 @@ static int _wait_for_uevent(const struct handle_ref* target,
         DEBUG_ASSERT(result.handle); /* there should be a handle */
 
         /* got an event */
+        memset(&uevent, 0, sizeof(uevent));
         uevent.handle = result.id;
         uevent.event = result.emask;
         uevent.cookie = (user_addr_t)(uintptr_t)result.cookie;

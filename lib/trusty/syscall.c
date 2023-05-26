@@ -378,6 +378,7 @@ long sys_prepare_dma(user_addr_t uaddr,
         if (ret != NO_ERROR)
             goto err;
 
+        memset(&kpmem, 0, sizeof(kpmem));
         kpmem.paddr = paddr;
         kpmem.size = MIN(size - mapped_size, paddr_size);
 

@@ -591,6 +591,7 @@ long __SYSCALL sys_get_msg(uint32_t handle_id, user_addr_t user_msg_info) {
             /* copy it to user space */
             struct ipc_msg_info_user mi_user;
 
+            memset(&mi_user, 0, sizeof(mi_user));
             mi_user.len = (user_size_t)mi_kern.len;
             mi_user.id = mi_kern.id;
             mi_user.num_handles = mi_kern.num_handles;
