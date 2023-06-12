@@ -22,6 +22,7 @@
  */
 #pragma once
 
+#include <lib/unittest/unittest.h>
 #include <lk/list.h>
 
 /* Build Time Option Switching */

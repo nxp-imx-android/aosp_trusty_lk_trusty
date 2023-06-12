@@ -122,8 +122,9 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stdarg.h>
-#include <trusty/time.h>
 
+#include <lib/unittest/unittest.h>
+#include <trusty_log.h>
 #include "trusty_bench_common.h"
 #include "trusty_bench_json_print.h"
 #include "trusty_bench_option_cb.h"
@@ -346,8 +347,8 @@ static int64_t trusty_bench_get_overhead(void) {
     int64_t res = INT64_MAX;
 
     for (size_t i = 0; i < nb_runs; ++i) {
-        trusty_gettime(0, &start_time);
-        trusty_gettime(0, &end_time);
+        start_time = get_current_time_ns();
+        end_time = get_current_time_ns();
         res = MIN(end_time - start_time, res);
     }
     return res;
@@ -366,10 +367,20 @@ static int64_t trusty_bench_get_overhead(void) {
  */
 static inline int get_extended_test_name(const char* test_name_in,
                                          char** test_name_out) {
-    int res = asprintf(test_name_out, "%s_%zu", test_name_in,
+    int res = snprintf(NULL, 0, "%s_%zu", test_name_in,
                        bench_state.cur_param_idx);
+    *test_name_out = NULL;
+    if (res >= 0) {
+        *test_name_out = malloc(res + 1);
+        res = snprintf(*test_name_out, res + 1, "%s_%zu", test_name_in,
+                       bench_state.cur_param_idx);
+    }
     if (res < 0) {
         return res;
+    }
+    if (!test_name_out) {
+        TLOGE("Cannot Allocate memory for test name\n");
+        return -1;
     }
     return 0;
 }
@@ -416,9 +427,9 @@ static inline int get_extended_test_name(const char* test_name_in,
         /* Cold Run */                                                        \
         int64_t start_time;                                                   \
         int64_t end_time;                                                     \
-        trusty_gettime(0, &start_time);                                       \
+        start_time = get_current_time_ns();                                   \
         int64_t res = suite_name##_##bench_name##_inner_##params();           \
-        trusty_gettime(0, &end_time);                                         \
+        end_time = get_current_time_ns();                                     \
                                                                               \
         if (res != NO_ERROR) {                                                \
             TLOGE("ERROR During Cold Run%" PRId64 "\n", res);                 \
@@ -442,9 +453,9 @@ static inline int get_extended_test_name(const char* test_name_in,
                                                                               \
         for (size_t idx_run = 0; idx_run < nb_runs; ++idx_run) {              \
             if (!_test_context.hard_fail && _test_context.all_ok) {           \
-                trusty_gettime(0, &start_time);                               \
+                start_time = get_current_time_ns();                           \
                 res = suite_name##_##bench_name##_inner_##params();           \
-                trusty_gettime(0, &end_time);                                 \
+                end_time = get_current_time_ns();                             \
                 bench_state.last_bench_body_duration = end_time - start_time; \
                 if (overhead >= bench_state.last_bench_body_duration) {       \
                     TLOGE("Benchmark internal function is too fast %" PRId64  \

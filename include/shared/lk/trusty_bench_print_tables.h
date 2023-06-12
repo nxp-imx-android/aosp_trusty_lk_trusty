@@ -22,6 +22,8 @@
  */
 
 #pragma once
+#include <lib/unittest/unittest.h>
+#include <trusty_log.h>
 
 /* Max Width ever needed for a cell in the table */
 static size_t trusty_bench_max_column_width;
@@ -87,7 +89,6 @@ static inline void trusty_bench_print_title(const char* suite,
     char buffer[64];
 
     snprintf(buffer, sizeof(buffer), "RUNNING %s_%s_%s", suite, bench, param);
-
     trusty_bench_print_border(BENCH_TITLE_WIDTH);
     trusty_bench_center_print(BENCH_TITLE_WIDTH - 1, buffer);
     trusty_unittest_printf("|\n");
@@ -211,7 +212,7 @@ static inline void trusty_bench_compute_widths(struct list_node* metric_list,
         if (trusty_bench_max_column_width > BENCH_MAX_COL_SIZE) {
             TLOGE("Column size cannot exceed BENCH_MAX_COL_SIZE: %d",
                   BENCH_MAX_COL_SIZE);
-            exit(-1);
+            return;
         }
 
         /* Set the size of the column */

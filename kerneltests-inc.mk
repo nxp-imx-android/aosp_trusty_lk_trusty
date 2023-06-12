@@ -26,6 +26,7 @@ MODULES += \
 	trusty/kernel/app/consoletest \
 	trusty/kernel/app/dpctest \
 	trusty/kernel/app/memorytest \
+	trusty/kernel/app/memorylatencybench \
 	trusty/kernel/app/mmutest \
 	trusty/kernel/app/smptest \
 	trusty/kernel/app/stdcalltest \

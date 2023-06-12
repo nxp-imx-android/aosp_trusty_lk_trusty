@@ -22,6 +22,8 @@
  */
 
 #pragma once
+#include <lib/unittest/unittest.h>
+#include <stdio.h>
 #include "trusty_bench_option_cb.h"
 
 /**

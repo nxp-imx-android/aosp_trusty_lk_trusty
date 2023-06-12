@@ -24,6 +24,7 @@
 
 #include <inttypes.h>
 
+#include <lib/unittest/unittest.h>
 #include "trusty_bench_option_cb.h"
 
 /*

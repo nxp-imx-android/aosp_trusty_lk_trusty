@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <inttypes.h>
 #include <lib/trusty/ipc.h>
 #include <lk/compiler.h>
 #include <stdbool.h>
@@ -52,6 +53,15 @@ int unittest_add(struct unittest* test);
 #include <lk/trusty_unittest.h>
 
 #include <lk/init.h>
+#include <platform.h>
+
+/*
+ * This function returns a time in nanoseconds based on hardware counters
+ * it is expected to:
+ *  - Be non-wrapping or have very long (years) roll-over period
+ *  - Have a resolution below 100ns
+ */
+uint64_t get_current_time_ns(void);
 
 #define PORT_TEST_COMMON(suite_name, port_name_string, suite_name_string) \
     static bool run_##suite_name(struct unittest* test) {                 \

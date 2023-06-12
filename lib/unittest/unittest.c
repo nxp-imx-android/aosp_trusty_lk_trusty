@@ -51,6 +51,10 @@ static struct mutex unittest_lock = MUTEX_INITIAL_VALUE(unittest_lock);
 static struct handle* unittest_handle_set;
 static thread_t* unittest_thread;
 
+uint64_t get_current_time_ns(void) {
+    return current_time_ns();
+}
+
 static int send_msg_wait(struct handle* handle, struct ipc_msg_kern* msg) {
     int ret;
     uint32_t event;
