@@ -1,3 +1,7 @@
+/*
+ * Copyright 2023 NXP
+ */
+
 #ifndef	_TIME_H
 #define _TIME_H
 
