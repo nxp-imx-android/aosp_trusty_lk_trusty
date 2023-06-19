@@ -26,6 +26,8 @@
 
 #include <arch/ops.h>
 #include <compiler.h>
+#include <limits.h>
+#include <panic.h>
 
 struct refcount {
     volatile int cnt;
@@ -41,7 +43,9 @@ static inline __ALWAYS_INLINE void refcount_init(struct refcount* ref) {
 }
 
 static inline __ALWAYS_INLINE void refcount_inc(struct refcount* ref) {
-    atomic_add(&ref->cnt, 1);
+    if (atomic_add(&ref->cnt, 1) == INT_MAX) {
+        panic("ref overflow\n");
+    }
 }
 
 static inline __ALWAYS_INLINE void refcount_dec(struct refcount* ref,
