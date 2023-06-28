@@ -29,6 +29,7 @@
 # HOST_LIBS : list of host-provided libraries to link against
 # HOST_DEPS : list of libraries to build and link against. Recursive
 #             dependencies are not supported.
+# HOST_COVERAGE_ENABLED : true/false enable LLVM Source-based code coverage
 
 
 # Validate arguments.
@@ -59,6 +60,20 @@ HOST_LIBCXX_LDFLAGS := -L$(CLANG_HOST_LIBDIR) -stdlib=libc++ -Wl,-rpath,$(CLANG_
 HOST_DEBUGGER :=
 
 HOST_INCLUDE_DIRS += $(GLOBAL_UAPI_INCLUDES) $(GLOBAL_SHARED_INCLUDES) $(GLOBAL_USER_INCLUDES)
+
+# Enable LLVM Source-based Code Coverage
+# https://clang.llvm.org/docs/SourceBasedCodeCoverage.html
+ifeq (true,$(call TOBOOL,$(HOST_COVERAGE_ENABLED)))
+HOST_FLAGS += \
+	-fprofile-instr-generate=$(HOST_TEST).profraw \
+	-fcoverage-mapping \
+	-mllvm -enable-value-profiling=false
+
+HOST_LDFLAGS += \
+	-fprofile-instr-generate=$(HOST_TEST).profraw \
+	-fcoverage-mapping \
+	-mllvm -enable-value-profiling=false
+endif
 
 # Compile test library dependencies
 HOST_LIB_ARCHIVES :=
@@ -105,6 +120,7 @@ HOST_INCLUDE_DIRS :=
 HOST_FLAGS :=
 HOST_LIBS :=
 HOST_DEPS :=
+HOST_COVERAGE_ENABLED :=
 # Cleanup internal
 HOST_CC :=
 HOST_SANITIZER_FLAGS :=
