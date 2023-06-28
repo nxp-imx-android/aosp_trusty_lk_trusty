@@ -213,6 +213,9 @@ ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 # should not matter for this library. (The main difference is which version of
 # libcxx they link against, and the builtins do not use C++.)
 TRUSTY_APP_LIBGCC := $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.builtins-$(STANDARD_ARCH_NAME)-android.a
+ifeq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
+TRUSTY_APP_LIBCOV := -u__llvm_profile_runtime $(CLANG_BINDIR)/../runtimes_ndk_cxx/libclang_rt.profile-aarch64-android.a
+endif
 
 TRUSTY_APP_BASE_LDFLAGS := $(GLOBAL_SHARED_LDFLAGS) -z max-page-size=4096 -z separate-loadable-segments
 TRUSTY_APP_ALIGNMENT := 4096
