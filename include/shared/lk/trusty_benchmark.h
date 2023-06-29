@@ -397,6 +397,7 @@ static inline int get_extended_test_name(const char* test_name_in,
  */
 #define BENCH_CORE(suite_name, bench_name, nb_runs, nb_params, params,        \
                    metric_list)                                               \
+    reset_vertical_print_widths();                                            \
     trusty_bench_print_title(STRINGIFY(suite_name), STRINGIFY(bench_name),    \
                              STRINGIFY(params));                              \
     static trusty_bench_print_callback_t trusty_bench_print_cb =              \

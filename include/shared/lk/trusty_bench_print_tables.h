@@ -25,7 +25,7 @@
 #include <lib/unittest/unittest.h>
 #include <trusty_log.h>
 
-/* Max Width ever needed for a cell in the table */
+/* Max Width ever needed for a cell in the table in horizontal printing*/
 static size_t trusty_bench_max_column_width;
 
 /* Max Width ever needed for a metric cell in the table */
@@ -36,6 +36,15 @@ static size_t trusty_bench_max_param_name_width;
 
 /* Max Width ever needed for a Metric Value cell in the table */
 static size_t trusty_bench_max_metric_digit_width;
+
+static inline void reset_vertical_print_widths(void) {
+    /* strlen("Metric") is the minimum needed*/
+    trusty_bench_max_metric_name_width = 6;
+    /* strlen("Param") is the minimum needed*/
+    trusty_bench_max_param_name_width = 5;
+    /* Max of strlen of Min/Max/Avg/Cold is the minimum needed*/
+    trusty_bench_max_metric_digit_width = 4;
+}
 
 /**
  * trusty_bench_print_border - Prints a Dash Sequence of prescribed size sz.
