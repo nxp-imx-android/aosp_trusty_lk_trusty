@@ -17,6 +17,7 @@
 [
     include("external/lk/build-config-kerneltests"),
     porttest("com.android.kernel.btitest"),
+    porttest("com.android.kernel.cachetest"),
     porttest("com.android.kernel.console-unittest"),
     porttest("com.android.kernel.device_tree.test"),
     porttest("com.android.kernel.dpc-unittest"),
