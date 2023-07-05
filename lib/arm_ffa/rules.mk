@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2015, Google, Inc. All rights reserved
+# Copyright (c) 2022, Arm Ltd.  All rights reserved
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -25,27 +25,13 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 
 MODULE := $(LOCAL_DIR)
 
-GLOBAL_DEFINES += \
-	WITH_LIB_SM=1 \
-
 GLOBAL_INCLUDES += \
 	$(LOCAL_DIR)/include
 
 MODULE_SRCS += \
-	$(LOCAL_DIR)/sm.c \
-	$(LOCAL_DIR)/smcall.c \
-	$(LOCAL_DIR)/ns_mem.c \
-	$(LOCAL_DIR)/shared_mem.c \
-        $(LOCAL_DIR)/trusty_sched_share.c \
+	$(LOCAL_DIR)/arm_ffa.c \
 
 MODULE_DEPS += \
-	trusty/kernel/lib/arm_ffa \
-	trusty/kernel/lib/extmem \
-	trusty/kernel/lib/version \
-	trusty/kernel/lib/smc \
 	trusty/user/base/interface/arm_ffa \
-	trusty/user/base/interface/smc \
-
-include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 
 include make/module.mk

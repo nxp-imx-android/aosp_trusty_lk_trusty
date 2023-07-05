@@ -28,6 +28,7 @@
 #include <inttypes.h>
 #include <kernel/mutex.h>
 #include <kernel/vm.h>
+#include <lib/arm_ffa/arm_ffa.h>
 #include <lib/extmem/extmem.h>
 #include <lib/page_alloc.h>
 #include <lib/sm.h>
@@ -565,14 +566,10 @@ static void shared_mem_init(uint level) {
     size_t count;
     struct smc_ret8 smc_ret;
 
-    /* Get FF-A version and check if it is compatible */
-    smc_ret = smc8(SMC_FC_FFA_VERSION, FFA_CURRENT_VERSION, 0, 0, 0, 0, 0, 0);
-    if (FFA_VERSION_TO_MAJOR((uint32_t)smc_ret.r0) !=
-        FFA_CURRENT_VERSION_MAJOR) {
-        /* TODO: support more than one (minor) version. */
-        TRACEF("%s: unsupported FF-A version 0x%lx, expected 0x%x\n", __func__,
-               smc_ret.r0, FFA_CURRENT_VERSION);
-        goto err_version;
+    /* Check the FF-A module initialized successfully */
+    if (!arm_ffa_is_init()) {
+        TRACEF("The arm_ffa module is not initialized\n");
+        goto err_ffa_init;
     }
 
     /* Check that SMC_FC_FFA_MEM_SHARE is implemented */
@@ -680,7 +677,7 @@ err_alloc_tx:
     /* pmm_alloc_contiguous leaves the page list unchanged on failure */
 err_id_get:
 err_features:
-err_version:
+err_ffa_init:
     TRACEF("failed to initialize FF-A\n");
     if (sm_check_and_lock_api_version(TRUSTY_API_VERSION_MEM_OBJ)) {
         panic("shared_mem_init failed after mem_obj version selected\n");
