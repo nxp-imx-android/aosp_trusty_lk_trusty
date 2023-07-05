@@ -42,6 +42,8 @@ MODULE_DEPS += \
 	trusty/kernel/lib/extmem \
 	trusty/kernel/lib/version \
 	trusty/kernel/lib/smc \
+	trusty/user/base/interface/arm_ffa \
+	trusty/user/base/interface/smc \
 
 include $(LOCAL_DIR)/arch/$(ARCH)/rules.mk
 

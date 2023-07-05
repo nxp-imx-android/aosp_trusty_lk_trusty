@@ -24,13 +24,13 @@
 #include <compiler.h>
 #include <debug.h>
 #include <err.h>
+#include <interface/arm_ffa/arm_ffa.h>
 #include <inttypes.h>
 #include <kernel/mutex.h>
 #include <kernel/vm.h>
 #include <lib/extmem/extmem.h>
 #include <lib/page_alloc.h>
 #include <lib/sm.h>
-#include <lib/sm/arm_ffa.h>
 #include <lib/smc/smc.h>
 #include <lk/init.h>
 #include <string.h>

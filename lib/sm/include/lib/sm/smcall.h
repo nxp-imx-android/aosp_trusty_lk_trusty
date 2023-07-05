@@ -23,7 +23,7 @@
 #ifndef __LIB_SM_SMCALL_H
 #define __LIB_SM_SMCALL_H
 
-#include <lib/smc/smc_def.h>
+#include <interface/smc/smc_def.h>
 
 #define SMC_NUM_ARGS 4
 #define SMC_NUM_PARAMS (SMC_NUM_ARGS - 1)
