@@ -39,4 +39,6 @@ TEST(btitest, DISABLED_bti_j) {}
 
 TEST(btitest, DISABLED_bti_jc) {}
 
+TEST(btitest, DISABLED_pacisp) {}
+
 PORT_TEST(btitest, "com.android.kernel.btitest");

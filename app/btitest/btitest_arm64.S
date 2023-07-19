@@ -58,6 +58,10 @@ FUNCTION(btitest_bl)
     bl btitest_callee_bti_j
     cbnz x0, .Lerror
     bl btitest_callee_bti_jc
+    cbnz x0, .Lerror
+    bl btitest_callee_paciasp
+    cbnz x0, .Lerror
+    bl btitest_callee_pacibsp
 .Lerror:
     pop lr, xzr
     ret
@@ -172,6 +176,32 @@ LOCAL_FUNCTION(btitest_callee_bti_jc)
     ret
 
 /**
+ * int btitest_callee_paciasp(void) - Function with paciasp instruction
+ *
+ * Returns ERR_FAULT if the BTI check fails.
+ * Return 0 if the BTI check passes.
+ */
+LOCAL_FUNCTION(btitest_callee_paciasp)
+    set_fault_handler .Lbtitest_callee_fault
+    paciasp
+    mov	x0, #0
+    autiasp
+    ret
+
+/**
+ * int btitest_callee_pacibsp(void) - Function with pacibsp instruction
+ *
+ * Returns ERR_FAULT if the BTI check fails.
+ * Return 0 if the BTI check passes.
+ */
+LOCAL_FUNCTION(btitest_callee_pacibsp)
+    set_fault_handler .Lbtitest_callee_fault
+    pacibsp
+    mov	x0, #0
+    autibsp
+    ret
+
+/**
  * int btitest_callee_error(void) - Error function which always fails
  *
  * This is valid as any jump target.
@@ -215,8 +245,18 @@ LOCAL_FUNCTION(get_callee)
     ret
 .Ltry_bti_jc:
     cmp w0, #BTITEST_CALLEE_BTI_JC
-    bne .Lunknown
+    bne .Ltry_paciasp
     adr x0, btitest_callee_bti_jc
+    ret
+.Ltry_paciasp:
+    cmp w0, #BTITEST_CALLEE_PACIASP
+    bne .Ltry_pacibsp
+    adr x0, btitest_callee_paciasp
+    ret
+.Ltry_pacibsp:
+    cmp w0, #BTITEST_CALLEE_PACIBSP
+    bne .Lunknown
+    adr x0, btitest_callee_pacibsp
     ret
 .Lunknown:
     /* Return error function which unconditionally fails any test */

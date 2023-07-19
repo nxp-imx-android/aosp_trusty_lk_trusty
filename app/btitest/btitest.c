@@ -124,4 +124,23 @@ TEST(btitest, bti_jc) {
     EXPECT_EQ(0, btitest_blr(BTITEST_CALLEE_BTI_JC));
 }
 
+TEST(btitest, pacisp) {
+    if (!arch_pac_address_supported()) {
+        trusty_unittest_printf("[  SKIPPED ] PAC is not supported\n");
+        return;
+    }
+
+    /* PACIASP is a valid target for all branch types */
+    EXPECT_EQ(0, btitest_br(BTITEST_CALLEE_PACIASP));
+    EXPECT_EQ(0, btitest_br_x16(BTITEST_CALLEE_PACIASP));
+    EXPECT_EQ(0, btitest_br_x17(BTITEST_CALLEE_PACIASP));
+    EXPECT_EQ(0, btitest_blr(BTITEST_CALLEE_PACIASP));
+
+    /* PACIBSP is a valid target for all branch types */
+    EXPECT_EQ(0, btitest_br(BTITEST_CALLEE_PACIBSP));
+    EXPECT_EQ(0, btitest_br_x16(BTITEST_CALLEE_PACIBSP));
+    EXPECT_EQ(0, btitest_br_x17(BTITEST_CALLEE_PACIBSP));
+    EXPECT_EQ(0, btitest_blr(BTITEST_CALLEE_PACIBSP));
+}
+
 PORT_TEST(btitest, "com.android.kernel.btitest");
