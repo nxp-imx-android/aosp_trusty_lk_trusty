@@ -29,6 +29,7 @@ MODULES += \
 	trusty/kernel/app/memorytest \
 	trusty/kernel/app/memorylatencybench \
 	trusty/kernel/app/mmutest \
+	trusty/kernel/app/pactest \
 	trusty/kernel/app/smptest \
 	trusty/kernel/app/stdcalltest \
 	trusty/kernel/app/uirqtest \
