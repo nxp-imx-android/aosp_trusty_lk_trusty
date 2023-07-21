@@ -21,6 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <arch/arch_ops.h>
 #include <assert.h>
 #include <inttypes.h>
 #include <lib/backtrace/backtrace.h>
@@ -121,7 +122,7 @@ static void print_function_info(struct thread* thread,
                                 uintptr_t load_bias,
                                 struct pc_symbol_info* info) {
     uintptr_t pc_offset;
-    uintptr_t pc = frame->ret_addr;
+    uintptr_t pc = arch_extract_return_addr(frame->ret_addr);
     __builtin_sub_overflow(pc, load_bias, &pc_offset);
 
     print_stack_address(thread, frame->frame_addr);
@@ -147,9 +148,10 @@ static void print_function_info(struct thread* thread,
 static void dump_user_function(struct thread* thread,
                                struct trusty_app* app,
                                struct stack_frame* frame) {
+    uintptr_t ret_addr = arch_extract_return_addr(frame->ret_addr);
     uintptr_t load_bias = app ? app->load_bias : 0;
     struct pc_symbol_info info;
-    int rc = trusty_app_symbolize(app, frame->ret_addr, &info);
+    int rc = trusty_app_symbolize(app, ret_addr, &info);
     if (rc == NO_ERROR) {
         print_function_info(thread, frame, load_bias, &info);
     } else {
@@ -173,11 +175,13 @@ static void dump_kernel_function(struct thread* thread,
  * @frame: instruction address of the function being dumped and next frame ptr
  */
 static void dump_function(thread_t* thread, struct stack_frame* frame) {
-    if (is_user_address(frame->ret_addr)) {
+    uintptr_t ret_addr = arch_extract_return_addr(frame->ret_addr);
+
+    if (is_user_address(ret_addr)) {
         struct trusty_thread* trusty_thread = trusty_thread_get(thread);
         dump_user_function(thread, trusty_thread ? trusty_thread->app : NULL,
                            frame);
-    } else if (is_kernel_address(frame->ret_addr)) {
+    } else if (is_kernel_address(ret_addr)) {
         dump_kernel_function(thread, frame);
     } else {
         print_function_info(thread, frame, 0, NULL);
