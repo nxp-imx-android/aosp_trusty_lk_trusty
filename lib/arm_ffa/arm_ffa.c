@@ -99,29 +99,21 @@ static status_t arm_ffa_call_version(uint16_t major,
 
 /* TODO: When adding support for FFA version 1.1 feature ids should be added. */
 static status_t arm_ffa_call_features(ulong id,
-                                      bool request_ns_bit,
                                       bool* is_implemented,
                                       ffa_features2_t* features2,
                                       ffa_features3_t* features3) {
     struct smc_ret8 smc_ret;
 
     ASSERT(is_implemented);
-    ASSERT(!request_ns_bit || id == SMC_FC_FFA_MEM_RETRIEVE_REQ ||
-           id == SMC_FC64_FFA_MEM_RETRIEVE_REQ);
 
-    /* Allow querying for NS bit - see b/292455218 */
-#if 0
     /*
-     * The NS bit input parameter must be zero (MBZ) in FF-A version 1.0.
-     * This still requests use of the NS bit in the FFA_MEM_RETRIEVE_RESP ABI.
-     * In FF-A version 1.1 the input parameter NS bit must be set to request
-     * its use.  See section 10.10.4.1.1, Discovery of NS bit usage, in the
-     * FF-A 1.1 BETA specification.
-     * (https://developer.arm.com/documentation/den0077/c)
+     * According to the FF-A spec section "Discovery of NS bit usage",
+     * NS_BIT is optionally set by a v1.0 SP such as Trusty, and must
+     * be set by a v1.1+ SP. Here, we set it unconditionally for the
+     * relevant feature.
      */
-    request_ns_bit = 0;
-#endif
-
+    bool request_ns_bit = (id == SMC_FC_FFA_MEM_RETRIEVE_REQ) ||
+                          (id == SMC_FC64_FFA_MEM_RETRIEVE_REQ);
     smc_ret = smc8(SMC_FC_FFA_FEATURES, id,
                    request_ns_bit ? FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT : 0,
                    0, 0, 0, 0, 0);
@@ -258,10 +250,10 @@ static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
 
     ASSERT(is_implemented);
 #if ARCH_ARM64
-    res = arm_ffa_call_features(SMC_FC64_FFA_RXTX_MAP, 0, &is_implemented_val,
+    res = arm_ffa_call_features(SMC_FC64_FFA_RXTX_MAP, &is_implemented_val,
                                 &features2, NULL);
 #else
-    res = arm_ffa_call_features(SMC_FC_FFA_RXTX_MAP, 0, &is_implemented_val,
+    res = arm_ffa_call_features(SMC_FC_FFA_RXTX_MAP, &is_implemented_val,
                                 &features2, NULL);
 #endif
     if (res != NO_ERROR) {
@@ -296,7 +288,6 @@ static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
 }
 
 static status_t arm_ffa_mem_retrieve_req_is_implemented(
-        bool request_ns_bit,
         bool* is_implemented,
         bool* dyn_alloc_supp,
         bool* has_ns_bit,
@@ -308,7 +299,7 @@ static status_t arm_ffa_mem_retrieve_req_is_implemented(
 
     ASSERT(is_implemented);
 
-    res = arm_ffa_call_features(SMC_FC_FFA_MEM_RETRIEVE_REQ, request_ns_bit,
+    res = arm_ffa_call_features(SMC_FC_FFA_MEM_RETRIEVE_REQ,
                                 &is_implemented_val, &features2, &features3);
     if (res != NO_ERROR) {
         TRACEF("Failed to query for feature FFA_MEM_RETRIEVE_REQ, err = %d\n",
@@ -392,7 +383,7 @@ static status_t arm_ffa_setup(void) {
     }
 
     res = arm_ffa_mem_retrieve_req_is_implemented(
-            true, &is_implemented, NULL, &supports_ns_bit, &ref_count_num_bits);
+            &is_implemented, NULL, &supports_ns_bit, &ref_count_num_bits);
     if (res != NO_ERROR) {
         TRACEF("Error checking if FFA_MEM_RETRIEVE_REQ is implemented (err=%d)\n",
                res);
