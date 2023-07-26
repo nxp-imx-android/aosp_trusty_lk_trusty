@@ -107,6 +107,8 @@ static status_t arm_ffa_call_features(ulong id,
     ASSERT(!request_ns_bit || id == SMC_FC_FFA_MEM_RETRIEVE_REQ ||
            id == SMC_FC64_FFA_MEM_RETRIEVE_REQ);
 
+    /* Allow querying for NS bit - see b/292455218 */
+#if 0
     /*
      * The NS bit input parameter must be zero (MBZ) in FF-A version 1.0.
      * This still requests use of the NS bit in the FFA_MEM_RETRIEVE_RESP ABI.
@@ -116,6 +118,7 @@ static status_t arm_ffa_call_features(ulong id,
      * (https://developer.arm.com/documentation/den0077/c)
      */
     request_ns_bit = 0;
+#endif
 
     smc_ret = smc8(SMC_FC_FFA_FEATURES, id,
                    request_ns_bit ? FFA_FEATURES2_MEM_RETRIEVE_REQ_NS_BIT : 0,
@@ -303,7 +306,7 @@ static status_t arm_ffa_mem_retrieve_req_is_implemented(
 
     ASSERT(is_implemented);
 
-    res = arm_ffa_call_features(SMC_FC_FFA_MEM_RETRIEVE_REQ, 0,
+    res = arm_ffa_call_features(SMC_FC_FFA_MEM_RETRIEVE_REQ, request_ns_bit,
                                 &is_implemented_val, &features2, &features3);
     if (res != NO_ERROR) {
         TRACEF("Failed to query for feature FFA_MEM_RETRIEVE_REQ, err = %d\n",
