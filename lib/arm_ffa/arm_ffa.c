@@ -84,8 +84,10 @@ static status_t arm_ffa_call_version(uint16_t major,
                                      uint16_t* minor_ret) {
     struct smc_ret8 smc_ret;
 
-    smc_ret = smc8(SMC_FC_FFA_VERSION, FFA_VERSION(major, minor), 0, 0, 0, 0, 0,
-                   0);
+    uint32_t version = FFA_VERSION(major, minor);
+    /* Bit 31 must be cleared. */
+    ASSERT(!(version >> 31));
+    smc_ret = smc8(SMC_FC_FFA_VERSION, version, 0, 0, 0, 0, 0, 0);
     if (smc_ret.r0 == (ulong)FFA_ERROR_NOT_SUPPORTED) {
         return ERR_NOT_SUPPORTED;
     }
