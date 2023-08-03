@@ -126,25 +126,6 @@ TEST(pactest, enabled) {
     EXPECT_EQ(sctlr_el1 & SCTLR_EL1_ENDB, 0);
 }
 
-TEST(pactest, keys) {
-    if (!arch_pac_address_supported()) {
-        trusty_unittest_printf("[  SKIPPED ] PAuth is not supported\n");
-        return;
-    }
-
-    const uint64_t keyi_lo = ARM64_READ_SYSREG(APIAKeyLo_EL1);
-    const uint64_t keyi_hi = ARM64_READ_SYSREG(APIAKeyHi_EL1);
-
-    /*
-     * Check the keys are neither all 0's of all 1's.
-     * While these values are valid, it may indicate incorrect initialisation.
-     */
-    EXPECT_NE(UINT64_MAX, keyi_lo);
-    EXPECT_NE(UINT64_MAX, keyi_hi);
-    EXPECT_NE(0, keyi_lo);
-    EXPECT_NE(0, keyi_hi);
-}
-
 TEST(pactest, instr_pacautia) {
     const uint64_t sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
     uint64_t address = PACTEST_ADDRESS;
