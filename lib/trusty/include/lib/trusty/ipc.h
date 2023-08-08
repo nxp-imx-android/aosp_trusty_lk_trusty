@@ -198,4 +198,19 @@ bool is_ns_client(const uuid_t* uuid);
  */
 int ipc_port_check_access(uint32_t port_flags, const uuid_t* uuid);
 
+/**
+ * ipc_get_port_list() - List all ports used by application
+ * @out_port_list: pointer to list of ports. must be freed by caller
+ *
+ * Return: The size of the list.
+ */
+size_t ipc_get_port_list(struct ipc_port** out_port_list);
+
+/**
+ * ipc_free_port_list() - Free the given pointer to port list
+ * @out_port_list: pointer to list of ports.
+ *
+ */
+void ipc_free_port_list(struct ipc_port* out_port_list);
+
 __END_CDECLS

@@ -28,6 +28,7 @@ MODULES += \
 	trusty/kernel/app/dpctest \
 	trusty/kernel/app/memorytest \
 	trusty/kernel/app/memorylatencybench \
+	trusty/kernel/app/list-ports \
 	trusty/kernel/app/mmutest \
 	trusty/kernel/app/pacbench \
 	trusty/kernel/app/pactest \
