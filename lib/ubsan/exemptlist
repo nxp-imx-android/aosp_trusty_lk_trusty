@@ -71,3 +71,10 @@ src:*/external/freetype/*
 # Exempt libfdt from implicit integer sign changes
 [implicit-integer-sign-change]
 src:external/dtc/libfdt/*
+
+# Exempt some libbinder functions from CFI because they make indirect
+# calls from C++ into Rust and the latter does not support CFI.
+# TODO(b/181755948): Remove these lines when that changes.
+[cfi-icall]
+src:*/libbinder_rpc_unstable.cpp
+src:*/ndk/ibinder.cpp
