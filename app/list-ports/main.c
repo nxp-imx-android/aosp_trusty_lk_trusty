@@ -68,17 +68,4 @@ TEST(list_ports, lists) {
     ipc_free_port_list(port_list);
 }
 
-static bool run_list_ports(struct unittest* test) {
-    return RUN_ALL_TESTS();
-}
-
-static void list_ports_init(uint level) {
-    static struct unittest list_ports = {
-            .port_name = "com.android.kernel.list-ports",
-            .run_test = run_list_ports,
-    };
-
-    unittest_add(&list_ports);
-}
-
-LK_INIT_HOOK(list_ports, list_ports_init, LK_INIT_LEVEL_APPS);
+PORT_TEST(list_ports, "com.android.kernel.list-ports");

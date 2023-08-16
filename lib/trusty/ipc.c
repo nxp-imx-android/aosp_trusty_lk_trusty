@@ -193,15 +193,19 @@ err_copy_path:
     return ret;
 }
 
-size_t ipc_get_port_list(struct ipc_port** out_port_list) {
+#if TEST_BUILD
+int ipc_get_port_list(struct ipc_port** out_port_list) {
     struct ipc_port* port;
 
     mutex_acquire(&ipc_port_lock);
-    uint32_t len = list_length(&ipc_port_list);
+    int len = list_length(&ipc_port_list);
     *out_port_list = calloc(sizeof(struct ipc_port), len);
+    if (out_port_list == NULL) {
+        return ERR_NO_MEMORY;
+    }
     struct ipc_port* current_port = *out_port_list;
     list_for_every_entry(&ipc_port_list, port, struct ipc_port, node) {
-        memcpy(current_port, port->path, sizeof(struct ipc_port));
+        memcpy(current_port, port, sizeof(struct ipc_port));
         ++current_port;
     }
     mutex_release(&ipc_port_lock);
@@ -211,6 +215,7 @@ size_t ipc_get_port_list(struct ipc_port** out_port_list) {
 void ipc_free_port_list(struct ipc_port* out_port_list) {
     free(out_port_list);
 }
+#endif
 
 static void add_to_waiting_for_port_list_locked(struct ipc_chan* client) {
     DEBUG_ASSERT(client);
