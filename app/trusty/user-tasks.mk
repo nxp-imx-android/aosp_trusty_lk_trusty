@@ -292,6 +292,14 @@ $(eval $(call trusty-build-rule,trusty/user/base/sdk))
 # Ensure that includes and libs are installed
 all:: $(ALL_SDK_INCLUDES) $(ALL_SDK_LIBS) $(ALL_SDK_EXTRA_FILES) $(TRUSTY_SDK_LICENSE)
 
+ifeq (false,$(call TOBOOL,$(TRUSTY_APPLOADER_ENABLED)))
+
+ifneq ($(strip $(TRUSTY_LOADABLE_USER_TASKS) $(TRUSTY_LOADABLE_USER_TESTS)),)
+$(error Loadable apps ($(TRUSTY_LOADABLE_USER_TASKS) $(TRUSTY_LOADABLE_USER_TESTS)) requested but this build does not include the apploader service)
+endif
+
+else # TRUSTY_APPLOADER_ENABLED
+
 #
 # Generate loadable application packages
 #
@@ -345,6 +353,8 @@ $(TEST_PACKAGE_ZIP): $(TRUSTY_LOADABLE_TEST_APPS)
 EXTRA_BUILDDEPS += $(TEST_PACKAGE_ZIP)
 
 endif
+
+endif # TRUSTY_APPLOADER_ENABLED
 
 
 #
@@ -426,6 +436,7 @@ TRUSTY_APP_ARCH :=
 TRUSTY_APP_ALIGNMENT :=
 TRUSTY_APP_MEMBASE :=
 TRUSTY_APP_SYMTAB_ENABLED :=
+TRUSTY_APPLOADER_ENABLED :=
 TRUSTY_TOP_LEVEL_BUILDDIR :=
 TRUSTY_USERSPACE :=
 TRUSTY_USERSPACE_SAVED_ARCH :=
