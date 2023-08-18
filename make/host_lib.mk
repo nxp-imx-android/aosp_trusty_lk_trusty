@@ -44,6 +44,12 @@ ifeq ($(HOST_LIB_SRCS), )
 $(error HOST_LIB_SRCS must be specified)
 endif
 
+HOST_LIB_ARCHIVE := $(BUILDDIR)/host_libs/lib$(HOST_LIB_NAME).a
+
+# Guard against multiple rules for the same targets which produces make warnings
+ifndef HEADER_GUARD_HOST_LIB_$(BUILDDIR)_$(HOST_LIB_NAME)
+HEADER_GUARD_HOST_LIB_$(BUILDDIR)_$(HOST_LIB_NAME):=1
+
 # Compile library sources.
 GENERIC_CC := $(HOST_CC)
 GENERIC_SRCS := $(HOST_LIB_SRCS)
@@ -54,12 +60,12 @@ GENERIC_CPPFLAGS := -std=c++17 $(HOST_LIBCXX_CPPFLAGS)
 include make/generic_compile.mk
 
 # Build static library
-HOST_LIB_ARCHIVE := $(BUILDDIR)/host_libs/lib$(HOST_LIB_NAME).a
 $(HOST_LIB_ARCHIVE): $(GENERIC_OBJS)
 	@echo linking $@
 	@$(MKDIR)
 	$(NOECHO)$(AR) crs $@ $^
 
+endif
 HOST_LIB_ARCHIVES += $(HOST_LIB_ARCHIVE)
 
 # cleanup input variables
@@ -69,4 +75,3 @@ HOST_LIB_FLAGS :=
 # cleanup internal variables
 HOST_LIB_ARCHIVE :=
 GENERIC_OBJS :=
-
