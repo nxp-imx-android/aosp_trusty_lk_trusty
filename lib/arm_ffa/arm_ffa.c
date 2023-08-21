@@ -44,6 +44,7 @@ static size_t ffa_buf_size;
 static void* ffa_tx;
 static void* ffa_rx;
 static bool supports_ns_bit = false;
+static bool supports_rx_release = false;
 
 static mutex_t ffa_rxtx_buffer_lock = MUTEX_INITIAL_VALUE(ffa_rxtx_buffer_lock);
 
@@ -357,6 +358,20 @@ static status_t arm_ffa_call_rx_release(void) {
     default:
         return ERR_NOT_VALID;
     }
+}
+
+static status_t arm_ffa_rx_release_is_implemented(bool* is_implemented) {
+    bool is_implemented_val;
+    status_t res = arm_ffa_call_features(SMC_FC_FFA_RX_RELEASE,
+                                         &is_implemented_val, NULL, NULL);
+    if (res != NO_ERROR) {
+        TRACEF("Failed to query for feature FFA_RX_RELEASE, err = %d\n", res);
+        return res;
+    }
+    if (is_implemented) {
+        *is_implemented = is_implemented_val;
+    }
+    return NO_ERROR;
 }
 
 static status_t arm_ffa_rxtx_map_is_implemented(bool* is_implemented,
@@ -728,15 +743,21 @@ status_t arm_ffa_rx_release(void) {
     status_t res;
     ASSERT(is_mutex_held(&ffa_rxtx_buffer_lock));
 
-    res = arm_ffa_call_rx_release();
+    if (!supports_rx_release) {
+        res = NO_ERROR;
+    } else {
+        res = arm_ffa_call_rx_release();
+    }
+
     mutex_release(&ffa_rxtx_buffer_lock);
 
-    if (res != NO_ERROR && res != ERR_NOT_SUPPORTED) {
+    if (res == ERR_NOT_SUPPORTED) {
+        TRACEF("Tried to release rx buffer when the operation is not supported!\n");
+    } else if (res != NO_ERROR) {
         TRACEF("Failed to release rx buffer, err = %d\n", res);
         return res;
-    } else {
-        return NO_ERROR;
     }
+    return NO_ERROR;
 }
 
 status_t arm_ffa_mem_relinquish(uint64_t handle) {
@@ -785,6 +806,18 @@ static status_t arm_ffa_setup(void) {
     if (res != NO_ERROR) {
         TRACEF("Failed to get FF-A partition id (err=%d)\n", res);
         return res;
+    }
+
+    res = arm_ffa_rx_release_is_implemented(&is_implemented);
+    if (res != NO_ERROR) {
+        TRACEF("Error checking if FFA_RX_RELEASE is implemented (err=%d)\n",
+               res);
+        return res;
+    }
+    if (is_implemented) {
+        supports_rx_release = true;
+    } else {
+        TRACEF("FFA_RX_RELEASE is not implemented\n");
     }
 
     res = arm_ffa_rxtx_map_is_implemented(&is_implemented, &buf_size_log2);
