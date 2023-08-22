@@ -21,19 +21,26 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <kernel/mp.h>
 #include <kernel/thread.h>
 #include <lib/unittest/unittest.h>
 #include <lk/init.h>
 #include <stdbool.h>
 #include <stdio.h>
 
-#define SMPTEST_THREAD_COUNT 4
+#define THREAD_DELAY_MS 1
 
-#define THREAD_DELAY_MS 100
+#define SMPTEST_CYCLES 16
 
-static thread_t* smptest_thread[SMPTEST_THREAD_COUNT];
-static volatile int smptest_thread_unblock_count[SMPTEST_THREAD_COUNT];
-static volatile int smptest_thread_done_count[SMPTEST_THREAD_COUNT];
+static struct smptest_thread {
+    thread_t* thread;
+
+    volatile bool started;
+    volatile uint unblock_count;
+    volatile uint error_count;
+    volatile uint done_count;
+
+} smptest_thread[SMP_MAX_CPUS];
 
 /* Check if a thread is blocked, using volatile to ensure re-read */
 static bool thread_is_blocked(volatile thread_t* thread) {
@@ -42,11 +49,17 @@ static bool thread_is_blocked(volatile thread_t* thread) {
 
 static int smptest_thread_func(void* arg) {
     const uint i = (uintptr_t)arg;
-    uint cpu = arch_curr_cpu_num();
+    const uint expected_cpu = i;
+    struct smptest_thread* const smpt = &smptest_thread[i];
 
-    if (cpu != i) {
+    /* Note thread as started so main thread sees which CPUs are available */
+    smpt->started = true;
+
+    uint cpu = arch_curr_cpu_num();
+    if (cpu != expected_cpu) {
         /* Warn if the thread starts on another CPU than it was pinned to */
         printf("%s: thread %d started on wrong cpu: %d\n", __func__, i, cpu);
+        smpt->error_count++;
     }
 
     while (true) {
@@ -55,9 +68,10 @@ static int smptest_thread_func(void* arg) {
         thread_block();
 
         cpu = arch_curr_cpu_num();
-        if (cpu != i) {
+        if (cpu != expected_cpu) {
             /* Don't update any state if the thread runs on the wrong CPU. */
             printf("%s: thread %d ran on wrong cpu: %d\n", __func__, i, cpu);
+            smpt->error_count++;
             continue;
         }
 
@@ -65,30 +79,36 @@ static int smptest_thread_func(void* arg) {
          * Update unblock count for this cpu so the main test thread can see
          * that it ran.
          */
-        smptest_thread_unblock_count[i]++;
+        smpt->unblock_count++;
         THREAD_UNLOCK(state1);
 
-        /* Sleep to simplify tracing and test CPU local timers */
+        /* Sleep to allow other threads to block */
         thread_sleep(THREAD_DELAY_MS);
 
         THREAD_LOCK(state2);
-        if (i + 1 < SMPTEST_THREAD_COUNT) {
-            /* Next CPU should be blocked; wake it up */
-            if (thread_is_blocked(smptest_thread[i + 1])) {
-                thread_unblock(smptest_thread[i + 1], false);
-            } else {
-                printf("%s: thread %d not blocked\n", __func__, i + 1);
+
+        /* Find and unblock the next started cpu */
+        for (uint next_cpu = i + 1; next_cpu < SMP_MAX_CPUS; next_cpu++) {
+            if (smptest_thread[next_cpu].started) {
+                thread_t* next = smptest_thread[next_cpu].thread;
+
+                /* Next CPU should be blocked; wake it up */
+                if (thread_is_blocked(next)) {
+                    thread_unblock(next, false);
+                } else {
+                    printf("%s: thread %d not blocked\n", __func__, i + 1);
+                    smpt->error_count++;
+                }
+
+                break;
             }
-        } else {
-            /* Print status from last CPU. */
-            printf("%s: %d %d\n", __func__, i, smptest_thread_unblock_count[i]);
         }
 
         /*
          * Update unblock count for this cpu so the main test thread can see
          * that it completed.
          */
-        smptest_thread_done_count[i]++;
+        smpt->done_count++;
         THREAD_UNLOCK(state2);
     }
     return 0;
@@ -96,10 +116,9 @@ static int smptest_thread_func(void* arg) {
 
 TEST(smptest, run) {
     bool wait_for_cpus = false;
-    int i, j;
 
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        if (!thread_is_blocked(smptest_thread[i])) {
+    for (uint i = 0; i < SMP_MAX_CPUS; i++) {
+        if (!thread_is_blocked(smptest_thread[i].thread)) {
             unittest_printf("[   INFO   ] thread %d not ready\n", i);
             wait_for_cpus = true;
         }
@@ -110,52 +129,69 @@ TEST(smptest, run) {
      * Wait another second for all the CPUs we need to be ready if needed.
      */
     if (wait_for_cpus) {
-        unittest_printf("[   INFO   ] waiting for threads to be ready\n", i);
+        unittest_printf("[   INFO   ] waiting for threads to be ready\n");
         thread_sleep(1000);
     }
 
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        ASSERT_EQ(thread_is_blocked(smptest_thread[i]), true,
-                  "thread %d not ready\n", i);
+    for (uint i = 0; i < SMP_MAX_CPUS; i++) {
+        ASSERT_EQ(!mp_is_cpu_active(i) ||
+                          thread_is_blocked(smptest_thread[i].thread),
+                  true, "thread %d not ready\n", i);
     }
 
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        smptest_thread_unblock_count[i] = 0;
-        smptest_thread_done_count[i] = 0;
+    for (uint i = 0; i < SMP_MAX_CPUS; i++) {
+        smptest_thread[i].unblock_count = 0;
+        smptest_thread[i].error_count = 0;
+        smptest_thread[i].done_count = 0;
     }
 
     /*
-     * Repeat the test at least once, in case the CPUs don't go back to the
-     * same state after the first wake-up
+     * Repeat the test, in case the CPUs don't go back to the same state
+     * after the first wake-up
      */
-    for (j = 1; j <= 2; j++) {
+    for (uint j = 1; j < SMPTEST_CYCLES; j++) {
         THREAD_LOCK(state);
         /*
          * Wake up thread on CPU 0 to start a test run. Each thread 'n' should
          * wake-up thread 'n+1' until the last thread stops.
          * Check thread is blocked before unblocking to avoid asserts.
          */
-        if (thread_is_blocked(smptest_thread[0])) {
-            thread_unblock(smptest_thread[0], false);
+        if (thread_is_blocked(smptest_thread[0].thread)) {
+            thread_unblock(smptest_thread[0].thread, false);
         }
 
         THREAD_UNLOCK(state);
 
         /* Sleep to allow all CPUs to run with some margin */
-        thread_sleep((THREAD_DELAY_MS * SMPTEST_THREAD_COUNT) + 500);
+        thread_sleep((THREAD_DELAY_MS * SMP_MAX_CPUS) + 10);
 
         /*
          * Check that every CPU-thread ran exactly once each time we woke up the
-         * thread on CPU 0.
+         * first thread.
          */
-        for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-            const int unblock_count = smptest_thread_unblock_count[i];
-            const int done_count = smptest_thread_done_count[i];
+        for (uint cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
+            const struct smptest_thread* const smpt = &smptest_thread[cpu];
+            const int unblock_count = smpt->unblock_count;
+            const int error_count = smpt->error_count;
+            const int done_count = smpt->done_count;
 
-            EXPECT_EQ(unblock_count, j, "cpu %d FAILED block count\n", i);
-            EXPECT_EQ(done_count, j, "cpu %d FAILED done count\n", i);
+            if (smpt->started) {
+                EXPECT_EQ(unblock_count, j, "cpu %d FAILED block count\n", cpu);
+                EXPECT_EQ(error_count, 0, "cpu %d FAILED error count\n", cpu);
+                EXPECT_EQ(done_count, j, "cpu %d FAILED done count\n", cpu);
 
-            unittest_printf("[   INFO   ] smptest cpu %d run %d\n", i, j);
+                if (j == SMPTEST_CYCLES - 1) {
+                    unittest_printf(
+                            "[   INFO   ] smptest cpu %d ran %d times\n", cpu,
+                            SMPTEST_CYCLES);
+                }
+            } else {
+                EXPECT_EQ(mp_is_cpu_active(cpu), false,
+                          "cpu %d active but not running", cpu);
+                EXPECT_EQ(unblock_count, 0, "cpu %d FAILED block count\n", cpu);
+                EXPECT_EQ(error_count, 0, "cpu %d FAILED error count\n", cpu);
+                EXPECT_EQ(done_count, 0, "cpu %d FAILED done count\n", cpu);
+            }
         }
     }
 
@@ -163,18 +199,21 @@ test_abort:;
 }
 
 static void smptest_setup(uint level) {
-    int i;
-    char thread_name[32];
+    /* Create a thread for each possible CPU */
+    for (uint cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
+        struct smptest_thread* smpt = &smptest_thread[cpu];
+        char thread_name[32];
 
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        snprintf(thread_name, sizeof(thread_name), "smptest-%d", i);
-        smptest_thread[i] = thread_create(thread_name, smptest_thread_func,
-                                          (void*)(uintptr_t)i, HIGH_PRIORITY,
-                                          DEFAULT_STACK_SIZE);
-        thread_set_pinned_cpu(smptest_thread[i], i);
+        snprintf(thread_name, sizeof(thread_name), "smptest-%u", cpu);
+        smpt->thread = thread_create(thread_name, smptest_thread_func,
+                                     (void*)(uintptr_t)cpu, HIGH_PRIORITY,
+                                     DEFAULT_STACK_SIZE);
+        thread_set_pinned_cpu(smpt->thread, cpu);
     }
-    for (i = 0; i < SMPTEST_THREAD_COUNT; i++) {
-        thread_resume(smptest_thread[i]);
+
+    /* Allow threads to run */
+    for (uint cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
+        thread_resume(smptest_thread[cpu].thread);
     }
 }
 
