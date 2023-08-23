@@ -163,7 +163,7 @@ TEST(smptest, run) {
         THREAD_UNLOCK(state);
 
         /* Sleep to allow all CPUs to run with some margin */
-        thread_sleep((THREAD_DELAY_MS * SMP_MAX_CPUS) + 10);
+        thread_sleep((THREAD_DELAY_MS + 5) * SMP_MAX_CPUS);
 
         /*
          * Check that every CPU-thread ran exactly once each time we woke up the
