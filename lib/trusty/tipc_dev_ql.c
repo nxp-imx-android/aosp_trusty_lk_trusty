@@ -642,7 +642,7 @@ long ql_tipc_handle_cmd(ext_mem_client_id_t client_id,
 
     /* check for minimum size */
     if (cmd_sz < sizeof(cmd_hdr)) {
-        TRACEF("message is too short (%zd)\n", (size_t)cmd_sz);
+        TRACEF("message is too short (%zu)\n", (size_t)cmd_sz);
         goto err_invalid;
     }
 
