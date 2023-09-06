@@ -542,7 +542,7 @@ status_t arm_ffa_mem_address_range_get(struct arm_ffa_mem_frag_info* frag_info,
             (void*)frag_info->address_ranges[frag_idx].address,
             frag_info->address_ranges[frag_idx].page_count);
     if (page_count < 1 || ((size_t)page_count > (SIZE_MAX / FFA_PAGE_SIZE))) {
-        TRACEF("bad page count 0x%x at %zd\n", page_count, index);
+        TRACEF("bad page count 0x%x at %zu\n", page_count, index);
         return ERR_IO;
     }
 
