@@ -84,9 +84,6 @@ $(GENERIC_ASM_OBJS): $(GENERIC_OBJ_DIR)/%.o: %.S
 	@$(MKDIR)
 	$(NOECHO)$(CC) $(FLAGS) $(ASMFLAGS) -c $< -MMD -o $@
 
-# Ensure recompilation on header file change.
--include $(GENERIC_OBJS:.o=.d)
-
 # Cleanup inputs
 GENERIC_CC :=
 GENERIC_SRCS :=
