@@ -32,7 +32,7 @@
  * schema validation. Schema is available in the same folder as this file
  * "trusty_bench_json_schema.vXXX.json"
  */
-#define BENCH_SCHEMA_VERSION "2"
+#define BENCH_SCHEMA_VERSION "3"
 
 /**
  * trusty_bench_print_json_metric_list -  Prints a machine readable json of all

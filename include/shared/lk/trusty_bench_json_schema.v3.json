@@ -15,8 +15,8 @@
         },
         "schema_version": {
             "type": "number",
-            "minimum": 2,
-            "maximum": 2
+            "minimum": 3,
+            "maximum": 3
         },
         "results": {
             "type": "array",
@@ -29,6 +29,7 @@
     },
     "required": [
         "suite_name",
+        "bench_name",
         "results",
         "schema_version"
     ],
