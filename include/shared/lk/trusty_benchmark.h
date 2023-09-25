@@ -122,6 +122,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include <lib/unittest/unittest.h>
 #include <trusty_log.h>
