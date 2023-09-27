@@ -83,6 +83,9 @@ void sm_handle_fiq(void);
 /* Version */
 long smc_sm_api_version(struct smc32_args* args);
 
+/* SMP mode */
+long smc_get_smp_max_cpus(struct smc32_args* args);
+
 /* Interrupt controller irq/fiq support */
 long smc_intc_get_next_irq(struct smc32_args* args);
 /* return 0 to enter ns-fiq handler, return non-0 to return */

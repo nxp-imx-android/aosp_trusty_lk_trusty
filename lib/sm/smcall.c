@@ -149,6 +149,7 @@ static smc32_handler_t sm_fastcall_function_table[] = {
 #endif
         [SMC_FUNCTION(SMC_FC_GET_VERSION_STR)] = smc_get_version_str,
         [SMC_FUNCTION(SMC_FC_API_VERSION)] = smc_sm_api_version,
+        [SMC_FUNCTION(SMC_FC_GET_SMP_MAX_CPUS)] = smc_get_smp_max_cpus,
 };
 
 static long smc_fastcall_secure_monitor(struct smc32_args* args) {

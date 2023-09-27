@@ -102,6 +102,10 @@ long smc_sm_api_version(struct smc32_args* args) {
     return api_version;
 }
 
+long smc_get_smp_max_cpus(struct smc32_args* args) {
+    return SMP_MAX_CPUS;
+}
+
 uint32_t sm_get_api_version(void) {
     return sm_api_version;
 }

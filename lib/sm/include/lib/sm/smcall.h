@@ -139,6 +139,14 @@
 
 #define SMC_FC_FIQ_RESUME SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 12)
 
+/**
+ * SMC_FC_GET_SMP_MAX_CPUS - Find max number of cpus supported by Trusty.
+ *
+ * This call must be made before booting secondary cpus as Trusty
+ * may support less number of cpus and crash if execution switches to them
+ */
+#define SMC_FC_GET_SMP_MAX_CPUS SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 13)
+
 /* TRUSTED_OS entity calls */
 #define SMC_SC_VIRTIO_GET_DESCR SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 20)
 #define SMC_SC_VIRTIO_START SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 21)
