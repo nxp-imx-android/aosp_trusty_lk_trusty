@@ -171,6 +171,18 @@ TEST(smptest, run) {
          */
         for (uint cpu = 0; cpu < SMP_MAX_CPUS; cpu++) {
             const struct smptest_thread* const smpt = &smptest_thread[cpu];
+
+            /*
+             * Some cpus can still execute the thread body (e.g. if they are
+             * interrupted by some other jobs), let them time to finish
+             * (up to 1 sec, then think they got stuck).
+             */
+            for (int i = 0; i < 10; i++) {
+                if (smpt->unblock_count != j || smpt->done_count != j) {
+                    thread_sleep(100);
+                }
+            }
+
             const int unblock_count = smpt->unblock_count;
             const int error_count = smpt->error_count;
             const int done_count = smpt->done_count;
