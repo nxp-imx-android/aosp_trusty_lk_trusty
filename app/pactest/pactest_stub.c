@@ -31,9 +31,7 @@ TEST(pactest, DISABLED_enabled) {}
 
 TEST(pactest, DISABLED_keys) {}
 
-TEST(pactest, DISABLED_instr_pacautia) {}
-
-TEST(pactest, DISABLED_instr_pacautib) {}
+TEST(pactest, DISABLED_instr) {}
 
 TEST(pactest, DISABLED_pac_length) {}
 

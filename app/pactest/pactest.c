@@ -39,8 +39,77 @@
 #include <platform/random.h>
 #include <stdio.h>
 
-#define PACTEST_ADDRESS 0x1234567890abcdefu
+#define MASK(bits) ((1ull << (bits)) - 1)
+
+/*
+ * Test addresses for each translation table (TT).
+ * Address bit 55 is used to select between page translation tables to use.
+ * TT0 is used for user addresses, while TT1 is kernel addresses.
+ */
+#define PACTEST_TT0_ADDRESS \
+    (0x1234567890abcdefu & MASK(MMU_USER_SIZE_SHIFT)) & ~(1ull << 55)
+#define PACTEST_TT1_ADDRESS \
+    (0x1234567890abcdefu | (~0ull << MMU_KERNEL_SIZE_SHIFT)) | (1ull << 55)
 #define PACTEST_MODIFIER 0xfedcba0987654321u
+
+/* Helper function for parameterized calling of specific PAC instructions */
+static uint64_t pacxx(bool instr_not_data,
+                      bool key_a_not_b,
+                      uint64_t address,
+                      uint64_t modifier) {
+    if (key_a_not_b) {
+        if (instr_not_data) {
+            __asm__(".arch_extension pauth\n"
+                    "\tPACIA %0, %1"
+                    : "+r"(address)
+                    : "r"(modifier));
+        } else {
+            __asm__(".arch_extension pauth\n"
+                    "\tPACDA %0, %1"
+                    : "+r"(address)
+                    : "r"(modifier));
+        }
+    } else {
+        if (instr_not_data) {
+            __asm__(".arch_extension pauth\n"
+                    "\tPACIB %0, %1"
+                    : "+r"(address)
+                    : "r"(modifier));
+        } else {
+            __asm__(".arch_extension pauth\n"
+                    "\tPACDB %0, %1"
+                    : "+r"(address)
+                    : "r"(modifier));
+        }
+    }
+
+    return address;
+}
+
+/*
+ * Helper function for parameterized calling of specific PAC instructions.
+ * The instructions are implemented in assembly as they may generate exceptions
+ * (FEAT_FPAC) which need catching.
+ */
+static int autxx(bool instr_not_data,
+                 bool key_a_not_b,
+                 uint64_t address,
+                 uint64_t modifier,
+                 uint64_t* result) {
+    if (key_a_not_b) {
+        if (instr_not_data) {
+            return pactest_autia(address, modifier, result);
+        } else {
+            return pactest_autda(address, modifier, result);
+        }
+    } else {
+        if (instr_not_data) {
+            return pactest_autib(address, modifier, result);
+        } else {
+            return pactest_autdb(address, modifier, result);
+        }
+    }
+}
 
 static uint8_t get_nibble(uint64_t reg, uint8_t shift) {
     return (reg >> shift) & 0xf;
@@ -111,7 +180,7 @@ TEST(pactest, fpac_supported) {
         return;
     }
 
-    rc = pactest_autia(PACTEST_ADDRESS, PACTEST_MODIFIER, &val);
+    rc = pactest_autia(PACTEST_TT0_ADDRESS, PACTEST_MODIFIER, &val);
     EXPECT_EQ(rc, ERR_FAULT);
 }
 
@@ -126,111 +195,56 @@ TEST(pactest, enabled) {
     EXPECT_EQ(sctlr_el1 & SCTLR_EL1_ENDB, 0);
 }
 
-TEST(pactest, instr_pacautia) {
-    const uint64_t sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
-    uint64_t address = PACTEST_ADDRESS;
-    int rc;
-
-    if (arch_pac_address_supported() && (sctlr_el1 & SCTLR_EL1_ENIA) != 0) {
-        /* Test PACIA adds a PAC */
-        __asm__(".arch_extension pauth\n"
-                "\tPACIA %0, %1"
-                : "+r"(address)
-                : "r"(PACTEST_MODIFIER));
-        EXPECT_NE(PACTEST_ADDRESS, address);
-
-        uint64_t pac_address = address;
-
-        /* Check AUTIA returns the original pointer */
-        rc = pactest_autia(address, PACTEST_MODIFIER, &address);
-        EXPECT_EQ(rc, 0)
-        EXPECT_EQ(PACTEST_ADDRESS, address);
-
-        /* Check the pointer is invalidated  if the modifier is changed */
-        rc = pactest_autia(pac_address, ~PACTEST_MODIFIER, &address);
-        if (arch_pac_exception_supported()) {
-            EXPECT_EQ(rc, ERR_FAULT);
-        } else {
-            /* Address should have been invalidated */
-            EXPECT_EQ(rc, 0);
-            EXPECT_NE(address, PACTEST_ADDRESS);
-        }
-
-    } else {
-        /* Test PACIA does nothing */
-        __asm__(".arch_extension pauth\n"
-                "\tPACIA %0, %1"
-                : "+r"(address)
-                : "r"(PACTEST_MODIFIER));
-        EXPECT_EQ(address, PACTEST_ADDRESS);
-
-        /* Check AUTIA does nothing */
-        rc = pactest_autia(address, PACTEST_MODIFIER, &address);
-        EXPECT_EQ(rc, 0)
-        EXPECT_EQ(address, PACTEST_ADDRESS);
+TEST(pactest, keys) {
+    if (!arch_pac_address_supported()) {
+        trusty_unittest_printf("[  SKIPPED ] PAuth is not supported\n");
+        return;
     }
-}
 
-/* This is exactly the same as the pacautia test, but for the b key */
+    const struct packeys* thread_keys = &get_current_thread()->arch.packeys;
+    const uint64_t keyi_lo = ARM64_READ_SYSREG(APIAKeyLo_EL1);
+    const uint64_t keyi_hi = ARM64_READ_SYSREG(APIAKeyHi_EL1);
 
-TEST(pactest, instr_pacautib) {
-    const uint64_t sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
-    uint64_t address = PACTEST_ADDRESS;
-    int rc;
+    EXPECT_EQ(thread_keys->apia[0], keyi_lo);
+    EXPECT_EQ(thread_keys->apia[1], keyi_hi);
 
-    if (arch_pac_address_supported() && (sctlr_el1 & SCTLR_EL1_ENIB) != 0) {
-        /* Test PACIB adds a PAC */
-        __asm__(".arch_extension pauth\n"
-                "\tPACIB %0, %1"
-                : "+r"(address)
-                : "r"(PACTEST_MODIFIER));
-        EXPECT_NE(PACTEST_ADDRESS, address);
-
-        uint64_t pac_address = address;
-
-        /* Check AUTIB returns the original pointer */
-        rc = pactest_autib(address, PACTEST_MODIFIER, &address);
-        EXPECT_EQ(rc, 0)
-        EXPECT_EQ(PACTEST_ADDRESS, address);
-
-        /* Check the pointer is invalidated  if the modifier is changed */
-        rc = pactest_autib(pac_address, ~PACTEST_MODIFIER, &address);
-        if (arch_pac_exception_supported()) {
-            EXPECT_EQ(rc, ERR_FAULT);
-        } else {
-            /* Address should have been invalidated */
-            EXPECT_EQ(rc, 0);
-            EXPECT_NE(address, PACTEST_ADDRESS);
-        }
-
-    } else {
-        /* Test PACIB does nothing */
-        __asm__(".arch_extension pauth\n"
-                "\tPACIB %0, %1"
-                : "+r"(address)
-                : "r"(PACTEST_MODIFIER));
-        EXPECT_EQ(address, PACTEST_ADDRESS);
-
-        /* Check AUTIB does nothing */
-        rc = pactest_autib(address, PACTEST_MODIFIER, &address);
-        EXPECT_EQ(rc, 0)
-        EXPECT_EQ(address, PACTEST_ADDRESS);
-    }
+    /*
+     * Check the keys are neither all 0's of all 1's.
+     * While these values are valid, it may indicate incorrect initialisation.
+     */
+    EXPECT_NE(UINT64_MAX, keyi_lo);
+    EXPECT_NE(UINT64_MAX, keyi_hi);
+    EXPECT_NE(0, keyi_lo);
+    EXPECT_NE(0, keyi_hi);
 }
 
 typedef struct {
     bool translation_table;
-    bool address_not_data;
+    bool instr_not_data;
+    bool key_a_not_b;
+    bool key_enabled;
 } pactest_t;
 
 static void get_params(pactest_t* p) {
     const bool* const* params = GetParam();
     p->translation_table = *params[0];
-    p->address_not_data = *params[1];
+    /* Invert for more logical test ordering: AI, AD, BI, BD */
+    p->instr_not_data = !*params[1];
+    p->key_a_not_b = !*params[2];
 }
 
 TEST_F_SETUP(pactest) {
+    uint64_t key_enabled_bit;
+
     get_params(_state);
+
+    if (_state->instr_not_data) {
+        key_enabled_bit = _state->key_a_not_b ? SCTLR_EL1_ENIA : SCTLR_EL1_ENIB;
+    } else {
+        key_enabled_bit = _state->key_a_not_b ? SCTLR_EL1_ENDA : SCTLR_EL1_ENDB;
+    }
+
+    _state->key_enabled = ARM64_READ_SYSREG(SCTLR_EL1) & key_enabled_bit;
 }
 
 TEST_F_TEARDOWN(pactest) {}
@@ -241,14 +255,68 @@ static void user_param_to_string(const void* param,
     pactest_t p;
     get_params(&p);
 
-    snprintf(buf, buf_size, "TT%u/%s", p.translation_table ? 1 : 0,
-             p.address_not_data ? "PACA" : "PACD");
+    snprintf(buf, buf_size, "TT%u/%s%s", p.translation_table ? 1 : 0,
+             p.instr_not_data ? "PACI" : "PACD", p.key_a_not_b ? "A" : "B");
 }
 
-INSTANTIATE_TEST_SUITE_P(pac_length,
+INSTANTIATE_TEST_SUITE_P(pac,
                          pactest,
-                         testing_Combine(testing_Bool(), testing_Bool()),
+                         testing_Combine(testing_Bool(),
+                                         testing_Bool(),
+                                         testing_Bool()),
                          user_param_to_string);
+
+TEST_P(pactest, instr) {
+    if (!arch_pac_address_supported()) {
+        trusty_unittest_printf("[  SKIPPED ] PAuth is not supported\n");
+        return;
+    }
+
+    const uint64_t test_address = _state->translation_table
+                                          ? PACTEST_TT1_ADDRESS
+                                          : PACTEST_TT0_ADDRESS;
+    uint64_t address = test_address;
+    int rc;
+
+    if (_state->key_enabled) {
+        /* Test instruction adds a PAC */
+        address = pacxx(_state->instr_not_data, _state->key_a_not_b, address,
+                        PACTEST_MODIFIER);
+
+        /* Address should have been modified to include PAC */
+        EXPECT_NE(test_address, address);
+
+        uint64_t pac_address = address;
+
+        /* Check AUT returns the original pointer */
+        rc = autxx(_state->instr_not_data, _state->key_a_not_b, address,
+                   PACTEST_MODIFIER, &address);
+
+        EXPECT_EQ(rc, 0)
+        EXPECT_EQ(test_address, address);
+
+        /* Check the pointer is invalidated when the modifier is changed */
+        rc = autxx(_state->instr_not_data, _state->key_a_not_b, pac_address,
+                   ~PACTEST_MODIFIER, &address);
+        if (arch_pac_exception_supported()) {
+            EXPECT_EQ(rc, ERR_FAULT);
+        } else {
+            /* Address should have been invalidated */
+            EXPECT_EQ(rc, 0);
+            EXPECT_NE(address, test_address);
+        }
+    } else { /* Key disabled */
+
+        address = pacxx(_state->instr_not_data, _state->key_a_not_b, address,
+                        PACTEST_MODIFIER);
+        EXPECT_EQ(test_address, address);
+
+        rc = autxx(_state->instr_not_data, _state->key_a_not_b, address,
+                   PACTEST_MODIFIER, &address);
+        EXPECT_EQ(rc, 0)
+        EXPECT_EQ(test_address, address);
+    }
+}
 
 TEST_P(pactest, pac_length) {
     if (!arch_pac_address_supported()) {
@@ -257,11 +325,6 @@ TEST_P(pactest, pac_length) {
     }
 
     uint8_t top = 0, bot = 64;
-    const uint64_t sctlr_el1 = ARM64_READ_SYSREG(SCTLR_EL1);
-
-    /* Enable all keys */
-    ARM64_WRITE_SYSREG(SCTLR_EL1, sctlr_el1 | SCTLR_EL1_ENIA | SCTLR_EL1_ENIB |
-                                          SCTLR_EL1_ENDA | SCTLR_EL1_ENDB);
 
     /*
      * Probe a number of times in order to ensure we find the top and bottom
@@ -283,16 +346,8 @@ TEST_P(pactest, pac_length) {
             val |= 1ull << 55;
         }
 
-        /* Select instruction type */
-        if (_state->address_not_data) {
-            __asm__(".arch_extension pauth\n"
-                    "\tPACIZA %0"
-                    : "+r"(val));
-        } else {
-            __asm__(".arch_extension pauth\n"
-                    "\tPACDZA %0"
-                    : "+r"(val));
-        }
+        /* Call specific instruction variant */
+        val = pacxx(_state->instr_not_data, _state->key_a_not_b, val, 0);
 
         /* Remove un-changed bits and clear bit 55 */
         val ^= orig;
@@ -305,22 +360,27 @@ TEST_P(pactest, pac_length) {
         }
     }
 
-    /* If this is not true, the PAC key not be functioning */
-    ASSERT_GT(top, bot);
+    if (_state->key_enabled) {
+        /* If this is not true, the PAC key not be functioning */
+        ASSERT_GT(top, bot);
 
-    /* Count bit range, except bit 55 if it is in the range */
-    int bits = (top + 1) - bot;
-    if (bot < 55 && top > 55) {
-        bits--;
+        /* Count bit range, except bit 55 if it is in the range */
+        int bits = (top + 1) - bot;
+        if (bot < 55 && top > 55) {
+            bits--;
+        }
+
+        trusty_unittest_printf("[   INFO   ] PAC bits %" PRIu8 ":%" PRIu8
+                               " = %d effective bits\n",
+                               top, bot, bits);
+    } else {
+        trusty_unittest_printf("[   INFO   ] PAC key disabled\n");
+
+        ASSERT_EQ(top, 0);
+        ASSERT_EQ(bot, 64);
     }
 
-    trusty_unittest_printf("[   INFO   ] PAC bits %" PRIu8 ":%" PRIu8
-                           " = %d effective bits\n",
-                           top, bot, bits);
-
-test_abort:
-    /* Restore enabled keys */
-    ARM64_WRITE_SYSREG(SCTLR_EL1, sctlr_el1);
+test_abort:;
 }
 
 PORT_TEST(pactest, "com.android.kernel.pactest");

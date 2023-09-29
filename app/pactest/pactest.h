@@ -26,3 +26,7 @@
 int pactest_autia(uint64_t address, uint64_t modifier, uint64_t* result);
 
 int pactest_autib(uint64_t address, uint64_t modifier, uint64_t* result);
+
+int pactest_autda(uint64_t address, uint64_t modifier, uint64_t* result);
+
+int pactest_autdb(uint64_t address, uint64_t modifier, uint64_t* result);
