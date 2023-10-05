@@ -193,15 +193,20 @@ TRUSTY_BUILTIN_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) \
 # the crate itself with the same path.
 RUST_USER_TEST_MODULES := $(addsuffix -test,$(TRUSTY_RUST_USER_TESTS))
 
+
+ifneq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
 # Default to including all user tests in the image if the set of builtin tests
 # is not selected.
-ifneq (true,$(call TOBOOL,$(UNITTEST_COVERAGE_ENABLED)))
 TRUSTY_BUILTIN_USER_TESTS ?= $(TRUSTY_USER_TESTS) $(RUST_USER_TEST_MODULES)
 TRUSTY_BUILTIN_USER_TASKS += $(TRUSTY_BUILTIN_USER_TESTS)
 endif
 
+# remove duplicates
+TRUSTY_BUILTIN_USER_TASKS := $(sort $(TRUSTY_BUILTIN_USER_TASKS))
+
 ALL_USER_TASKS := $(TRUSTY_BUILTIN_USER_TASKS) $(TRUSTY_LOADABLE_USER_TASKS)  \
 		  $(TRUSTY_USER_TESTS) $(TRUSTY_LOADABLE_USER_TESTS) $(TRUSTY_RUST_USER_TESTS)
+
 # sort and remove duplicates
 ALL_USER_TASKS := $(sort $(ALL_USER_TASKS))
 
@@ -387,20 +392,6 @@ ARCH := $(TRUSTY_KERNEL_SAVED_ARCH)
 ALLOW_FP_USE := $(TRUSTY_KERNEL_SAVED_ALLOW_FP_USE)
 SCS_ENABLED := $(TRUSTY_KERNEL_SAVED_SCS_ENABLED)
 
-
-#
-# Check for duplicate tasks
-#
-$(foreach _task,$(TRUSTY_BUILTIN_USER_TASKS),\
-  $(eval DUPLICATE_TASKS += $$(filter $$(TASKS_SEEN),$$(_task)))\
-  $(eval TASKS_SEEN += $$(_task))\
-)
-
-ifneq ($(strip $(DUPLICATE_TASKS)),)
-$(error Duplicate TRUSTY_BUILTIN_USER_TASKS: $(DUPLICATE_TASKS))
-endif
-
-
 #
 # Generate combined user task obj/bin if necessary
 #
@@ -429,8 +420,6 @@ endif
 
 # Reset app variables
 BUILDDIR := $(TRUSTY_TOP_LEVEL_BUILDDIR)
-TASKS_SEEN :=
-DUPLICATE_TASKS :=
 TRUSTY_APP :=
 TRUSTY_APP_NAME :=
 TRUSTY_APP_BASE_LDFLAGS :=

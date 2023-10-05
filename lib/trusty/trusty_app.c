@@ -134,8 +134,8 @@ static event_t app_mgr_event =
 static struct list_node allowed_mmio_ranges_list =
         LIST_INITIAL_VALUE(allowed_mmio_ranges_list);
 
-#define PRINT_TRUSTY_APP_UUID(tid, u)                                                              \
-    dprintf(SPEW,                                                                                  \
+#define PRINT_TRUSTY_APP_UUID(level, tid, u)                                                       \
+    dprintf((level),                                                                               \
             "trusty_app %d uuid: 0x%08xx 0x%04xx 0x%04xx 0x%02x%02x 0x%02x%02x%02x%02x%02x%02x\n", \
             tid, (u)->time_low, (u)->time_mid, (u)->time_hi_and_version,                           \
             (u)->clock_seq_and_node[0], (u)->clock_seq_and_node[1],                                \
@@ -1079,13 +1079,14 @@ static status_t load_app_config_options(struct trusty_app* trusty_app) {
         return ERR_NOT_VALID;
     }
 
-    PRINT_TRUSTY_APP_UUID(trusty_app->app_id, &trusty_app->props.uuid);
-
     if (trusty_app_find_by_uuid_locked(&trusty_app->props.uuid)) {
+        PRINT_TRUSTY_APP_UUID(CRITICAL, trusty_app->app_id,
+                              &trusty_app->props.uuid);
         dprintf(CRITICAL, "app already registered\n");
         return ERR_ALREADY_EXISTS;
     }
 
+    PRINT_TRUSTY_APP_UUID(SPEW, trusty_app->app_id, &trusty_app->props.uuid);
     dprintf(SPEW, "trusty_app %u name: %s priority: %u\n", trusty_app->app_id,
             trusty_app->props.app_name, trusty_app->props.priority);
 
